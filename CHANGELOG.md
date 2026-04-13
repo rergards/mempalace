@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-14 · CODE-TREESITTER-PYTHON
+
+Tree-sitter AST-aware Python chunking: extracts function/class/method boundaries from `function_definition`, `class_definition`, and `decorated_definition` nodes; falls back to regex when py-tree-sitter is unavailable.
+
 ## 2026-04-14 · CODE-TREESITTER-INFRA
 
 Tree-sitter optional infra: `.[treesitter]` extra, grammar download/cache, parser init, and automatic regex fallback when py-tree-sitter is absent or grammar unavailable.
