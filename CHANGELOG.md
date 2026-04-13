@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-14 · CODE-TREESITTER-INFRA
+
+Tree-sitter optional infra: `.[treesitter]` extra, grammar download/cache, parser init, and automatic regex fallback when py-tree-sitter is absent or grammar unavailable.
+
 ## v1.0.0 — 2026-04-12
 
 First public release of **mempalace-code**, a code-first fork of
