@@ -731,15 +731,6 @@ items:
 
       - Do not remove existing chromadb-dependent tests; guard with pytest.importorskip
       - The mock approach (patch.dict sys.modules chromadb None) is preferred over subprocess for speed
-  - key: MINE-DEVOPS-INFRA
-    summary: Add DevOps/infrastructure file support to miner (Terraform, Docker, Helm, Ansible, Make, etc.)
-    type: feature
-    status: done
-    priority: medium
-    size: M
-    section_id: coding_first
-    labels: [mining, chunking, devops]
-    resolution: '2026-04-14: Added DevOps/infrastructure file support: Terraform (.tf/.tfvars/.hcl) with HCL boundary chunking, Dockerfile/Makefile via FILENAME_LANG_MAP, Helm templates (.tpl), Ansible Jinja2 (.j2/.jinja2), config files (.conf/.cfg/.ini/.mk). .terraform/ added to SKIP_DIRS. Updated SUPPORTED_LANGUAGES in searcher.py and code_search description in mcp_server.py. 237 tests pass. Hardening round-1 (2026-04-14): 0 fixed, 2 backlogged (MINE-HCL-BOUNDARY-MODERN, MINE-DEVOPS-SCAN-COVERAGE), 1 dismissed.'
   - key: MINE-HCL-BOUNDARY-MODERN
     summary: Extend HCL_BOUNDARY to cover Terraform 1.1+ block types (moved, import, check, removed)
     type: task
