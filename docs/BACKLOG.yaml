@@ -43,18 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: CODE-SMART-CHUNK-VAR-BOUNDARY
-    summary: "Add non-exported var to TS_BOUNDARY in chunk_code()"
-    type: task
-    priority: low
-    status: done
-    size: S
-    section_id: coding_first
-    labels: [mining, chunking]
-    description: >
-      TS_BOUNDARY in miner.py detects exported var via the export branch but has no arm for top-level non-exported `var foo = ...`. Add `var\s+\w+\s*[:=]` to TS_BOUNDARY alongside the existing const/let arms. Acceptance criteria: a TS/JS file with a top-level non-exported var declaration produces a new chunk boundary at that var; existing tests unchanged; ruff clean. Low-priority since var is deprecated in modern TS/JS. Identified in CODE-SMART-CHUNK harden round-1 (F-004).
-
-    resolution: '2026-04-14: Add var\s+\w+\s*[:=] arm to TS_BOUNDARY after let arm; add test_ts_var_toplevel_boundary verifying regex match and chunk boundary; ruff clean, all tests pass. Harden round-1: 1 fixed (AC-1 test strengthened — removed paragraph-split coincidence, added startswith assertion), 0 backlogged, 2 dismissed. Audit: docs/audits/CODE-SMART-CHUNK-VAR-BOUNDARY-round-1.md'
   - key: STORE-BACKUP-RESTORE
     summary: "Palace backup and restore commands"
     type: feature
@@ -244,7 +232,7 @@ items:
   - key: MINE-EAGER-EMBED-INIT
     summary: "Force eager embedding model init during 'Loading embedding model...' phase"
     type: task
-    status: open
+    status: done
     priority: low
     size: XS
     section_id: coding_first
@@ -252,7 +240,7 @@ items:
     description: >
       LanceDB lazily initializes the sentence-transformers model on first embed call, not at store open time. This causes the "Loading weights" output from HuggingFace to appear mid-batch during flush_batch() instead of during the "Loading embedding model..." phase. Fix: after get_collection() in mine(), call a dummy embed (e.g. store._embed(["warmup"])) to force model initialization. AC: all model loading output appears between "Loading embedding model..." and "Model ready."; no HF output during batch embedding.
 
-    resolution: null
+    resolution: "Already implemented in commit 530688f (MINE-LANCE-COMPACT): LanceStore.warmup() calls self._embed(['warmup']); mine() calls collection.warmup() between 'Loading embedding model...' and 'Model ready.' prints. Tests: TestWarmup + test_mine_calls_warmup_once. Verified 2026-04-14."
   - key: CI-CHROMA-COMPAT-TESTS
     summary: "Add ChromaStore-specific tests so the chroma-compat CI job actually validates ChromaDB"
     type: task
