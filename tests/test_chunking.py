@@ -935,3 +935,262 @@ def test_ast_no_definitions_strategy_tag():
         assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1", (
             f"Expected 'treesitter_adaptive_v1', got {chunk.get('chunker_strategy')!r}"
         )
+
+
+# =============================================================================
+# chunk_code — TypeScript/JavaScript AST path (tree-sitter)
+# =============================================================================
+
+# --- Fixture sources ---
+
+TS_AST_EXPORTS = """\
+import { readFile } from 'fs/promises';
+import path from 'path';
+
+/** Reads a file and returns its trimmed content as a string. */
+export async function readContent(filePath: string): Promise<string> {
+    const buf = await readFile(filePath);
+    return buf.toString().trim();
+}
+
+export class FileLoader {
+    private base: string;
+    constructor(base: string) { this.base = base; }
+    load(name: string): Promise<string> {
+        return readContent(path.join(this.base, name));
+    }
+}
+
+export interface LoaderConfig {
+    base: string;
+    encoding: BufferEncoding;
+}
+
+export type FilePath = string;
+
+export enum FileKind {
+    Text = "text",
+    Binary = "binary",
+}
+"""
+
+TS_AST_ARROW = """\
+import { logger } from './logger';
+
+export const transform = (input: string): string => {
+    logger.debug("transforming", input);
+    return input.toUpperCase().replace(/\\s+/g, "_");
+};
+
+export const validate = (value: unknown): value is string => {
+    return typeof value === "string" && value.length > 0;
+};
+"""
+
+TS_AST_TEST_BLOCKS = """\
+import { add, subtract } from './math';
+
+describe('arithmetic', () => {
+    it('add returns correct sum for positive integers', () => {
+        expect(add(2, 3)).toBe(5);
+        expect(add(0, 0)).toBe(0);
+    });
+
+    it('subtract returns correct difference for given integers', () => {
+        expect(subtract(10, 4)).toBe(6);
+    });
+});
+"""
+
+TS_AST_JSDOC = """\
+/**
+ * Computes the Fibonacci number at position n using memoized recursion.
+ * Returns 0 for n <= 0 and handles large inputs via BigInt internally.
+ */
+export function fibonacci(n: number): number {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+"""
+
+TS_AST_IMPORTS_ONLY = """\
+import { readContent } from './reader';
+import { FileLoader } from './loader';
+import type { LoaderConfig } from './types';
+"""
+
+TSX_AST_COMPONENT = """\
+import React, { FC } from 'react';
+
+interface ButtonProps {
+    label: string;
+    onClick: () => void;
+}
+
+export const Button: FC<ButtonProps> = ({ label, onClick }) => (
+    <button type="button" onClick={onClick} className="btn">
+        {label}
+    </button>
+);
+
+export default Button;
+"""
+
+JS_AST_FUNCS = """\
+const MAX_RETRIES = 3;
+
+function fetchWithRetry(url, options) {
+    let attempt = 0;
+    function doFetch() {
+        return fetch(url, options).catch(err => {
+            if (attempt++ < MAX_RETRIES) return doFetch();
+            throw err;
+        });
+    }
+    return doFetch();
+}
+
+class HttpClient {
+    constructor(baseUrl) { this.baseUrl = baseUrl; }
+    get(path) { return fetchWithRetry(this.baseUrl + path, {}); }
+}
+
+module.exports = { fetchWithRetry, HttpClient };
+"""
+
+
+def _skip_if_no_ts_ast():
+    """Skip test if tree-sitter TypeScript grammar is not active."""
+    try:
+        import tree_sitter  # noqa: F401
+        import tree_sitter_typescript  # noqa: F401
+    except ImportError:
+        pytest.skip("tree-sitter-typescript not installed")
+
+
+# --- Tests ---
+
+
+def test_ast_ts_exports_detected():
+    """AC-1: export function, const, class all appear in AST-chunked output."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    joined = "\n".join(contents(chunks))
+    assert "export async function readContent" in joined
+    assert "export class FileLoader" in joined
+    assert "export interface LoaderConfig" in joined
+    assert "export type FilePath" in joined
+    assert "export enum FileKind" in joined
+
+
+def test_ast_ts_interface_boundary():
+    """AC-1: interface_declaration gets its own chunk boundary."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    found = any("interface LoaderConfig" in c for c in contents(chunks))
+    assert found, "interface LoaderConfig not found in any chunk"
+
+
+def test_ast_ts_type_alias_boundary():
+    """AC-1: type_alias_declaration gets its own chunk boundary."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    found = any("type FilePath" in c for c in contents(chunks))
+    assert found, "type FilePath not found in any chunk"
+
+
+def test_ast_ts_enum_boundary():
+    """AC-1: enum_declaration gets its own chunk boundary."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    found = any("enum FileKind" in c for c in contents(chunks))
+    assert found, "enum FileKind not found in any chunk"
+
+
+def test_ast_ts_arrow_function_boundary():
+    """AC-1: arrow-function lexical_declaration gets its own chunk boundary."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_ARROW, "typescript", "test.ts")
+    joined = "\n".join(contents(chunks))
+    assert "const transform" in joined
+    assert "const validate" in joined
+
+
+def test_ast_ts_test_blocks_detected():
+    """AC-1: describe/it expression_statement nodes produce boundaries."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_TEST_BLOCKS, "typescript", "test.ts")
+    joined = "\n".join(contents(chunks))
+    assert "describe" in joined
+    assert "it('add" in joined
+
+
+def test_ast_ts_jsdoc_attached():
+    """AC-6: JSDoc comment immediately above a declaration is in the same chunk."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_JSDOC, "typescript", "test.ts")
+    for c in contents(chunks):
+        if "export function fibonacci" in c:
+            assert "Computes the Fibonacci" in c
+            break
+    else:
+        pytest.fail("fibonacci not found in any chunk")
+
+
+def test_ast_ts_imports_in_preamble():
+    """AC-5: leading import statements are collected before the first definition."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    joined = "\n".join(contents(chunks))
+    assert "import { readFile }" in joined
+    assert "import path" in joined
+
+
+def test_ast_ts_chunker_strategy_tag():
+    """AC-1: every chunk from TS AST path carries chunker_strategy='treesitter_v1'."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_EXPORTS, "typescript", "test.ts")
+    assert len(chunks) >= 1
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_v1"
+
+
+def test_ast_tsx_jsx_parsed():
+    """AC-3: TSX component with JSX syntax parses without errors and produces chunks."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TSX_AST_COMPONENT, "tsx", "Button.tsx")
+    joined = "\n".join(contents(chunks))
+    assert "Button" in joined
+    assert len(chunks) >= 1
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_v1"
+
+
+def test_ast_js_extension_handled():
+    """AC-2: .js files route through AST path with function/class boundaries."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(JS_AST_FUNCS, "javascript", "client.js")
+    joined = "\n".join(contents(chunks))
+    assert "fetchWithRetry" in joined
+    assert "HttpClient" in joined
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_v1"
+
+
+def test_ast_jsx_extension_handled():
+    """AC-3: .jsx files routed through TSX grammar produce valid chunks."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TSX_AST_COMPONENT, "jsx", "Button.jsx")
+    joined = "\n".join(contents(chunks))
+    assert "Button" in joined
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_v1"
+
+
+def test_ast_ts_no_definitions_falls_back():
+    """AC-4: import-only file (no definitions) falls back to treesitter_adaptive_v1."""
+    _skip_if_no_ts_ast()
+    chunks = chunk_code(TS_AST_IMPORTS_ONLY, "typescript", "index.ts")
+    assert len(chunks) >= 1
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1"

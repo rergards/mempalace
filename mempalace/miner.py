@@ -25,9 +25,9 @@ from .version import __version__
 EXTENSION_LANG_MAP = {
     ".py": "python",
     ".js": "javascript",
-    ".jsx": "javascript",
+    ".jsx": "jsx",
     ".ts": "typescript",
-    ".tsx": "typescript",
+    ".tsx": "tsx",
     ".go": "go",
     ".rs": "rust",
     ".rb": "ruby",
@@ -476,9 +476,11 @@ def get_boundary_pattern(language: str):
         ".py": PY_BOUNDARY,
         "typescript": TS_BOUNDARY,
         ".ts": TS_BOUNDARY,
+        "tsx": TS_BOUNDARY,
         ".tsx": TS_BOUNDARY,
         "javascript": TS_BOUNDARY,
         ".js": TS_BOUNDARY,
+        "jsx": TS_BOUNDARY,
         ".jsx": TS_BOUNDARY,
         "go": GO_BOUNDARY,
         ".go": GO_BOUNDARY,
@@ -613,7 +615,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
     if language is None:
         language = EXTENSION_LANG_MAP.get(ext, "unknown")
 
-    if language in ("python", "typescript", "javascript", "go", "rust"):
+    if language in ("python", "typescript", "javascript", "tsx", "jsx", "go", "rust"):
         return chunk_code(content, language, source_file)
     elif language in ("markdown", "text"):
         return chunk_prose(content, source_file)
@@ -698,6 +700,92 @@ def _chunk_python_treesitter(parser, content: str, source_file: str) -> list:
     return merged
 
 
+def _chunk_typescript_treesitter(parser, content: str, source_file: str) -> list:
+    """
+    AST-aware TypeScript/JavaScript/TSX/JSX chunker using tree-sitter.
+
+    Extracts top-level export_statement, function_declaration, class_declaration,
+    interface_declaration, type_alias_declaration, enum_declaration,
+    lexical_declaration, and expression_statement nodes as chunk boundaries.
+    Leading import_statement nodes are collected into a preamble chunk. Attaches
+    immediately adjacent leading comment siblings (no blank-line gap) to their
+    definition. Feeds raw text chunks through adaptive_merge_split() and tags
+    each result with chunker_strategy='treesitter_v1'.
+
+    Falls back to chunk_adaptive_lines() when no definition nodes are found
+    (e.g. barrel files that only re-export or pure-import files).
+    """
+    DEFINITION_TYPES = frozenset(
+        {
+            "export_statement",
+            "function_declaration",
+            "class_declaration",
+            "interface_declaration",
+            "type_alias_declaration",
+            "enum_declaration",
+            "lexical_declaration",
+            "expression_statement",
+        }
+    )
+
+    source_bytes = content.encode("utf-8")
+    tree = parser.parse(source_bytes)
+    children = tree.root_node.children
+
+    # Build boundary_indices: for each definition node, track the start child
+    # index after pulling in any immediately preceding comment siblings.
+    boundary_indices: list = []
+    for i, child in enumerate(children):
+        if child.type in DEFINITION_TYPES:
+            start_i = i
+            j = i - 1
+            while j >= 0:
+                prev = children[j]
+                if prev.type == "comment":
+                    # No blank line between this comment and the node after it?
+                    gap = source_bytes[prev.end_byte : children[j + 1].start_byte]
+                    if b"\n\n" in gap:
+                        break
+                    start_i = j
+                    j -= 1
+                else:
+                    break
+            boundary_indices.append(start_i)
+
+    if not boundary_indices:
+        # No top-level definitions found (e.g. barrel/config file with only imports).
+        fallback = chunk_adaptive_lines(content, source_file)
+        for chunk in fallback:
+            chunk["chunker_strategy"] = "treesitter_adaptive_v1"
+        return fallback
+
+    raw_chunks: list = []
+
+    # Preamble: all content before the first boundary (imports, license header, etc.)
+    first_start_byte = children[boundary_indices[0]].start_byte
+    if first_start_byte > 0:
+        preamble = source_bytes[:first_start_byte].decode("utf-8").strip()
+        if preamble:
+            raw_chunks.append(preamble)
+
+    # Each definition chunk: from its start_byte to the next boundary's start_byte
+    for k, start_child_idx in enumerate(boundary_indices):
+        start_byte = children[start_child_idx].start_byte
+        end_byte = (
+            children[boundary_indices[k + 1]].start_byte
+            if k + 1 < len(boundary_indices)
+            else len(source_bytes)
+        )
+        text = source_bytes[start_byte:end_byte].decode("utf-8").strip()
+        if text:
+            raw_chunks.append(text)
+
+    merged = adaptive_merge_split(raw_chunks, source_file)
+    for chunk in merged:
+        chunk["chunker_strategy"] = "treesitter_v1"
+    return merged
+
+
 def chunk_code(content: str, language: str, source_file: str) -> list:
     """
     Split code at structural boundaries (function/class/export declarations).
@@ -707,8 +795,8 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
     `language` accepts canonical language strings ("python", "typescript") or
     raw file extensions (".py", ".ts") for backward compatibility.
 
-    When tree-sitter is installed and the language is Python, AST-based chunking
-    via _chunk_python_treesitter() is used. All other languages still use the
+    When tree-sitter is installed and the language is Python, TypeScript, JavaScript,
+    TSX, or JSX, AST-based chunking is used. All other languages still use the
     regex path below.
     """
     canonical = EXTENSION_LANG_MAP.get(language, language)
@@ -716,12 +804,23 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
     if parser is not None:
         if canonical == "python":
             return _chunk_python_treesitter(parser, content, source_file)
+        if canonical in ("typescript", "javascript", "tsx", "jsx"):
+            return _chunk_typescript_treesitter(parser, content, source_file)
 
     boundary = get_boundary_pattern(language)
     if not boundary:
         return chunk_adaptive_lines(content, source_file)
 
-    is_ts_js = language in ("typescript", "javascript", ".ts", ".tsx", ".js", ".jsx")
+    is_ts_js = language in (
+        "typescript",
+        "javascript",
+        "tsx",
+        "jsx",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+    )
 
     lines = content.split("\n")
     boundaries = []

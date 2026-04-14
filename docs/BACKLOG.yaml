@@ -673,34 +673,10 @@ items:
       1. Three new passing e2e scenario tests covering convo_miner, layers, and palace_graph
       2. No test depends on external network or shared palace state
       3. ruff check passes
-  - key: CODE-TREESITTER-PYTHON
-    summary: 'Tree-sitter Python chunking: AST-aware function/class/method boundaries'
-    type: task
-    status: done
-    priority: medium
-    size: M
-    section_id: coding_first
-    labels: [mining, chunking, ast, python]
-    completed_at: '2026-04-14'
-    completion_summary: >-
-      Implemented _chunk_python_treesitter() in miner.py: walks top-level AST nodes, attaches adjacent comment siblings, emits preamble chunk, tags chunks with chunker_strategy='treesitter_v1'. Wired into chunk_code() via canonical language lookup; regex path unchanged as fallback. Added AST tests in test_chunking.py and test_treesitter.py; AC-4 integration test in test_miner.py. All 460 tests pass.
-      Hardened (round 1): fixed misleading chunker_strategy tag on no-definition fallback path (now 'treesitter_adaptive_v1'); added test coverage; 1 finding backlogged (CODE-TREESITTER-PYTHON-DETACH-TEST).
-    description: |-
-      ## Scope
-
-      Replace regex-based Python structural splitting in chunk_code() with tree-sitter AST parsing. Extract function_definition, class_definition, and decorated_definition nodes as chunk boundaries. Keep regex path as fallback when tree-sitter is unavailable.
-
-      ## Acceptance criteria
-
-      1. Python files are chunked using tree-sitter AST nodes when py-tree-sitter is installed
-      2. A/B test against current R@5=0.950 on embed_ab_bench — must not regress
-      3. Existing chunking tests pass (regex fallback path unchanged)
-      4. New tests cover: function, class, decorated function, nested class boundaries
-      5. ruff clean
   - key: CODE-TREESITTER-TS
     summary: 'Tree-sitter TypeScript/JS/TSX chunking: AST-aware boundaries'
     type: task
-    status: open
+    status: done
     priority: medium
     size: M
     section_id: coding_first
@@ -716,6 +692,7 @@ items:
       2. Existing TS/JS chunking tests pass (regex fallback path unchanged)
       3. New tests cover: export function, arrow function, class, interface, type alias boundaries
       4. ruff clean
+    resolution: '2026-04-14: Tree-sitter TypeScript/JS/TSX/JSX AST chunking: _chunk_typescript_treesitter() in miner.py, javascript+jsx grammar loaders in treesitter.py, 12 new AST tests in test_chunking.py, 5 new parser tests in test_treesitter.py, mining integration test in test_miner.py. All 480 tests pass.'
   - key: CODE-TREESITTER-EXPAND
     summary: Tree-sitter Go + Rust grammar support
     type: task

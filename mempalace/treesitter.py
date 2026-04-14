@@ -30,7 +30,9 @@ _parser_cache: "dict[str, Parser]" = {}
 _GRAMMAR_LOADERS = {
     "python": lambda: __import__("tree_sitter_python").language(),
     "typescript": lambda: __import__("tree_sitter_typescript").language_typescript(),
+    "javascript": lambda: __import__("tree_sitter_typescript").language_typescript(),
     "tsx": lambda: __import__("tree_sitter_typescript").language_tsx(),
+    "jsx": lambda: __import__("tree_sitter_typescript").language_tsx(),
 }
 
 

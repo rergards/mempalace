@@ -17,9 +17,9 @@ from mempalace.miner import detect_language
     [
         (".py", "python"),
         (".js", "javascript"),
-        (".jsx", "javascript"),
+        (".jsx", "jsx"),
         (".ts", "typescript"),
-        (".tsx", "typescript"),
+        (".tsx", "tsx"),
         (".go", "go"),
         (".rs", "rust"),
         (".rb", "ruby"),

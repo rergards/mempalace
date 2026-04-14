@@ -204,3 +204,86 @@ def test_chunk_code_python_ast_extension_input():
     chunks = chunk_code(src, ".py", "test.py")
     for chunk in chunks:
         assert chunk.get("chunker_strategy") == "treesitter_v1"
+
+
+def test_get_parser_javascript_returns_parser():
+    """get_parser('javascript') returns a non-None Parser when grammar is installed."""
+    parser = ts_mod.get_parser("javascript")
+    if parser is None:
+        pytest.skip("tree-sitter-typescript grammar not installed")
+    assert parser is not None
+
+
+def test_get_parser_jsx_returns_parser():
+    """get_parser('jsx') returns a non-None Parser (TSX grammar) when grammar is installed."""
+    parser = ts_mod.get_parser("jsx")
+    if parser is None:
+        pytest.skip("tree-sitter-typescript grammar not installed")
+    assert parser is not None
+
+
+def test_get_parser_javascript_parses_js():
+    """Parser for 'javascript' produces a valid Tree from plain JS source."""
+    parser = ts_mod.get_parser("javascript")
+    if parser is None:
+        pytest.skip("tree-sitter-typescript grammar not installed")
+    tree = parser.parse(b"function hello() { return 42; }")
+    root = tree.root_node
+    assert root.type == "program"
+    assert any(child.type == "function_declaration" for child in root.children)
+
+
+def test_get_parser_jsx_parses_jsx():
+    """Parser for 'jsx' (TSX grammar) produces a valid Tree from JSX source."""
+    parser = ts_mod.get_parser("jsx")
+    if parser is None:
+        pytest.skip("tree-sitter-typescript grammar not installed")
+    tree = parser.parse(b"const App = () => <div>Hello</div>;")
+    root = tree.root_node
+    assert root.type == "program"
+
+    # No ERROR nodes — TSX grammar must handle JSX without parse errors
+    def has_error(node):
+        if node.type == "ERROR":
+            return True
+        return any(has_error(c) for c in node.children)
+
+    assert not has_error(root)
+
+
+def test_chunk_code_typescript_ast_semantic_parity():
+    """TS AST chunking preserves all top-level definitions (semantic parity check).
+
+    All exported and non-exported functions, classes, interfaces, and type aliases
+    must appear in the joined output, and each chunk must carry
+    chunker_strategy='treesitter_v1'.
+    """
+    parser = ts_mod.get_parser("typescript")
+    if parser is None:
+        pytest.skip("tree-sitter-typescript grammar not installed")
+
+    src = (
+        "import { foo } from './foo';\n\n"
+        "export function greet(name: string): string {\n"
+        "    return `Hello, ${name}`;\n"
+        "}\n\n"
+        "export class Greeter {\n"
+        "    greet(name: string) { return `Hi, ${name}`; }\n"
+        "}\n\n"
+        "export interface Salutation {\n"
+        "    message: string;\n"
+        "}\n\n"
+        "export type Name = string;\n"
+    ) * 2
+
+    ts_mod._parser_cache.clear()
+    chunks = chunk_code(src, "typescript", "test.ts")
+    joined = "\n".join(c["content"] for c in chunks)
+
+    assert "function greet" in joined
+    assert "class Greeter" in joined
+    assert "interface Salutation" in joined
+    assert "type Name" in joined
+
+    for chunk in chunks:
+        assert chunk.get("chunker_strategy") == "treesitter_v1"

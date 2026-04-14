@@ -1098,6 +1098,80 @@ def test_add_drawers_batch_is_idempotent():
         shutil.rmtree(tmpdir)
 
 
+def _skip_if_no_ts_ast():
+    """Skip test if tree-sitter TypeScript grammar is not active."""
+    try:
+        import tree_sitter  # noqa: F401
+        import tree_sitter_typescript  # noqa: F401
+    except ImportError:
+        pytest.skip("tree-sitter-typescript not installed")
+
+
+MULTI_FUNC_TS = """\
+import { EventEmitter } from 'events';
+
+export function processEvent(event: string): void {
+    const emitter = new EventEmitter();
+    emitter.emit(event);
+    console.log("processed", event);
+}
+
+export class EventProcessor {
+    private emitter: EventEmitter;
+    constructor() { this.emitter = new EventEmitter(); }
+    process(event: string): void {
+        this.emitter.emit(event);
+    }
+}
+
+export interface ProcessorOptions {
+    timeout: number;
+    retries: number;
+}
+"""
+
+
+def test_mine_typescript_chunker_strategy():
+    """AC-1: process_file() on a .ts file stores chunker_strategy='treesitter_v1'.
+
+    Skipped when tree-sitter-typescript is not installed.
+    """
+    _skip_if_no_ts_ast()
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        ts_file = project_root / "events.ts"
+        write_file(ts_file, MULTI_FUNC_TS)
+        _make_palace_config(project_root)
+
+        palace_path = project_root / "palace"
+        palace = open_store(str(palace_path), create=True)
+
+        drawers = process_file(
+            filepath=ts_file,
+            project_path=project_root,
+            collection=palace,
+            wing="test_wing",
+            rooms=[{"name": "backend"}, {"name": "general"}],
+            agent="test",
+            dry_run=False,
+        )
+        assert drawers >= 1
+
+        result = palace.get(
+            where={"source_file": str(ts_file)},
+            include=["metadatas"],
+            limit=100,
+        )
+        for meta in result["metadatas"]:
+            assert meta.get("chunker_strategy") == "treesitter_v1", (
+                f"Expected treesitter_v1, got {meta.get('chunker_strategy')!r}"
+            )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def test_process_file_python_treesitter_chunker_strategy():
     """AC-4: process_file() stores chunker_strategy='treesitter_v1' when AST path is active.
 
