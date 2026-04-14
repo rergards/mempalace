@@ -43,38 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: STORE-BACKUP-RESTORE
-    summary: "Palace backup and restore commands"
-    type: feature
-    priority: medium
-    status: done
-    done_date: "2026-04-14"
-    done_summary: "Added mempalace/backup.py with create_backup/restore_backup, backup+restore CLI subcommands, and 10 tests covering metadata, round-trip, KG, force-overwrite, and default-path scenarios"
-    size: M
-    section_id: storage_reliability
-    labels: [storage, cli]
-    description: >-
-      ## Scope
-
-
-      Add `mempalace backup` and `mempalace restore` CLI commands. LanceDB's storage is directory-based — backup creates a tarball of the lance/ directory plus the SQLite knowledge graph. Restore extracts a tarball into the palace path.
-
-
-      ## Acceptance criteria
-
-
-      1. `mempalace backup [--palace PATH] [--out FILE]` creates a .tar.gz containing lance data + knowledge_graph.db + metadata.json
-
-      2. metadata.json includes: drawer count, wing list, timestamp, mempalace version, backend type
-
-      3. `mempalace restore FILE [--palace PATH]` extracts tarball into target palace path
-
-      4. Restore to a non-empty palace path refuses unless `--force` is passed (prevents accidental overwrite)
-
-      5. Round-trip test: backup → restore to new path → search returns same results
-
-      6. ruff clean
-    resolution: "Hardened in round-1 (2026-04-14): atomic backup write, atomic KG restore, TarInfo mtime, real out_path in CLI output. New backlog: STORE-BACKUP-CLI-TEST."
   - key: STORE-REMOVE-CHROMA-DEFAULT
     summary: "Remove ChromaDB from default install path"
     type: task
@@ -267,27 +235,6 @@ items:
       Each CI run re-downloads ~500MB of packages (lancedb, sentence-transformers, torch) and the all-MiniLM-L6-v2 model at test runtime. Add pip cache via actions/setup-python cache param, and a HuggingFace model cache step (cache key: model name hash). Expected savings: 3–5 minutes per job, ~15 minutes total per push. AC: cold cache run completes in under 10 minutes; warm cache run completes in under 3 minutes.
 
     resolution: null
-  - key: CODE-SEARCH-LANG-CONFIG
-    summary: Allow filtering by config-file languages in code_search (yaml, json, toml)
-    type: feature
-    status: done
-    priority: low
-    size: XS
-    section_id: coding_first
-    labels: [search, coding, mcp]
-    description: 'The miner produces drawers with language values yaml, json, toml (config files) but code_search SUPPORTED_LANGUAGES in searcher.py rejects them with a validation error. Users who mine projects with YAML/JSON/TOML files cannot use language= filter for those drawers. Fix: add "yaml", "json", "toml" to SUPPORTED_LANGUAGES; update the MCP schema description. AC: (1) code_search(language="yaml") returns results instead of error; (2) test_code_search_invalid_language still rejects "cobol"; (3) ruff clean; pytest -q passes. Origin: MCP-CODE-SEARCH hardening round-1 F-1.'
-    resolution: '2026-04-14: Added yaml, json, toml to SUPPORTED_LANGUAGES in searcher.py; updated MCP schema description; added test_code_search_yaml_language AC-1 test'
-    hardening: 'round-1: 2 fixed (yaml/json/toml regression guard + non-empty results assertion), 1 backlogged (CODE-SEARCH-LANG-PROSE), 2 dismissed. Audit: docs/audits/CODE-SEARCH-LANG-CONFIG-round-1.md'
-  - key: CODE-SEARCH-LANG-CPP
-    summary: Add C/C++ to miner EXTENSION_LANG_MAP so code_search language="cpp" returns results
-    type: feature
-    status: done
-    priority: low
-    size: XS
-    section_id: coding_first
-    labels: [mining, search, coding]
-    description: 'SUPPORTED_LANGUAGES in code_search pre-emptively includes "cpp" and "c" but the miner EXTENSION_LANG_MAP (miner.py) has no entries for .c or .cpp. Queries with language="cpp" pass validation but always return empty results because no mined drawers have those language values. Fix: add ".c": "c" and ".cpp": "cpp" to EXTENSION_LANG_MAP; verify symbol extraction for C/C++ (likely needs regex patterns). AC: (1) mining a project with .c/.cpp files produces drawers with language="c"/"cpp"; (2) code_search(language="cpp") returns those drawers; (3) ruff clean; pytest -q passes. Origin: MCP-CODE-SEARCH hardening round-1 F-1.'
-    resolution: '2026-04-14: Added .c/.cpp/.h/.hpp to EXTENSION_LANG_MAP and READABLE_EXTENSIONS; added _C_EXTRACT/_CPP_EXTRACT regex patterns and registered in _LANG_EXTRACT_MAP; tests for lang detect, symbol extraction, and code_search language filter'
   - key: CLI-DIARY-WRITE-ID-COLLISION
     summary: Use UUID for diary entry IDs to prevent same-second collision
     type: bug
@@ -458,7 +405,7 @@ items:
   - key: STORE-WHERE-ARROW-OPS
     summary: _where_to_arrow_mask silently ignores operator dicts — iter_all() returns wrong rows
     type: task
-    status: open
+    status: done
     priority: medium
     size: S
     section_id: storage_reliability
@@ -482,6 +429,7 @@ items:
 
       - Arrow compute ops must work for both int32 and float32 columns
       - No behavioral change to the string equality case already working
+    resolution: '2026-04-14: Fixed _where_to_arrow_mask to handle $gt/$gte/$lt/$lte/$ne/$eq operator dicts via pyarrow.compute; 6 new TestIterAll tests cover all operators'
   - key: STORE-MIGRATION-TEST-DYNAMIC-COLS
     summary: Derive migration NULL-safety assertion list from _META_FIELD_SPEC instead of hardcoding column names
     type: task

@@ -617,6 +617,108 @@ class TestIterAll:
         for row in all_rows:
             assert row["wing"] == "alpha"
 
+    def test_where_operator_gt(self, tmp_path):
+        """AC-1: iter_all() with $gt operator returns only rows where chunk_index > 1."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$gt": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 1
+        assert all_rows[0]["chunk_index"] == 2
+
+    def test_where_operator_lte(self, tmp_path):
+        """AC-2: iter_all() with $lte operator returns rows where chunk_index <= 1."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$lte": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 2
+        assert {row["chunk_index"] for row in all_rows} == {0, 1}
+
+    def test_where_operator_ne(self, tmp_path):
+        """AC-3: iter_all() with $ne operator excludes the matching row."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$ne": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 2
+        assert {row["chunk_index"] for row in all_rows} == {0, 2}
+
+    def test_where_operator_gte(self, tmp_path):
+        """iter_all() with $gte returns rows where chunk_index >= 1."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$gte": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 2
+        assert {row["chunk_index"] for row in all_rows} == {1, 2}
+
+    def test_where_operator_lt(self, tmp_path):
+        """iter_all() with $lt returns rows where chunk_index < 1."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$lt": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 1
+        assert all_rows[0]["chunk_index"] == 0
+
+    def test_where_operator_eq(self, tmp_path):
+        """iter_all() with $eq operator returns only the exactly matching row."""
+        store = open_store(str(tmp_path), create=True)
+        store.add(
+            ids=["op1", "op2", "op3"],
+            documents=["doc zero", "doc one", "doc two"],
+            metadatas=[
+                {"wing": "w", "room": "r", "chunk_index": 0},
+                {"wing": "w", "room": "r", "chunk_index": 1},
+                {"wing": "w", "room": "r", "chunk_index": 2},
+            ],
+        )
+        batches = list(store.iter_all(where={"chunk_index": {"$eq": 1}}))
+        all_rows = [row for batch in batches for row in batch]
+        assert len(all_rows) == 1
+        assert all_rows[0]["chunk_index"] == 1
+
 
 # ─── TestDetectBackend ────────────────────────────────────────────────────────
 

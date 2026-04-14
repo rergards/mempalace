@@ -576,6 +576,15 @@ class LanceStore(DrawerStore):
                 result = pc.or_(result, m)
             return result
 
+        _OP_MAP = {
+            "$eq": pc.equal,
+            "$ne": pc.not_equal,
+            "$gt": pc.greater,
+            "$gte": pc.greater_equal,
+            "$lt": pc.less,
+            "$lte": pc.less_equal,
+        }
+
         parts = []
         for key, value in where.items():
             if key not in arrow_tbl.schema.names:
@@ -585,6 +594,11 @@ class LanceStore(DrawerStore):
                 parts.append(pc.equal(col, value))
             elif isinstance(value, (int, float)):
                 parts.append(pc.equal(col, value))
+            elif isinstance(value, dict):
+                for op, operand in value.items():
+                    fn = _OP_MAP.get(op)
+                    if fn is not None:
+                        parts.append(fn(col, operand))
         if not parts:
             return None
         result = parts[0]
