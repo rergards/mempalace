@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-14 · CODE-TREESITTER-EXPAND
+
+Tree-sitter AST-aware Go and Rust chunking: extracts func/type/var/const boundaries for Go and fn/struct/enum/trait/impl/mod boundaries for Rust; falls back to regex when grammars are unavailable.
+
 ## 2026-04-14 · CODE-TREESITTER-PYTHON
 
 Tree-sitter AST-aware Python chunking: extracts function/class/method boundaries from `function_definition`, `class_definition`, and `decorated_definition` nodes; falls back to regex when py-tree-sitter is unavailable.
