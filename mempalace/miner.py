@@ -575,6 +575,8 @@ _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
     "javascript": _TS_EXTRACT,
+    "tsx": _TS_EXTRACT,
+    "jsx": _TS_EXTRACT,
     "go": _GO_EXTRACT,
     "rust": _RUST_EXTRACT,
 }
@@ -593,7 +595,7 @@ def extract_symbol(content: str, language: str) -> tuple:
 
     # TS/JS: detect import-only chunks (first non-empty line starts with an import keyword)
     is_import_chunk = False
-    if language in ("typescript", "javascript"):
+    if language in ("typescript", "javascript", "tsx", "jsx"):
         first_non_empty = next((line for line in content.splitlines() if line.strip()), "")
         is_import_chunk = bool(_TS_IMPORT_RE.match(first_non_empty.strip()))
 

@@ -692,7 +692,7 @@ items:
       2. Existing TS/JS chunking tests pass (regex fallback path unchanged)
       3. New tests cover: export function, arrow function, class, interface, type alias boundaries
       4. ruff clean
-    resolution: '2026-04-14: Tree-sitter TypeScript/JS/TSX/JSX AST chunking: _chunk_typescript_treesitter() in miner.py, javascript+jsx grammar loaders in treesitter.py, 12 new AST tests in test_chunking.py, 5 new parser tests in test_treesitter.py, mining integration test in test_miner.py. All 480 tests pass.'
+    resolution: '2026-04-14: Tree-sitter TypeScript/JS/TSX/JSX AST chunking: _chunk_typescript_treesitter() in miner.py, javascript+jsx grammar loaders in treesitter.py, 12 new AST tests in test_chunking.py, 5 new parser tests in test_treesitter.py, mining integration test in test_miner.py. All 480 tests pass. Harden round-1 (2026-04-14): fixed F-1 (tsx/jsx missing from _LANG_EXTRACT_MAP and import-only check in extract_symbol), added 5 new extract_symbol tests. 485 tests pass.'
   - key: CODE-TREESITTER-EXPAND
     summary: Tree-sitter Go + Rust grammar support
     type: task

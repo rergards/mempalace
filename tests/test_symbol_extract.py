@@ -377,3 +377,36 @@ def test_ts_declaration_wins_over_import():
     """A chunk that starts with an import but also has a function declaration."""
     content = "import { helper } from './utils';\n\nfunction doWork() {\n  helper();\n}\n"
     assert extract_symbol(content, "typescript") == ("doWork", "function")
+
+
+# =============================================================================
+# TSX / JSX — new canonical names
+# =============================================================================
+
+
+def test_tsx_function_symbol():
+    assert extract_symbol("export function MyComponent() {\n  return null;\n}\n", "tsx") == (
+        "MyComponent",
+        "function",
+    )
+
+
+def test_tsx_class_symbol():
+    assert extract_symbol("class MyWidget {\n}\n", "tsx") == ("MyWidget", "class")
+
+
+def test_tsx_import_only_returns_import():
+    content = "import React from 'react';\nimport { FC } from 'react';\n"
+    assert extract_symbol(content, "tsx") == ("", "import")
+
+
+def test_jsx_function_symbol():
+    assert extract_symbol("export function Button() {\n  return null;\n}\n", "jsx") == (
+        "Button",
+        "function",
+    )
+
+
+def test_jsx_import_only_returns_import():
+    content = "import React from 'react';\n"
+    assert extract_symbol(content, "jsx") == ("", "import")
