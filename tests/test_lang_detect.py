@@ -67,6 +67,8 @@ def test_extensionless_no_shebang_returns_unknown():
         ("#!/usr/bin/env python", "python"),
         ("#!/usr/bin/node", "javascript"),
         ("#!/usr/bin/env node", "javascript"),
+        ("#!/usr/bin/nodejs", "javascript"),
+        ("#!/usr/bin/env nodejs", "javascript"),
         ("#!/usr/bin/ruby", "ruby"),
         ("#!/usr/bin/env ruby", "ruby"),
         ("#!/bin/bash", "shell"),

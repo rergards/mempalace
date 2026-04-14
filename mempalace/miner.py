@@ -47,7 +47,7 @@ EXTENSION_LANG_MAP = {
 
 SHEBANG_PATTERNS = [
     (re.compile(r"python[0-9.]*"), "python"),
-    (re.compile(r"node"), "javascript"),
+    (re.compile(r"node(js)?"), "javascript"),
     (re.compile(r"ruby"), "ruby"),
     (re.compile(r"bash|sh|zsh"), "shell"),
     (re.compile(r"perl"), "perl"),
