@@ -83,7 +83,7 @@ class ChromaStore(DrawerStore):
     def delete_wing(self, wing: str) -> int:
         if self._col is None:
             return 0
-        results = self._col.get(where={"wing": wing})
+        results = self.get(where={"wing": wing})
         ids = results.get("ids", [])
         if not ids:
             return 0
