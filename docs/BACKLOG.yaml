@@ -724,3 +724,64 @@ items:
       2. New test skips when tree-sitter-python is absent (uses _skip_if_no_ast guard)
       3. New test would FAIL if the b'\n\n' gap check were removed from _chunk_python_treesitter
       4. ruff check and ruff format pass
+  - key: CODE-TREESITTER-GO-RUST-DETACH-TEST
+    summary: Add negative tests for detached-comment gap detection in Go and Rust AST chunkers
+    type: task
+    status: open
+    priority: low
+    size: S
+    section_id: coding_first
+    labels: [testing, chunking, ast, go, rust]
+    description: |-
+      ## Problem
+
+      _chunk_go_treesitter and _chunk_rust_treesitter use a blank-line gap check (b'\n\n' in source_bytes[prev.end_byte:next_sibling.start_byte]) to decide whether a leading comment/attribute is attached to the following declaration. The existing tests only verify the POSITIVE case (comment IS attached). There is no test asserting that a comment separated by a blank line is NOT absorbed into the following declaration's chunk.
+
+      Without a negative test, removing the gap check would not break any existing assertion. This is the same gap identified in CODE-TREESITTER-PYTHON-DETACH-TEST for Python.
+
+      ## Deliverable
+
+      Add two test functions to tests/test_chunking.py:
+      1. test_ast_go_detached_comment_not_absorbed — uses GO_AST_COMMENT_ATTACHED fixture, asserts that the chunk containing 'func standalone' does NOT contain 'Detached comment'.
+      2. test_ast_rust_detached_comment_not_absorbed — uses RUST_AST_ATTRIBUTE_ATTACHED fixture, asserts that the chunk containing 'fn default_config' does NOT contain 'Standalone comment'.
+
+      Both tests require large enough function bodies that adaptive_merge_split does not merge them. May need fixture extensions (>=400 char bodies) similar to the approach planned for CODE-TREESITTER-PYTHON-DETACH-TEST.
+
+      ## Acceptance Criteria
+
+      1. test_ast_go_detached_comment_not_absorbed passes when tree-sitter-go is installed
+      2. test_ast_rust_detached_comment_not_absorbed passes when tree-sitter-rust is installed
+      3. Both tests skip when the respective grammar is absent
+      4. Both tests would FAIL if the b'\n\n' gap check were removed from the respective chunker
+      5. ruff clean
+
+      Identified in CODE-TREESITTER-EXPAND harden round-1 (F-2).
+  - key: CODE-TREESITTER-RUST-CONST-STATIC
+    summary: Add const_item and static_item to Rust AST chunker DEFINITION_TYPES
+    type: task
+    status: open
+    priority: low
+    size: XS
+    section_id: coding_first
+    labels: [mining, chunking, ast, rust]
+    description: |-
+      ## Problem
+
+      _chunk_rust_treesitter's DEFINITION_TYPES includes fn, struct, enum, trait, impl, mod, and type_item but NOT const_item (pub const FOO: u32 = 42;) or static_item (pub static BAR: &str = "x";). Module-level constants and statics are silently absorbed into adjacent chunks instead of creating boundaries.
+
+      Go's equivalent chunker (_chunk_go_treesitter) DOES include const_declaration and var_declaration. The asymmetry means Rust constant values — which can be large tables or lookup arrays — are not individually indexed.
+
+      The omission is within the original AC spec ('fn, struct, enum, trait, impl, mod boundaries') but leaves a notable coverage gap for Rust crates that define module-level constants.
+
+      ## Deliverable
+
+      Add 'const_item' and 'static_item' to DEFINITION_TYPES in _chunk_rust_treesitter. Add tests to test_chunking.py covering both boundary types.
+
+      ## Acceptance Criteria
+
+      1. A Rust file with 'pub const FOO: u32 = 42;' produces a chunk boundary at that const
+      2. A Rust file with 'pub static BAR: AtomicU32 = AtomicU32::new(0);' produces a chunk boundary at that static
+      3. Existing Rust AST tests all pass
+      4. ruff clean
+
+      Identified in CODE-TREESITTER-EXPAND harden round-1 (F-3).

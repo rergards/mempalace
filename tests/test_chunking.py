@@ -1377,9 +1377,8 @@ def test_ast_go_no_definitions_falls_back():
     """AC-3: package-only file (no declarations) falls back to treesitter_adaptive_v1."""
     _skip_if_no_go_ast()
     chunks = chunk_code(GO_AST_PACKAGE_ONLY, "go", "main.go")
-    # Empty or adaptive — either is acceptable
     for chunk in chunks:
-        assert chunk.get("chunker_strategy") in ("treesitter_adaptive_v1", "treesitter_v1")
+        assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1"
 
 
 # =============================================================================
@@ -1590,4 +1589,4 @@ def test_ast_rust_no_definitions_falls_back():
     _skip_if_no_rust_ast()
     chunks = chunk_code(RUST_AST_USE_ONLY, "rust", "lib.rs")
     for chunk in chunks:
-        assert chunk.get("chunker_strategy") in ("treesitter_adaptive_v1", "treesitter_v1")
+        assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1"
