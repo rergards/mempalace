@@ -650,7 +650,11 @@ TOOLS = {
                 "query": {"type": "string", "description": "What to search for"},
                 "language": {
                     "type": "string",
-                    "description": "Filter by language (e.g. python, go, typescript, rust, sql, html, css, yaml, json, toml)",
+                    "description": (
+                        "Filter by language (e.g. python, go, typescript, rust, sql, html, css, "
+                        "yaml, json, toml, terraform, hcl, dockerfile, make, gotemplate, jinja2, "
+                        "conf, ini)"
+                    ),
                 },
                 "symbol_name": {
                     "type": "string",

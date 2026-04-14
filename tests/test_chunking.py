@@ -1693,3 +1693,54 @@ def test_ast_rust_no_definitions_falls_back():
     chunks = chunk_code(RUST_AST_USE_ONLY, "rust", "lib.rs")
     for chunk in chunks:
         assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1"
+
+
+# =============================================================================
+# HCL / Terraform boundary chunking (AC-7)
+# =============================================================================
+
+_FILLER = "  # " + "x" * 60 + "\n"  # 66-char comment line for padding
+
+
+def _tf_block(resource_type: str, resource_name: str, n_pad: int = 20) -> str:
+    """Return a realistic-looking Terraform resource block padded to >1250 chars."""
+    pad = _FILLER * n_pad
+    return (
+        f'resource "{resource_type}" "{resource_name}" {{\n'
+        f'  ami           = "ami-0c55b159cbfafe1f0"\n'
+        f'  instance_type = "t3.micro"\n'
+        f"  tags = {{\n"
+        f'    Name = "{resource_name}"\n'
+        f"  }}\n"
+        f"{pad}"
+        f"}}\n"
+    )
+
+
+TF_MULTI_RESOURCE = (
+    _tf_block("aws_instance", "web")
+    + "\n"
+    + _tf_block("aws_s3_bucket", "assets")
+    + "\n"
+    + _tf_block("aws_security_group", "web_sg")
+)
+
+
+def test_chunk_terraform_hcl_boundaries():
+    """AC-7: multi-resource .tf file splits at HCL block boundaries."""
+    chunks = chunk_code(TF_MULTI_RESOURCE, "terraform", "main.tf")
+    # Should produce multiple chunks — 3 large resource blocks, each well above TARGET_MIN
+    assert len(chunks) >= 3, (
+        f"Expected >=3 chunks, got {len(chunks)}: {[c['content'][:60] for c in chunks]}"
+    )
+    combined = "\n".join(c["content"] for c in chunks)
+    # All resource types must appear in the combined output
+    assert "aws_instance" in combined
+    assert "aws_s3_bucket" in combined
+    assert "aws_security_group" in combined
+    # Each resource block should start in its own chunk
+    resource_chunks = [c for c in chunks if c["content"].lstrip().startswith("resource")]
+    assert len(resource_chunks) >= 3, (
+        f"Expected each resource in its own chunk, got resource chunks: "
+        f"{[c['content'][:60] for c in resource_chunks]}"
+    )

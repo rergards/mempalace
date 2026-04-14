@@ -1219,3 +1219,73 @@ def test_process_file_python_treesitter_chunker_strategy():
             )
     finally:
         shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# DevOps / infrastructure file support (MINE-DEVOPS-INFRA)
+# =============================================================================
+
+
+def test_scan_project_includes_terraform_files():
+    """AC-1: .tf, .tfvars, and .hcl files are returned by scan_project."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "main.tf", 'resource "aws_instance" "web" {}\n')
+        write_file(project_root / "terraform.tfvars", 'region = "us-east-1"\n')
+        write_file(project_root / "config.hcl", 'variable "env" {}\n')
+
+        files = scanned_files(project_root)
+        assert "main.tf" in files
+        assert "terraform.tfvars" in files
+        assert "config.hcl" in files
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_scan_project_includes_dockerfile():
+    """AC-2: extensionless Dockerfile is returned by scan_project."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "Dockerfile", "FROM ubuntu:22.04\nRUN apt-get update\n")
+
+        files = scanned_files(project_root)
+        assert "Dockerfile" in files
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_scan_project_includes_makefile():
+    """AC-3: extensionless Makefile and GNUmakefile are returned by scan_project."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "Makefile", "build:\n\tgo build ./...\n")
+        write_file(project_root / "GNUmakefile", "all:\n\techo done\n")
+
+        files = scanned_files(project_root)
+        assert "Makefile" in files
+        assert "GNUmakefile" in files
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_scan_project_skips_terraform_dir():
+    """AC-6: .terraform/ directory is entirely skipped by scan_project."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "main.tf", 'resource "aws_instance" "web" {}\n')
+        write_file(
+            project_root / ".terraform" / "providers" / "registry.terraform.io" / "lock.hcl",
+            "# provider lock file\n",
+        )
+
+        files = scanned_files(project_root)
+        assert "main.tf" in files
+        # Nothing inside .terraform/ should appear
+        terraform_files = [f for f in files if f.startswith(".terraform/")]
+        assert terraform_files == [], f"Expected no .terraform/ files, got: {terraform_files}"
+    finally:
+        shutil.rmtree(tmpdir)

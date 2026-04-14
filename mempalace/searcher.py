@@ -174,6 +174,15 @@ SUPPORTED_LANGUAGES = {
     "yaml",
     "json",
     "toml",
+    # devops / infrastructure
+    "terraform",
+    "hcl",
+    "dockerfile",
+    "make",
+    "gotemplate",
+    "jinja2",
+    "conf",
+    "ini",
 }
 
 VALID_SYMBOL_TYPES = {

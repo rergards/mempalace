@@ -47,7 +47,28 @@ EXTENSION_LANG_MAP = {
     ".h": "c",
     ".cpp": "cpp",
     ".hpp": "cpp",
+    # devops / infrastructure
+    ".tf": "terraform",
+    ".tfvars": "terraform",
+    ".hcl": "hcl",
+    ".tpl": "gotemplate",
+    ".j2": "jinja2",
+    ".jinja2": "jinja2",
+    ".conf": "conf",
+    ".cfg": "conf",
+    ".ini": "ini",
+    ".mk": "make",
 }
+
+FILENAME_LANG_MAP = {
+    "Dockerfile": "dockerfile",
+    "Containerfile": "dockerfile",
+    "Makefile": "make",
+    "GNUmakefile": "make",
+    "Vagrantfile": "ruby",
+}
+
+KNOWN_FILENAMES = set(FILENAME_LANG_MAP.keys())
 
 SHEBANG_PATTERNS = [
     (re.compile(r"python[0-9.]*"), "python"),
@@ -82,6 +103,17 @@ READABLE_EXTENSIONS = {
     ".h",
     ".cpp",
     ".hpp",
+    # devops / infrastructure
+    ".tf",
+    ".tfvars",
+    ".hcl",
+    ".tpl",
+    ".j2",
+    ".jinja2",
+    ".conf",
+    ".cfg",
+    ".ini",
+    ".mk",
 }
 
 SKIP_DIRS = {
@@ -108,6 +140,7 @@ SKIP_DIRS = {
     ".eggs",
     "htmlcov",
     "target",
+    ".terraform",
 }
 
 SKIP_FILENAMES = {
@@ -477,6 +510,12 @@ RUST_BOUNDARY = re.compile(
 # Markdown heading boundaries
 HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
+# HCL / Terraform top-level block boundaries
+HCL_BOUNDARY = re.compile(
+    r"^(?:resource|data|module|variable|output|locals|provider|terraform)\s+",
+    re.MULTILINE,
+)
+
 
 def get_boundary_pattern(language: str):
     """Return the appropriate structural boundary regex for a language string or file extension."""
@@ -495,6 +534,11 @@ def get_boundary_pattern(language: str):
         ".go": GO_BOUNDARY,
         "rust": RUST_BOUNDARY,
         ".rs": RUST_BOUNDARY,
+        "terraform": HCL_BOUNDARY,
+        ".tf": HCL_BOUNDARY,
+        ".tfvars": HCL_BOUNDARY,
+        "hcl": HCL_BOUNDARY,
+        ".hcl": HCL_BOUNDARY,
     }
     return mapping.get(language)
 
@@ -510,12 +554,17 @@ def detect_language(filepath: Path, content: str = "") -> str:
 
     Resolution order:
     1. File extension lookup via EXTENSION_LANG_MAP.
-    2. Shebang inspection on the first line (for extensionless files).
-    3. Returns "unknown" if neither matches.
+    2. Filename lookup via FILENAME_LANG_MAP (for extensionless files like Dockerfile, Makefile).
+    3. Shebang inspection on the first line (for extensionless files).
+    4. Returns "unknown" if neither matches.
     """
     ext = filepath.suffix.lower()
     if ext in EXTENSION_LANG_MAP:
         return EXTENSION_LANG_MAP[ext]
+
+    # Filename-based detection for known extensionless files
+    if filepath.name in FILENAME_LANG_MAP:
+        return FILENAME_LANG_MAP[filepath.name]
 
     # Shebang fallback — only for files with no recognized extension
     first_line = content.split("\n")[0] if content else ""
@@ -646,6 +695,8 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         language = EXTENSION_LANG_MAP.get(ext, "unknown")
 
     if language in ("python", "typescript", "javascript", "tsx", "jsx", "go", "rust"):
+        return chunk_code(content, language, source_file)
+    elif language in ("terraform", "hcl"):
         return chunk_code(content, language, source_file)
     elif language in ("markdown", "text"):
         return chunk_prose(content, source_file)
@@ -1445,7 +1496,8 @@ def scan_project(
             if not force_include and filename in SKIP_FILENAMES:
                 continue
             if filepath.suffix.lower() not in READABLE_EXTENSIONS and not exact_force_include:
-                continue
+                if filename not in KNOWN_FILENAMES:
+                    continue
             if respect_gitignore and active_matchers and not force_include:
                 if is_gitignored(filepath, active_matchers, is_dir=False):
                     continue

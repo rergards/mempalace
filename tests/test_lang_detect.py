@@ -52,7 +52,7 @@ def test_unknown_extension_returns_unknown():
 
 
 def test_extensionless_no_shebang_returns_unknown():
-    filepath = Path("Makefile")
+    filepath = Path("some_extensionless_file")
     assert detect_language(filepath, "") == "unknown"
 
 
@@ -136,3 +136,55 @@ def test_extension_wins_over_shebang():
     filepath = Path("script.py")
     content = "#!/usr/bin/env node\nprint('python file with node shebang')\n"
     assert detect_language(filepath, content) == "python"
+
+
+# =============================================================================
+# DevOps / infrastructure — extension-based
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "filename,expected",
+    [
+        ("main.tf", "terraform"),
+        ("terraform.tfvars", "terraform"),
+        ("config.hcl", "hcl"),
+        ("deployment.tpl", "gotemplate"),
+        ("template.j2", "jinja2"),
+        ("template.jinja2", "jinja2"),
+        ("nginx.conf", "conf"),
+        ("setup.cfg", "conf"),
+        ("settings.ini", "ini"),
+        ("rules.mk", "make"),
+    ],
+)
+def test_devops_extension_detection(filename, expected):
+    filepath = Path(filename)
+    assert detect_language(filepath) == expected
+
+
+# =============================================================================
+# DevOps / infrastructure — filename-based (extensionless)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "filename,expected",
+    [
+        ("Dockerfile", "dockerfile"),
+        ("Containerfile", "dockerfile"),
+        ("Makefile", "make"),
+        ("GNUmakefile", "make"),
+        ("Vagrantfile", "ruby"),
+    ],
+)
+def test_devops_filename_detection(filename, expected):
+    filepath = Path(filename)
+    assert detect_language(filepath) == expected
+
+
+def test_filename_detection_takes_precedence_over_shebang():
+    """FILENAME_LANG_MAP must be checked before shebang for extensionless files."""
+    filepath = Path("Dockerfile")
+    content = "#!/bin/sh\nFROM ubuntu:22.04\n"
+    assert detect_language(filepath, content) == "dockerfile"

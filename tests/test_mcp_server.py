@@ -749,3 +749,27 @@ class TestAggregationRegression:
         for wing in ("alpha", "beta", "gamma"):
             assert tax[wing]["frontend"] == 2
             assert tax[wing]["backend"] == 2
+
+    def test_code_search_devops_languages_in_hint(
+        self, monkeypatch, config, palace_path, code_seeded_collection, kg
+    ):
+        """New DevOps language strings must appear in the supported_languages hint (MINE-DEVOPS-INFRA)."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_code_search
+
+        result = tool_code_search(query="something", language="notareallangnnn")
+        assert "supported_languages" in result
+        devops_langs = (
+            "terraform",
+            "hcl",
+            "dockerfile",
+            "make",
+            "gotemplate",
+            "jinja2",
+            "conf",
+            "ini",
+        )
+        for lang in devops_langs:
+            assert lang in result["supported_languages"], (
+                f"DevOps language {lang!r} missing from supported_languages hint"
+            )
