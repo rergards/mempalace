@@ -42,7 +42,8 @@ No cloud. No API keys. No subscription. Nothing leaves your machine.
 ```bash
 pip install mempalace-code
 
-mempalace init ~/projects/myapp       # index your codebase
+mempalace init ~/projects/myapp       # detect rooms, download embedding model (~80 MB)
+mempalace mine ~/projects/myapp       # index your codebase
 claude mcp add mempalace -- python -m mempalace.mcp_server  # connect to Claude
 ```
 
