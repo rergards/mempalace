@@ -424,6 +424,7 @@ TS_BOUNDARY = re.compile(
     r"|enum\s+\w+"
     r"|const\s+\w+\s*[:=]"
     r"|let\s+\w+\s*[:=]"
+    r"|var\s+\w+\s*[:=]"
     r"|(?:describe|it|test|beforeEach|afterEach|beforeAll|afterAll)\s*\("
     r"|module\.exports"
     r"|exports\.\w+"

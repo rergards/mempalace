@@ -274,6 +274,35 @@ def test_tsx_extension_handled():
     assert len(chunks) >= 1
 
 
+def test_ts_var_toplevel_boundary(monkeypatch):
+    """Top-level non-exported var declarations must create chunk boundaries (AC-1, AC-2)."""
+    from mempalace.miner import TS_BOUNDARY
+
+    # AC-2: TS_BOUNDARY regex matches a plain var declaration at column 0
+    assert TS_BOUNDARY.match("var foo = 'bar'"), "TS_BOUNDARY must match top-level var"
+    assert TS_BOUNDARY.match("var counter: number = 0"), "TS_BOUNDARY must match typed var"
+    assert not TS_BOUNDARY.match("    var indented = 1"), "indented var must not match"
+
+    monkeypatch.setattr(ts_mod, "TREE_SITTER_AVAILABLE", False)
+    monkeypatch.setattr(ts_mod, "_parser_cache", {})
+
+    # AC-1: chunk_code produces a boundary at a top-level var declaration.
+    # Each block is padded to exceed TARGET_MAX so adaptive_merge_split keeps them separate.
+    padding = "// " + "x" * 100 + "\n"
+    ts_src = (
+        "function setup() {\n"
+        + padding * 25
+        + "}\n\n"
+        + "var globalConfig = {\n"
+        + "    timeout: 30,\n"
+        + padding * 25
+        + "};\n"
+    )
+    chunks = chunk_code(ts_src, ".ts", "test.ts")
+    joined = "\n".join(contents(chunks))
+    assert "var globalConfig" in joined
+
+
 # =============================================================================
 # chunk_code — Go
 # =============================================================================
