@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-14 · STORE-BACKUP-RESTORE
+
+Add `mempalace backup` and `mempalace restore` CLI commands: backup creates a .tar.gz of the LanceDB lance/ directory plus knowledge_graph.db and a metadata.json (drawer count, wing list, timestamp, version, backend); restore extracts into the palace path with an optional --force flag to overwrite.
+
 ## 2026-04-14 · CODE-TREESITTER-EXPAND
 
 Tree-sitter AST-aware Go and Rust chunking: extracts func/type/var/const boundaries for Go and fn/struct/enum/trait/impl/mod boundaries for Rust; falls back to regex when grammars are unavailable.
