@@ -41,13 +41,22 @@ No cloud. No API keys. No subscription. Nothing leaves your machine.
 
 ```bash
 pip install mempalace-code
+```
 
+Then ask your AI to read [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) — it will handle setup, MCP wiring, prompt injection, and verification automatically.
+
+<details>
+<summary>Or do it manually</summary>
+
+```bash
 mempalace init ~/projects/myapp       # detect rooms, download embedding model (~80 MB)
 mempalace mine ~/projects/myapp       # index your codebase
 claude mcp add mempalace -- python -m mempalace.mcp_server  # connect to Claude Code
 ```
 
-This makes the 18 tools available to your AI. For the AI to search and store memories **proactively** (without you asking), it needs usage rules in your `CLAUDE.md`. The easiest way: ask your AI to read [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) — it will handle prompt setup, verification, and everything else.
+This makes the 18 tools available to your AI. For proactive search and storage (without you asking), you'll also need to add usage rules to your `CLAUDE.md` — see [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) Section 7.
+
+</details>
 
 ### Supported MCP Clients
 
