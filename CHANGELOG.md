@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-04-14 · STORE-CHROMA-DELETE-WING-LIMIT
+
+`ChromaStore.delete_wing` now calls `self.get()` instead of `self._col.get()`, so the `limit=10000` wrapper applies. Wings with more drawers than ChromaDB's default page size were silently partially deleted. (ChromaDB is deprecated; cleanup only.)
+
+## 2026-04-14 · STORE-REMOVE-CHROMA-DEFAULT
+
+ChromaStore isolated into `mempalace/_chroma_store.py` with lazy import — ChromaDB is no longer imported unless `.[chroma]` is installed and explicitly selected. Reduces default import time and dependency surface.
+
+## 2026-04-14 · STORE-WHERE-ARROW-OPS
+
+`_where_to_arrow_mask` now handles operator dicts (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`) in LanceDB filter translation. Previously only equality filters were supported; comparison and set-membership queries silently returned incorrect results.
+
+## 2026-04-14 · CODE-SEARCH-LANG-CPP
+
+C/C++ language support: `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx` extensions recognized by the miner with struct/enum/union/typedef/function symbol extraction for C and class/struct/enum/function extraction for C++. `code_search(language="c")` and `code_search(language="cpp")` now work.
+
+## 2026-04-14 · CODE-SEARCH-LANG-CONFIG
+
+`yaml`, `json`, and `toml` added to `SUPPORTED_LANGUAGES` in searcher.py so `code_search(language="yaml")` etc. return results. These file types were already mined but not filterable by language.
+
+## 2026-04-14 · CODE-SYMBOL-META-GO-TYPES
+
+Go symbol extraction now captures scalar types (`type Foo int`), function types (`type Handler func(...)`), and type aliases (`type ID = string`) in addition to struct/interface/func declarations.
+
+## 2026-04-14 · MINE-EAGER-EMBED-INIT
+
+Embedding model is now loaded eagerly during `MinerConfig` init instead of lazily on first chunk. Prevents a multi-second stall mid-mining when the model loads for the first time.
+
+## 2026-04-14 · CODE-SMART-CHUNK-VAR-BOUNDARY
+
+Non-exported `var` and `let`/`const` declarations at module scope added to `TS_BOUNDARY`, so top-level JS/TS variable declarations start a new chunk instead of being merged into the preceding function.
+
+## 2026-04-14 · LANG-DETECT-GO-VAR-BODY
+
+Removed `var\s+\w+` from `GO_BOUNDARY` — it was matching `var` declarations inside function bodies, causing mid-function chunk splits. Go var blocks are now only boundaries at the package level via `var (` syntax.
+
+## 2026-04-14 · LANG-DETECT-NODEJS-SHEBANG
+
+`detect_language` now recognizes `#!/usr/bin/env node` and similar Node.js shebangs, mapping them to `javascript`. Previously, Node.js scripts without a `.js` extension were classified as unknown.
+
+## 2026-04-14 · CODE-TREESITTER-TS
+
+Tree-sitter AST-aware TypeScript/JavaScript/TSX/JSX chunking: extracts function/class/method/export/import boundaries from the AST; falls back to regex when tree-sitter grammars are unavailable.
+
 ## 2026-04-14 · STORE-BACKUP-RESTORE
 
 Add `mempalace backup` and `mempalace restore` CLI commands: backup creates a .tar.gz of the LanceDB lance/ directory plus knowledge_graph.db and a metadata.json (drawer count, wing list, timestamp, version, backend); restore extracts into the palace path with an optional --force flag to overwrite.
