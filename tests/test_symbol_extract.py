@@ -410,6 +410,27 @@ def test_cpp_enum_class():
     )
 
 
+def test_cpp_function():
+    assert extract_symbol("void render(int x, int y) {\n    draw(x, y);\n}\n", "cpp") == (
+        "render",
+        "function",
+    )
+
+
+def test_cpp_function_pointer_return():
+    assert extract_symbol("std::string *getName() {\n    return &name_;\n}\n", "cpp") == (
+        "getName",
+        "function",
+    )
+
+
+def test_c_pointer_return():
+    assert extract_symbol("char *strdup(const char *s) {\n    return copy;\n}\n", "c") == (
+        "strdup",
+        "function",
+    )
+
+
 # =============================================================================
 # NON-CODE LANGUAGES — all return ("", "")
 # =============================================================================

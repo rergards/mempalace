@@ -585,14 +585,16 @@ _C_EXTRACT = [
     (re.compile(r"^struct\s+(\w+)", re.MULTILINE), "struct"),
     (re.compile(r"^enum\s+(\w+)", re.MULTILINE), "enum"),
     # heuristic: word chars, optional *, then name( — matches most top-level C defs
-    (re.compile(r"^[\w][\w\s*]+\s(\w+)\s*\([^;]*\)\s*\{", re.MULTILINE), "function"),
+    # [\s*]+ allows pointer return types like `char *func()` with no space before name
+    (re.compile(r"^[\w][\w\s*]+[\s*]+(\w+)\s*\([^;]*\)\s*\{", re.MULTILINE), "function"),
 ]
 
 _CPP_EXTRACT = [
     (re.compile(r"^class\s+(\w+)", re.MULTILINE), "class"),
     (re.compile(r"^struct\s+(\w+)", re.MULTILINE), "struct"),
     (re.compile(r"^enum\s+(?:class\s+)?(\w+)", re.MULTILINE), "enum"),
-    (re.compile(r"^[\w][\w\s*:<>]+\s(\w+)\s*\([^;]*\)\s*\{", re.MULTILINE), "function"),
+    # [\s*]+ allows pointer return types like `std::string *getName()`
+    (re.compile(r"^[\w][\w\s*:<>]+[\s*]+(\w+)\s*\([^;]*\)\s*\{", re.MULTILINE), "function"),
 ]
 
 _LANG_EXTRACT_MAP = {
