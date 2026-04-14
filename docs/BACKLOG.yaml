@@ -54,7 +54,7 @@ items:
     description: >
       TS_BOUNDARY in miner.py detects exported var via the export branch but has no arm for top-level non-exported `var foo = ...`. Add `var\s+\w+\s*[:=]` to TS_BOUNDARY alongside the existing const/let arms. Acceptance criteria: a TS/JS file with a top-level non-exported var declaration produces a new chunk boundary at that var; existing tests unchanged; ruff clean. Low-priority since var is deprecated in modern TS/JS. Identified in CODE-SMART-CHUNK harden round-1 (F-004).
 
-    resolution: '2026-04-14: Add var\s+\w+\s*[:=] arm to TS_BOUNDARY after let arm; add test_ts_var_toplevel_boundary verifying regex match and chunk boundary; ruff clean, all tests pass'
+    resolution: '2026-04-14: Add var\s+\w+\s*[:=] arm to TS_BOUNDARY after let arm; add test_ts_var_toplevel_boundary verifying regex match and chunk boundary; ruff clean, all tests pass. Harden round-1: 1 fixed (AC-1 test strengthened — removed paragraph-split coincidence, added startswith assertion), 0 backlogged, 2 dismissed. Audit: docs/audits/CODE-SMART-CHUNK-VAR-BOUNDARY-round-1.md'
   - key: STORE-BACKUP-RESTORE
     summary: "Palace backup and restore commands"
     type: feature

@@ -288,19 +288,23 @@ def test_ts_var_toplevel_boundary(monkeypatch):
 
     # AC-1: chunk_code produces a boundary at a top-level var declaration.
     # Each block is padded to exceed TARGET_MAX so adaptive_merge_split keeps them separate.
+    # Use a single \n between blocks (no blank line) so _split_oversized cannot use a
+    # paragraph break as a coincidental split point — only an explicit TS_BOUNDARY match
+    # on "var globalConfig" produces a chunk that starts at that line.
     padding = "// " + "x" * 100 + "\n"
     ts_src = (
         "function setup() {\n"
         + padding * 25
-        + "}\n\n"
+        + "}\n"
         + "var globalConfig = {\n"
         + "    timeout: 30,\n"
         + padding * 25
         + "};\n"
     )
     chunks = chunk_code(ts_src, ".ts", "test.ts")
-    joined = "\n".join(contents(chunks))
-    assert "var globalConfig" in joined
+    assert len(chunks) >= 2, "var boundary must produce at least 2 chunks"
+    var_chunks = [c for c in chunks if c["content"].startswith("var globalConfig")]
+    assert len(var_chunks) >= 1, "var globalConfig must be the first line of its own chunk"
 
 
 # =============================================================================
