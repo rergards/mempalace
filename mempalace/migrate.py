@@ -48,13 +48,15 @@ def migrate_chroma_to_lance(
         no_backup:  If True, skip creating a backup of the source palace.
                     Intended for tests; not exposed in the public CLI.
     """
-    from .storage import ChromaStore, LanceStore
+    from .storage import LanceStore
 
-    # Open source ChromaDB palace — wrap chromadb ImportError with a helpful message.
     try:
-        src_store = ChromaStore(src_path, create=False)
+        from ._chroma_store import ChromaStore
     except ImportError:
         raise RuntimeError("chromadb not installed — run: pip install mempalace[chroma]")
+
+    # Open source ChromaDB palace.
+    src_store = ChromaStore(src_path, create=False)
 
     if src_store._col is None:
         raise RuntimeError(f"No ChromaDB collection found at {src_path}")

@@ -1,0 +1,97 @@
+"""
+_chroma_store.py — ChromaDB storage backend (legacy, optional)
+==============================================================
+
+This module is only importable when the [chroma] extra is installed::
+
+    pip install 'mempalace[chroma]'
+
+Importing this file without chromadb present raises ``ImportError`` immediately
+(top-level ``import chromadb`` ensures a clean failure surface).
+
+Internal module — use ``mempalace.storage.open_store(..., backend="chroma")`` or
+``from mempalace.storage import ChromaStore`` from external code.
+"""
+
+from __future__ import annotations
+
+import chromadb  # noqa: F401 — intentional top-level import; fails fast if not installed
+
+from typing import Any, Dict
+
+from .storage import DrawerStore
+
+
+class ChromaStore(DrawerStore):
+    """
+    Legacy ChromaDB-backed storage. Kept for migration and compatibility.
+
+    WARNING: ChromaDB PersistentClient uses HNSW with no WAL.
+    An interrupted write can corrupt the entire collection.
+    """
+
+    def __init__(
+        self, palace_path: str, collection_name: str = "mempalace_drawers", create: bool = True
+    ):
+        self._client = chromadb.PersistentClient(path=palace_path)
+        if create:
+            self._col = self._client.get_or_create_collection(collection_name)
+        else:
+            try:
+                self._col = self._client.get_collection(collection_name)
+            except Exception:
+                self._col = None
+
+    def count(self) -> int:
+        if self._col is None:
+            return 0
+        return self._col.count()
+
+    def add(self, ids, documents, metadatas):
+        self._col.add(ids=ids, documents=documents, metadatas=metadatas)
+
+    def upsert(self, ids, documents, metadatas):
+        self._col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+
+    def get(self, ids=None, where=None, include=None, limit=10000, offset=0):
+        kwargs: Dict[str, Any] = {}
+        if ids is not None:
+            kwargs["ids"] = ids
+        if where:
+            kwargs["where"] = where
+        if include:
+            kwargs["include"] = include
+        kwargs["limit"] = limit
+        if offset > 0:
+            kwargs["offset"] = offset
+        return self._col.get(**kwargs)
+
+    def query(self, query_texts, n_results=5, where=None, include=None):
+        kwargs: Dict[str, Any] = {
+            "query_texts": query_texts,
+            "n_results": n_results,
+        }
+        if where:
+            kwargs["where"] = where
+        if include:
+            kwargs["include"] = include
+        return self._col.query(**kwargs)
+
+    def delete(self, ids):
+        self._col.delete(ids=ids)
+
+    def delete_wing(self, wing: str) -> int:
+        if self._col is None:
+            return 0
+        results = self._col.get(where={"wing": wing})
+        ids = results.get("ids", [])
+        if not ids:
+            return 0
+        self._col.delete(ids=ids)
+        return len(ids)
+
+    def count_by(self, column: str) -> Dict[str, int]:
+        raise NotImplementedError("count_by not supported on deprecated ChromaStore")
+
+    def count_by_pair(self, col_a: str, col_b: str) -> Dict[str, Dict[str, int]]:
+        raise NotImplementedError("count_by_pair not supported on deprecated ChromaStore")

@@ -4,17 +4,22 @@ storage.py — Pluggable storage backend for MemPalace
 
 Provides a unified interface for drawer storage, abstracting away
 the underlying vector database. Ships with LanceDB (default, crash-safe)
-and ChromaDB (legacy) backends.
+and ChromaDB (legacy, optional) backends.
 
 Usage:
     from mempalace.storage import open_store
 
     store = open_store("/path/to/palace")          # auto-detect or create LanceDB
     store = open_store("/path/to/palace", "lance")  # explicit backend
-    store = open_store("/path/to/palace", "chroma") # legacy ChromaDB
+    store = open_store("/path/to/palace", "chroma") # legacy ChromaDB (requires [chroma] extra)
 
 The store object exposes a collection-like API that all MemPalace code
 uses instead of calling ChromaDB/LanceDB directly.
+
+ChromaStore is defined in ``mempalace._chroma_store`` and only importable
+when the ``[chroma]`` extra is installed. For backwards compatibility,
+``from mempalace.storage import ChromaStore`` also works when chromadb is
+present (raises ImportError with a helpful message when it is not).
 """
 
 from __future__ import annotations
@@ -697,84 +702,20 @@ class LanceStore(DrawerStore):
         return " AND ".join(parts) if parts else "1=1"
 
 
-# ─── ChromaDB backend (legacy) ────────────────────────────────────────────────
+# ─── Backwards-compat lazy re-export of ChromaStore ──────────────────────────
 
 
-class ChromaStore(DrawerStore):
-    """
-    Legacy ChromaDB-backed storage. Kept for migration and compatibility.
+def __getattr__(name: str):
+    if name == "ChromaStore":
+        try:
+            from ._chroma_store import ChromaStore
 
-    WARNING: ChromaDB PersistentClient uses HNSW with no WAL.
-    An interrupted write can corrupt the entire collection.
-    """
-
-    def __init__(
-        self, palace_path: str, collection_name: str = "mempalace_drawers", create: bool = True
-    ):
-        import chromadb
-
-        self._client = chromadb.PersistentClient(path=palace_path)
-        if create:
-            self._col = self._client.get_or_create_collection(collection_name)
-        else:
-            try:
-                self._col = self._client.get_collection(collection_name)
-            except Exception:
-                self._col = None
-
-    def count(self) -> int:
-        if self._col is None:
-            return 0
-        return self._col.count()
-
-    def add(self, ids, documents, metadatas):
-        self._col.add(ids=ids, documents=documents, metadatas=metadatas)
-
-    def upsert(self, ids, documents, metadatas):
-        self._col.upsert(ids=ids, documents=documents, metadatas=metadatas)
-
-    def get(self, ids=None, where=None, include=None, limit=10000, offset=0):
-        kwargs: Dict[str, Any] = {}
-        if ids is not None:
-            kwargs["ids"] = ids
-        if where:
-            kwargs["where"] = where
-        if include:
-            kwargs["include"] = include
-        kwargs["limit"] = limit
-        if offset > 0:
-            kwargs["offset"] = offset
-        return self._col.get(**kwargs)
-
-    def query(self, query_texts, n_results=5, where=None, include=None):
-        kwargs: Dict[str, Any] = {
-            "query_texts": query_texts,
-            "n_results": n_results,
-        }
-        if where:
-            kwargs["where"] = where
-        if include:
-            kwargs["include"] = include
-        return self._col.query(**kwargs)
-
-    def delete(self, ids):
-        self._col.delete(ids=ids)
-
-    def delete_wing(self, wing: str) -> int:
-        if self._col is None:
-            return 0
-        results = self._col.get(where={"wing": wing})
-        ids = results.get("ids", [])
-        if not ids:
-            return 0
-        self._col.delete(ids=ids)
-        return len(ids)
-
-    def count_by(self, column: str) -> Dict[str, int]:
-        raise NotImplementedError("count_by not supported on deprecated ChromaStore")
-
-    def count_by_pair(self, col_a: str, col_b: str) -> Dict[str, Dict[str, int]]:
-        raise NotImplementedError("count_by_pair not supported on deprecated ChromaStore")
+            return ChromaStore
+        except ImportError as exc:
+            raise ImportError(
+                "ChromaStore requires the [chroma] extra: pip install 'mempalace[chroma]'"
+            ) from exc
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ─── Store factory ─────────────────────────────────────────────────────────────
@@ -816,6 +757,12 @@ def open_store(
     if backend == "lance":
         return LanceStore(palace_path, create=create, embed_model=embed_model)
     elif backend == "chroma":
+        try:
+            from ._chroma_store import ChromaStore
+        except ImportError as exc:
+            raise ImportError(
+                "ChromaDB backend requires the [chroma] extra: pip install 'mempalace[chroma]'"
+            ) from exc
         return ChromaStore(palace_path, collection_name=collection_name, create=create)
     else:
         raise ValueError(f"Unknown storage backend: {backend!r}. Use 'lance' or 'chroma'.")

@@ -47,14 +47,14 @@ items:
     summary: "Remove ChromaDB from default install path"
     type: task
     priority: low
-    status: open
+    status: done
     size: S
     section_id: storage_reliability
     labels: [storage, packaging]
     description: >
       After migration CLI is solid, make ChromaDB purely optional. Remove any import-time chromadb references. ChromaStore should only be importable when [chroma] extra is installed. Lazy import pattern.
 
-    resolution: null
+    resolution: '2026-04-14: Moved ChromaStore to _chroma_store.py; storage.py now has lazy __getattr__ and open_store guard; migrate.py and test_migrate.py updated to import from ._chroma_store'
   - key: MCP-FILE-CONTEXT
     summary: "MCP tool: mempalace_file_context — get all chunks for a file"
     type: feature
@@ -402,35 +402,6 @@ items:
       3. store.add() succeeds with all _META_FIELD_SPEC sentinel values.
       4. store.get() returns all fields with correct sentinel values.
       5. ruff clean.
-  - key: STORE-WHERE-ARROW-OPS
-    summary: _where_to_arrow_mask silently ignores operator dicts — iter_all() returns wrong rows
-    type: task
-    status: done
-    priority: medium
-    size: S
-    section_id: storage_reliability
-    labels: [storage, bug]
-    description: |-
-      ## Problem
-
-      iter_all(where={'chunk_index': {'$gt': 1}}) returns ALL rows because _where_to_arrow_mask (storage.py) only handles simple equality. Operator dicts ($gt, $gte, $lt, $lte, $ne) are silently skipped, producing no filter. Confirmed by manual test: 3 rows returned when 2 were expected.
-
-      ## Deliverable
-
-      Fix _where_to_arrow_mask to handle numeric comparison operators via pyarrow.compute (pc.greater, pc.less_equal, etc.), mirroring _where_to_sql semantics.
-
-      ## Acceptance criteria
-
-      1. _where_to_arrow_mask handles $gt, $gte, $lt, $lte, $ne operator dicts for numeric fields
-      2. iter_all(where={'chunk_index': {'$gt': 1}}) returns only rows with chunk_index > 1
-      3. Regression test added to test_storage_lance.py::TestIterAll
-
-      ## Constraints
-
-      - Arrow compute ops must work for both int32 and float32 columns
-      - No behavioral change to the string equality case already working
-    resolution: '2026-04-14: Fixed _where_to_arrow_mask to handle $gt/$gte/$lt/$lte/$ne/$eq operator dicts via pyarrow.compute; 6 new TestIterAll tests cover all operators'
-    hardening: 'round-1: 0 fixed, 1 backlogged (STORE-WHERE-ARROW-IN: $in not supported in arrow mask), 2 dismissed. Audit: docs/audits/STORE-WHERE-ARROW-OPS-round-1.md'
   - key: STORE-MIGRATION-TEST-DYNAMIC-COLS
     summary: Derive migration NULL-safety assertion list from _META_FIELD_SPEC instead of hardcoding column names
     type: task
