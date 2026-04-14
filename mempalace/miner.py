@@ -449,7 +449,7 @@ GO_BOUNDARY = re.compile(
     r"^(?:"
     r"func\s+(?:\(.*?\)\s*)?\w+"
     r"|type\s+\w+\s+(?:struct|interface)"
-    r"|var\s+\w+"
+    r"|var\s+\("
     r"|const\s+\("
     r")",
     re.MULTILINE,

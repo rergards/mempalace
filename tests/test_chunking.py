@@ -4,6 +4,7 @@ import sys as _sys
 
 import pytest
 
+from mempalace import treesitter as ts_mod
 from mempalace.miner import (
     HARD_MAX,
     MIN_CHUNK,
@@ -321,6 +322,63 @@ def test_go_no_split_across_func():
     for c in contents(chunks):
         if "func Foo" in c:
             assert "return result" in c
+
+
+GO_VAR_IN_BODY = """\
+package main
+
+func ProcessItems(items []string) []string {
+    var result []string
+    var count int
+    for _, item := range items {
+        var processed string
+        processed = item + "_done"
+        count++
+        result = append(result, processed)
+    }
+    _ = count
+    return result
+}
+
+func AnotherFunc() int {
+    return 42
+}
+"""
+
+
+def test_go_var_in_body_no_spurious_split(monkeypatch):
+    """var declarations inside Go function bodies must not create chunk boundaries (AC-1)."""
+    monkeypatch.setattr(ts_mod, "TREE_SITTER_AVAILABLE", False)
+    monkeypatch.setattr(ts_mod, "_parser_cache", {})
+
+    chunks = chunk_code(GO_VAR_IN_BODY, ".go", "test.go")
+    # The entire ProcessItems function must appear in one chunk.
+    func_chunk = next((c for c in contents(chunks) if "func ProcessItems" in c), None)
+    assert func_chunk is not None, "ProcessItems function not found in any chunk"
+    assert "return result" in func_chunk, "ProcessItems body was split at a var declaration"
+
+
+def test_go_var_block_boundary(monkeypatch):
+    """A top-level var (...) block must still create a chunk boundary (AC-3)."""
+    monkeypatch.setattr(ts_mod, "TREE_SITTER_AVAILABLE", False)
+    monkeypatch.setattr(ts_mod, "_parser_cache", {})
+
+    go_src = """\
+package main
+
+var (
+    DefaultTimeout = 30
+    MaxRetries     = 3
+)
+
+func Run() int {
+    return DefaultTimeout + MaxRetries
+}
+"""
+    chunks = chunk_code(go_src, ".go", "test.go")
+    joined = "\n".join(contents(chunks))
+    assert "var (" in joined
+    assert "func Run" in joined
 
 
 # =============================================================================
