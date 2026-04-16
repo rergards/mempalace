@@ -1597,6 +1597,17 @@ pub fn helper() -> usize {
 }
 """
 
+# Const/static only — no fn. Used to verify that const_item/static_item actually create
+# boundaries (strategy=treesitter_v1). Without them in DEFINITION_TYPES the chunker finds
+# no boundaries and falls back to treesitter_adaptive_v1.
+RUST_AST_CONST_ONLY = """\
+pub const ALPHA: usize = 1;
+
+pub const BETA: usize = 2;
+
+pub static GAMMA: &str = "hello";
+"""
+
 
 def _skip_if_no_rust_ast():
     """Skip test if tree-sitter-rust is not installed."""
@@ -1721,6 +1732,21 @@ def test_ast_rust_static_detected():
     chunks = chunk_code(RUST_AST_CONST_STATIC, "rust", "constants.rs")
     found = any("pub static DEFAULT_HOST" in c for c in contents(chunks))
     assert found, "pub static DEFAULT_HOST not found in any chunk"
+
+
+def test_ast_rust_const_static_create_boundaries():
+    """AC-3: const/static-only file uses treesitter_v1, not the adaptive fallback.
+
+    Without const_item/static_item in DEFINITION_TYPES the chunker finds no boundaries
+    and returns strategy=treesitter_adaptive_v1. This test confirms they are recognised
+    as definition nodes so at least one chunk carries strategy=treesitter_v1.
+    """
+    _skip_if_no_rust_ast()
+    chunks = chunk_code(RUST_AST_CONST_ONLY, "rust", "consts.rs")
+    strategies = {c.get("chunker_strategy") for c in chunks}
+    assert "treesitter_v1" in strategies, (
+        f"const/static-only file should produce treesitter_v1 chunks; got {strategies}"
+    )
 
 
 # =============================================================================

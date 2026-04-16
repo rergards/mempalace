@@ -621,7 +621,7 @@ items:
       4. ruff clean
 
       Identified in CODE-TREESITTER-EXPAND harden round-1 (F-3).
-    resolution: '2026-04-17: Added const_item and static_item to _chunk_rust_treesitter DEFINITION_TYPES; added RUST_AST_CONST_STATIC fixture and two new tests'
+    resolution: '2026-04-17: Added const_item and static_item to _chunk_rust_treesitter DEFINITION_TYPES; added RUST_AST_CONST_STATIC fixture and two new tests. Hardening round-1: 1 fixed (test_ast_rust_const_static_create_boundaries added to verify actual boundary creation), 2 dismissed; audit at docs/audits/CODE-TREESITTER-RUST-CONST-STATIC-round-1.md'
   - key: CODE-SEARCH-LANG-PROSE
     summary: Add markdown, text, csv to SUPPORTED_LANGUAGES so code_search language filter works for prose and data drawers
     type: feature
