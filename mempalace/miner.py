@@ -1679,7 +1679,7 @@ def mine(
                 print("  >> Optimizing storage...", end="", flush=True)
                 if hasattr(collection, "safe_optimize"):
                     success = collection.safe_optimize(
-                        config.palace_path, backup_first=backup_first
+                        palace_path, backup_first=backup_first
                     )
                     if success:
                         print(f" done ({time.time() - t0:.1f}s)", flush=True)

@@ -816,6 +816,20 @@ class TestSafeOptimize:
         archives = glob.glob(os.path.join(backup_dir, "pre_optimize_*.tar.gz"))
         assert len(archives) == 1, f"backup should be sibling of palace, found: {archives}"
 
+    def test_optimize_exception_returns_false_and_does_not_propagate(self, palace_path):
+        """F-1 regression: if _table.optimize() raises, safe_optimize returns False (not exception)."""
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["exc1"],
+            documents=["optimize exception propagation test content"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+
+        with patch.object(store._table, "optimize", side_effect=RuntimeError("disk full")):
+            result = store.safe_optimize(palace_path, backup_first=False)
+
+        assert result is False
+
 
 class TestMetaFieldSpec:
     def test_meta_field_spec_consistency(self):

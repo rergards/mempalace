@@ -655,8 +655,12 @@ class LanceStore(DrawerStore):
         # Get row count before optimize
         pre_count = self._table.count_rows()
 
-        # Run optimize
-        self._table.optimize()
+        # Run optimize — wrapped so any LanceDB exception returns False instead of propagating
+        try:
+            self._table.optimize()
+        except Exception as e:
+            logger.error("optimize() raised an exception: %s", e)
+            return False
 
         # Verify table is still readable
         try:
