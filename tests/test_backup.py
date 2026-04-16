@@ -264,6 +264,27 @@ class TestAutoBackupDefault:
         cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
         assert cfg.backup_before_optimize is True
 
+    def test_backup_schedule_env_override(self, tmp_dir, monkeypatch):
+        """MEMPALACE_BACKUP_SCHEDULE env var overrides the default 'off' value."""
+        from mempalace.config import MempalaceConfig
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_SCHEDULE", "DAILY")
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        # env value is lowercased
+        assert cfg.backup_schedule == "daily"
+
+    def test_backup_schedule_file_key(self, tmp_dir):
+        """backup_schedule file key is honored when env var is absent."""
+        import json as _json
+        from mempalace.config import MempalaceConfig
+
+        cfg_dir = os.path.join(tmp_dir, "cfg")
+        os.makedirs(cfg_dir)
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            _json.dump({"backup_schedule": "weekly"}, f)
+        cfg = MempalaceConfig(config_dir=cfg_dir)
+        assert cfg.backup_schedule == "weekly"
+
 
 # ── TestListBackups ────────────────────────────────────────────────────────────
 

@@ -40,7 +40,7 @@ def create_backup(
         Root directory of the palace (``lance/`` subdirectory lives here).
     out_path:
         Destination ``.tar.gz`` file.  Defaults to
-        ``mempalace_backup_YYYYMMDD_HHMMSS.tar.gz`` in the current working directory.
+        ``<palace_parent>/backups/mempalace_backup_YYYYMMDD_HHMMSS.tar.gz``.
     kg_path:
         Path to the knowledge-graph SQLite file.  Defaults to
         ``knowledge_graph.DEFAULT_KG_PATH``.
@@ -264,7 +264,11 @@ def list_backups(palace_path: str, extra_dir: Optional[str] = None) -> List[Dict
                 continue
             seen_paths.add(fpath)
 
-            stat = os.stat(fpath)
+            try:
+                stat = os.stat(fpath)
+            except (FileNotFoundError, PermissionError) as exc:
+                logger.warning("Could not stat backup file (skipped): %s (%s)", fpath, exc)
+                continue
             entry: Dict[str, Any] = {
                 "path": fpath,
                 "size_bytes": stat.st_size,
@@ -369,6 +373,10 @@ def render_schedule(
         return f"{cron_time} {mempalace_bin} backup create --out {out_arg}\n"
 
     # darwin: launchd plist
+    def _xml_escape(s: str) -> str:
+        """Escape XML special characters for embedding in a plist <string> element."""
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     label = "com.mempalace.backup"
 
     if freq == "daily":
@@ -408,7 +416,7 @@ def render_schedule(
         "    <array>\n"
         "        <string>/bin/sh</string>\n"
         "        <string>-c</string>\n"
-        f"        <string>{mempalace_bin} backup create --out {out_arg}</string>\n"
+        f"        <string>{_xml_escape(mempalace_bin)} backup create --out {_xml_escape(out_arg)}</string>\n"
         "    </array>\n"
         f"{schedule_xml}\n"
         "    <key>RunAtLoad</key>\n"

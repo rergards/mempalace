@@ -659,6 +659,13 @@ def cmd_backup_schedule(args):
         platform = "darwin"
     elif platform.startswith("linux"):
         platform = "linux"
+    else:
+        print(
+            f"  Error: backup scheduling is not supported on {_sys.platform}.\n"
+            "  'mempalace backup schedule' works on macOS (launchd) and Linux (cron) only.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     try:
         snippet = render_schedule(args.freq, palace_path, platform)
