@@ -954,7 +954,7 @@ def _chunk_rust_treesitter(parser, content: str, source_file: str) -> list:
     AST-aware Rust chunker using tree-sitter.
 
     Extracts function_item, struct_item, enum_item, trait_item, impl_item,
-    mod_item, and type_item nodes as chunk boundaries. Attaches immediately
+    mod_item, type_item, const_item, and static_item nodes as chunk boundaries. Attaches immediately
     adjacent leading attribute_item (#[...]) and comment siblings (no
     blank-line gap) to their item — critical because tree-sitter-rust keeps
     #[derive(...)] as a separate attribute_item sibling rather than wrapping
@@ -972,6 +972,8 @@ def _chunk_rust_treesitter(parser, content: str, source_file: str) -> list:
             "impl_item",
             "mod_item",
             "type_item",
+            "const_item",
+            "static_item",
         }
     )
     # Nodes that can precede a definition and should be attached to it

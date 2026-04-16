@@ -1585,6 +1585,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 """
 
+RUST_AST_CONST_STATIC = """\
+use std::time::Duration;
+
+pub const MAX_SIZE: usize = 1024;
+
+pub static DEFAULT_HOST: &str = "localhost";
+
+pub fn helper() -> usize {
+    MAX_SIZE
+}
+"""
+
 
 def _skip_if_no_rust_ast():
     """Skip test if tree-sitter-rust is not installed."""
@@ -1693,6 +1705,22 @@ def test_ast_rust_no_definitions_falls_back():
     chunks = chunk_code(RUST_AST_USE_ONLY, "rust", "lib.rs")
     for chunk in chunks:
         assert chunk.get("chunker_strategy") == "treesitter_adaptive_v1"
+
+
+def test_ast_rust_const_detected():
+    """AC-1: const_item nodes (pub const FOO: T = ...) produce chunk boundaries."""
+    _skip_if_no_rust_ast()
+    chunks = chunk_code(RUST_AST_CONST_STATIC, "rust", "constants.rs")
+    found = any("pub const MAX_SIZE" in c for c in contents(chunks))
+    assert found, "pub const MAX_SIZE not found in any chunk"
+
+
+def test_ast_rust_static_detected():
+    """AC-2: static_item nodes (pub static BAR: T = ...) produce chunk boundaries."""
+    _skip_if_no_rust_ast()
+    chunks = chunk_code(RUST_AST_CONST_STATIC, "rust", "constants.rs")
+    found = any("pub static DEFAULT_HOST" in c for c in contents(chunks))
+    assert found, "pub static DEFAULT_HOST not found in any chunk"
 
 
 # =============================================================================

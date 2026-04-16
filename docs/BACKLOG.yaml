@@ -187,18 +187,6 @@ items:
       Mine multiple project directories into a single palace with wing-per-repo isolation. Enables cross-project knowledge search. Needs: wing auto-naming from git remote/folder, conflict resolution for shared file names, incremental per-repo re-mining.
 
     resolution: null
-  - key: FUT-WATCH-MODE
-    summary: "DUPLICATE - see MINE-WATCH"
-    type: feature
-    priority: lowest
-    status: done
-    size: M
-    section_id: future
-    labels: [future, mining]
-    description: >
-      File watcher (watchdog/inotify) that triggers incremental re-mining when source files change. Keeps palace always up-to-date during active development. Depends on CODE-INCREMENTAL.
-
-    resolution: null
   - key: TEST-STORAGE-EDGE
     summary: 'Add edge-case tests for LanceStore: empty IDs, $or filters, comparison operators'
     type: task
@@ -607,7 +595,7 @@ items:
   - key: CODE-TREESITTER-RUST-CONST-STATIC
     summary: Add const_item and static_item to Rust AST chunker DEFINITION_TYPES
     type: task
-    status: open
+    status: done
     priority: low
     size: XS
     section_id: coding_first
@@ -633,6 +621,7 @@ items:
       4. ruff clean
 
       Identified in CODE-TREESITTER-EXPAND harden round-1 (F-3).
+    resolution: '2026-04-17: Added const_item and static_item to _chunk_rust_treesitter DEFINITION_TYPES; added RUST_AST_CONST_STATIC fixture and two new tests'
   - key: CODE-SEARCH-LANG-PROSE
     summary: Add markdown, text, csv to SUPPORTED_LANGUAGES so code_search language filter works for prose and data drawers
     type: feature
@@ -691,37 +680,6 @@ items:
       6. ruff clean; pytest -q passes.
 
       Origin: STORE-BACKUP-RESTORE hardening round-1 F-5.
-  - key: STORE-WHERE-ARROW-IN
-    summary: $in operator silently ignored in _where_to_arrow_mask — iter_all() returns wrong rows for $in filters
-    type: bug
-    status: done
-    priority: medium
-    size: XS
-    section_id: storage_reliability
-    labels: [storage, bug]
-    description: |-
-      ## Problem
-
-      _where_to_arrow_mask (storage.py) supports $eq/$ne/$gt/$gte/$lt/$lte via _OP_MAP but has no $in support. _OP_MAP.get("$in") returns None, so the operator is silently skipped. iter_all(where={"wing": {"$in": ["a", "b"]}}) returns ALL rows instead of filtering — the same silent-skip bug pattern as the original STORE-WHERE-ARROW-OPS ticket.
-
-      _where_to_sql does support $in, so there is a semantic divergence between the two code paths.
-
-      ## Deliverable
-
-      Add $in support to _where_to_arrow_mask using pyarrow.compute.is_in(). Handle empty list (return no rows), single-element (use pc.equal), and multi-element (use pc.is_in) cases, mirroring _where_to_sql semantics.
-
-      ## Acceptance criteria
-
-      1. iter_all(where={"wing": {"$in": ["alpha", "beta"]}}) returns only rows from those wings
-      2. iter_all(where={"wing": {"$in": []}}) returns zero rows (empty $in)
-      3. iter_all(where={"wing": {"$in": ["alpha"]}}) returns only alpha rows (single-element)
-      4. Tests cover all three $in sub-cases
-      5. ruff clean; pytest -q passes
-
-      ## Origin
-
-      Discovered during STORE-WHERE-ARROW-OPS hardening round-1 (2026-04-14).
-    resolution: '2026-04-16: Added $in operator to _where_to_arrow_mask via pc.is_in; empty list returns zero rows; 3 tests added. 2026-04-17: Hardening round-1 — 2 fixed (tests expanded to 5, docstring updated), 2 dismissed; audit at docs/audits/STORE-WHERE-ARROW-IN-round-1.md'
   - key: STORE-CHROMA-IMPORT-ERROR-TESTS
     summary: Add tests for ChromaStore ImportError paths when chromadb extra absent
     type: task
