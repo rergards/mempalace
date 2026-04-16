@@ -235,12 +235,13 @@ items:
   - key: CLI-DIARY-WRITE-ID-COLLISION
     summary: Use UUID for diary entry IDs to prevent same-second collision
     type: bug
-    status: open
+    status: done
     priority: low
     size: XS
     section_id: mcp_developer_tools
     labels: [cli, diary, mcp]
     description: 'diary write (cli.py cmd_diary_write) and tool_diary_write (mcp_server.py) both generate IDs using second-precision timestamps plus an 8-char MD5 suffix of the first 50 content chars. Two writes at the same second with identical first 50 chars produce the same ID, causing store.add() to raise a duplicate-ID error. Replace the ID formula in both sites with uuid.uuid4() to guarantee uniqueness. Deliverable: update cmd_diary_write and tool_diary_write atomically; update tests that assert on ID format if any. Constraints: keep all other metadata fields unchanged. AC: (1) two diary writes in the same second with identical content both succeed without error; (2) each produces a distinct ID; (3) all existing diary write tests pass; (4) ruff clean.'
+    resolution: '2026-04-17: 2026-04-17: Replaced timestamp+MD5 diary entry ID with uuid4 in cmd_diary_write (cli.py) and tool_diary_write (mcp_server.py); removed unused hashlib import from cli.py'
   - key: MINE-BATCH-EMBED-DRY-RUN-REFACTOR
     summary: Remove process_file dry-run code duplication — delegate to _collect_specs_for_file
     type: task
@@ -336,38 +337,6 @@ items:
       ## Constraints
       - Deferred from CORE-EXPORT-IMPORT per plan (iter_all itself guarantees streaming; test is for regression protection)
       - Must not slow the test suite materially
-  - key: STORE-META-DEFAULTS-COERCE
-    summary: Derive numeric coercions in _meta_defaults() from _META_FIELD_SPEC type_tags
-    type: task
-    status: done
-    priority: low
-    size: XS
-    section_id: storage_reliability
-    labels: [storage, refactor]
-    description: |-
-      ## Problem
-      _meta_defaults() in storage.py hardcodes explicit int/float coercions for chunk_index, compression_ratio, and original_tokens. Adding a new int32 or float32 field to _META_FIELD_SPEC still requires a manual coercion line here, partially defeating the single-point-of-change goal established by STORE-META-KEYS-DEDUP.
-
-      ## Scope
-      mempalace/storage.py — _meta_defaults() only.
-
-      ## Deliverable
-      Replace the three hardcoded coercion lines with a loop over _META_FIELD_SPEC that applies int() for int32 tags and float() for float32 tags automatically.
-
-      ## Constraints
-      - Must not change public API or behavior for existing fields
-      - ruff clean, existing tests unchanged
-
-      ## Acceptance criteria
-      1. The three hardcoded coercion lines are removed
-      2. A loop over _META_FIELD_SPEC drives coercions for all int32/float32 fields
-      3. Adding a new numeric field to _META_FIELD_SPEC requires no change in _meta_defaults()
-      4. test_metadata_roundtrip_all_fields passes with correct numeric types
-      5. ruff check mempalace/ reports no issues
-
-      Identified in STORE-META-KEYS-DEDUP harden round-1 (F-002).
-    resolution: '2026-04-17: Replaced three hardcoded int/float coercion lines in _meta_defaults() with a loop over _META_FIELD_SPEC type_tags; 54 tests pass'
-    harden_round_1: '2026-04-17: 0 fixed, 0 backlogged, 2 dismissed — clean refactor, no issues found'
   - key: STORE-SCHEMA-PARTIAL-MIGRATE-TEST
     summary: 'Add test: partial schema migration roundtrip (intermediate-column-count palace)'
     type: task
