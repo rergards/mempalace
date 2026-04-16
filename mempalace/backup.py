@@ -62,6 +62,7 @@ def create_backup(
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
         os.makedirs(backups_dir, exist_ok=True)
+        os.chmod(backups_dir, 0o700)  # F-9: restrict to owner only — backups contain personal data
         out_path = os.path.join(backups_dir, f"mempalace_backup_{ts}.tar.gz")
 
     # Gather metadata — open store read-only; tolerate missing palace.
@@ -83,6 +84,7 @@ def create_backup(
 
     lance_dir = os.path.join(palace_path, "lance")
     out_dir = os.path.dirname(os.path.abspath(out_path))
+    os.makedirs(out_dir, exist_ok=True)  # F-10: auto-create parent dir for explicit --out paths
 
     # Write atomically: build archive in a temp file, then rename into place.
     # A partial/interrupted write therefore never corrupts the destination.
@@ -345,6 +347,7 @@ def render_schedule(
     ValueError
         If freq or platform is unsupported.
     """
+    import shlex as _shlex
     import shutil as _shutil
 
     valid_freqs = ("daily", "weekly", "hourly")
@@ -360,7 +363,11 @@ def render_schedule(
         if mempalace_bin is None:
             mempalace_bin = f"{sys.executable} -m mempalace"
 
-    out_arg = os.path.join(backups_dir, "scheduled_$(date +%Y%m%d_%H%M%S).tar.gz")
+    # F-8: shell-quote binary and dir to handle paths with spaces or special characters.
+    # The $(date ...) suffix is kept unquoted so the shell expands it at runtime.
+    safe_bin = _shlex.quote(mempalace_bin)
+    safe_dir = _shlex.quote(backups_dir)
+    out_arg = f"{safe_dir}/scheduled_$(date +%Y%m%d_%H%M%S).tar.gz"
 
     if platform == "linux":
         # cron: minute hour dom month dow command
@@ -370,7 +377,7 @@ def render_schedule(
             cron_time = "0 3 * * 0"
         else:  # hourly
             cron_time = "0 * * * *"
-        return f"{cron_time} {mempalace_bin} backup create --out {out_arg}\n"
+        return f"{cron_time} {safe_bin} backup create --out {out_arg}\n"
 
     # darwin: launchd plist
     def _xml_escape(s: str) -> str:
@@ -416,7 +423,7 @@ def render_schedule(
         "    <array>\n"
         "        <string>/bin/sh</string>\n"
         "        <string>-c</string>\n"
-        f"        <string>{_xml_escape(mempalace_bin)} backup create --out {_xml_escape(out_arg)}</string>\n"
+        f"        <string>{_xml_escape(f'{safe_bin} backup create --out {out_arg}')}</string>\n"
         "    </array>\n"
         f"{schedule_xml}\n"
         "    <key>RunAtLoad</key>\n"

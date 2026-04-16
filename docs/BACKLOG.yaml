@@ -1090,7 +1090,7 @@ items:
     links:
       - type: deploy-blocked-by
         key: STORAGE-AUTO-BACKUP-SCHEDULE-INSTALL
-    resolution: '2026-04-16: Flipped backup_before_optimize default to True; added list_backups() + render_schedule() to backup.py; refactored CLI backup parser with create/list/schedule subverbs; changed default backup dir to <palace_parent>/backups/; added auto_backup_before_optimize alias + backup_schedule config properties; 56 new tests added. Hardening round-1: 5 fixed (TOCTOU stat race, XML escape in plist, docstring, unsupported-platform UX, backup_schedule env test), 2 dismissed.'
+    resolution: '2026-04-16: Flipped backup_before_optimize default to True; added list_backups() + render_schedule() to backup.py; refactored CLI backup parser with create/list/schedule subverbs; changed default backup dir to <palace_parent>/backups/; added auto_backup_before_optimize alias + backup_schedule config properties; 56 new tests added. Hardening round-1: 8 fixed (TOCTOU stat race, XML escape in plist, docstring, unsupported-platform UX, backup_schedule env test, shell injection via shlex.quote, backup dir 0o700 perms, explicit --out parent dir auto-creation), 2 dismissed. 5 tests added in hardening.'
   - key: MINE-WATCH
     summary: File watcher for auto-incremental mining
     type: feature

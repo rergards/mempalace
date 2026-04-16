@@ -117,6 +117,23 @@ def test_backup_explicit_out_overrides_default(seeded_collection, palace_path, t
     assert os.path.isfile(explicit_out)
 
 
+def test_backup_default_dir_has_restrictive_permissions(seeded_collection, palace_path, tmp_dir):
+    """F-9: default backups/ directory is created with owner-only (0o700) permissions."""
+    kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+    create_backup(palace_path, kg_path=kg_path)
+    backups_dir = os.path.join(tmp_dir, "backups")
+    mode = os.stat(backups_dir).st_mode & 0o777
+    assert mode == 0o700, f"Expected 0o700, got {oct(mode)}"
+
+
+def test_backup_creates_missing_parent_dir(seeded_collection, palace_path, tmp_dir):
+    """F-10: create_backup auto-creates missing parent directories for explicit --out."""
+    nested = os.path.join(tmp_dir, "nested", "subdir", "backup.tar.gz")
+    kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+    create_backup(palace_path, out_path=nested, kg_path=kg_path)
+    assert os.path.isfile(nested)
+
+
 # ── restore_backup ─────────────────────────────────────────────────────────────
 
 
@@ -474,3 +491,19 @@ class TestRenderSchedule:
     def test_invalid_platform_raises(self, palace_path):
         with pytest.raises(ValueError, match="Unsupported platform"):
             render_schedule("daily", palace_path, "windows", mempalace_bin=self._BIN)
+
+    def test_cron_bin_with_spaces_is_shell_quoted(self, palace_path):
+        """F-8: shell-quoting applied to binary path with spaces in cron snippet."""
+        import shlex
+
+        bin_with_space = "/home/user/my apps/mempalace"
+        out = render_schedule("daily", palace_path, "linux", mempalace_bin=bin_with_space)
+        assert shlex.quote(bin_with_space) in out
+
+    def test_plist_bin_with_spaces_is_shell_quoted(self, palace_path):
+        """F-8: shell-quoting applied to binary path with spaces in launchd plist."""
+        import shlex
+
+        bin_with_space = "/home/user/my apps/mempalace"
+        out = render_schedule("daily", palace_path, "darwin", mempalace_bin=bin_with_space)
+        assert shlex.quote(bin_with_space) in out
