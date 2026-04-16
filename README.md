@@ -58,6 +58,18 @@ This makes the 18 tools available to your AI. For proactive search and storage (
 
 </details>
 
+### Do you need it? Ask your LLM:
+
+```
+Read https://github.com/rergards/mempalace-code/blob/main/docs/AGENT_INSTALL.md
+
+1. How much context do I re-explain to you each session? Estimate tokens wasted.
+2. Would auto-indexing this codebase as it grows save tokens over time? By how much?
+3. Is my language/stack supported? If not, what's missing?
+4. Decision: install now, wait for [feature], or skip — with reasoning.
+5. If waiting: ask me if I want to draft a feature request for GitHub.
+```
+
 ### Supported MCP Clients
 
 mempalace works with any [MCP](https://modelcontextprotocol.io/)-compatible client:

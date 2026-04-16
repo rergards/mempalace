@@ -145,7 +145,58 @@ The format is human-readable, version-control-friendly, and streamable. You can 
 
 ---
 
+## Tarball Backup (Full Snapshot)
+
+For full binary snapshots (faster, includes everything, not human-readable):
+
+```bash
+mempalace backup create                    # creates ~/.mempalace/backups/palace_YYYYMMDD_HHMMSS.tar.gz
+mempalace backup create --out ~/safe.tar.gz
+mempalace backup list                      # show existing backups
+mempalace restore ~/safe.tar.gz            # restore (prompts before overwrite)
+mempalace restore ~/safe.tar.gz --force    # overwrite without prompt
+```
+
+### Scheduled Backups
+
+```bash
+mempalace backup schedule --freq daily     # prints launchd plist (macOS) or cron line (Linux)
+```
+
+Install the printed snippet manually — mempalace does not write to system directories.
+
+### Auto-Backup Before Optimize
+
+Enabled by default. Every `mempalace mine` creates a backup before compacting storage:
+
+```
+~/.mempalace/backups/pre_optimize_YYYYMMDD_HHMMSS.tar.gz
+```
+
+To disable: set `auto_backup_before_optimize: false` in `~/.mempalace/config.json` or `MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE=0`.
+
+---
+
+## Health Check and Repair
+
+If your palace seems corrupted (search returns empty, counts don't match):
+
+```bash
+mempalace health              # probe for fragment corruption
+mempalace health --json       # machine-readable report
+```
+
+If corruption is detected:
+
+```bash
+mempalace repair --dry-run    # show what would be recovered, how many rows lost
+mempalace repair --rollback   # roll back to last working LanceDB version
+```
+
+This uses LanceDB's version history to find the most recent uncorrupted state. Data added after corruption is lost — this is why auto-backup exists.
+
+---
+
 ## Related
 
-- `STORE-BACKUP-RESTORE` backlog item — opaque tarball backup of the full palace directory (different use case: full binary snapshot vs. selective human-readable export)
 - Upstream data loss context: issue #469 in the original ChromaDB-based fork

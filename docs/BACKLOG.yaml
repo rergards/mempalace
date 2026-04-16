@@ -694,7 +694,7 @@ items:
   - key: STORE-WHERE-ARROW-IN
     summary: $in operator silently ignored in _where_to_arrow_mask — iter_all() returns wrong rows for $in filters
     type: bug
-    status: open
+    status: done
     priority: medium
     size: XS
     section_id: storage_reliability
@@ -721,6 +721,7 @@ items:
       ## Origin
 
       Discovered during STORE-WHERE-ARROW-OPS hardening round-1 (2026-04-14).
+    resolution: '2026-04-16: Added $in operator to _where_to_arrow_mask via pc.is_in; empty list returns zero rows; 3 tests added'
   - key: STORE-CHROMA-IMPORT-ERROR-TESTS
     summary: Add tests for ChromaStore ImportError paths when chromadb extra absent
     type: task

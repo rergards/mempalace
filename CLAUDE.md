@@ -63,7 +63,8 @@ Line length: 100. Target: py39. Quote style: double.
 
 | Module | Purpose |
 |--------|---------|
-| `storage.py` | LanceDB vector storage — add, search, delete drawers |
+| `storage.py` | LanceDB vector storage — add, search, delete, health_check, recover |
+| `backup.py` | Tarball backup/restore — `mempalace backup`, scheduled backups |
 | `miner.py` | Code project miner — walks source files, extracts drawers |
 | `convo_miner.py` | Conversation miner — ingests Claude/ChatGPT/Slack exports |
 | `searcher.py` | Semantic search — query palace with optional wing/room filters |
@@ -71,7 +72,7 @@ Line length: 100. Target: py39. Quote style: double.
 | `layers.py` | Tiered context loading — L0/L1/L2/L3 wake-up layers for local models |
 | `palace_graph.py` | Graph traversal and tunnel detection across wings/rooms |
 | `mcp_server.py` | MCP server — exposes palace tools to Claude Code and other MCP clients |
-| `cli.py` | `mempalace` CLI entry point — init, mine, search, wake-up |
+| `cli.py` | `mempalace` CLI entry point — init, mine, search, health, repair, backup |
 
 ## Architecture Principles
 
