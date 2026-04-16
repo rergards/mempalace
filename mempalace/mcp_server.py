@@ -69,6 +69,18 @@ def _no_palace():
     }
 
 
+_DEGRADED_HINT = "Run: mempalace health && mempalace repair --rollback --dry-run"
+
+
+def _degraded_response(exc: Exception, **extra) -> dict:
+    """Return a structured degraded-palace response when taxonomy calls fail but count() works."""
+    return {
+        "error": f"palace degraded: {exc}",
+        "hint": _DEGRADED_HINT,
+        **extra,
+    }
+
+
 # ==================== READ TOOLS ====================
 
 
@@ -85,8 +97,8 @@ def tool_status():
             wings[w] = sum(room_counts.values())
             for r, c in room_counts.items():
                 rooms[r] = rooms.get(r, 0) + c
-    except Exception:
-        pass
+    except Exception as e:
+        return _degraded_response(e, total_drawers=count, palace_path=_config.palace_path)
     result = {
         "total_drawers": count,
         "wings": wings,
@@ -136,11 +148,10 @@ def tool_list_wings():
     col = _get_store()
     if not col:
         return _no_palace()
-    wings: dict = {}
     try:
         wings = col.count_by("wing")
-    except Exception:
-        pass
+    except Exception as e:
+        return _degraded_response(e, wings={})
     return {"wings": wings}
 
 
@@ -157,8 +168,8 @@ def tool_list_rooms(wing: str = None):
             for wing_rooms in taxonomy.values():
                 for r, c in wing_rooms.items():
                     rooms[r] = rooms.get(r, 0) + c
-    except Exception:
-        pass
+    except Exception as e:
+        return _degraded_response(e, wing=wing or "all", rooms={})
     return {"wing": wing or "all", "rooms": rooms}
 
 
@@ -166,11 +177,10 @@ def tool_get_taxonomy():
     col = _get_store()
     if not col:
         return _no_palace()
-    taxonomy: dict = {}
     try:
         taxonomy = col.count_by_pair("wing", "room")
-    except Exception:
-        pass
+    except Exception as e:
+        return _degraded_response(e, taxonomy={})
     return {"taxonomy": taxonomy}
 
 

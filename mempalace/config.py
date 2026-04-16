@@ -11,6 +11,10 @@ from pathlib import Path
 DEFAULT_PALACE_PATH = os.path.expanduser("~/.mempalace/palace")
 DEFAULT_COLLECTION_NAME = "mempalace_drawers"
 
+# Storage safety defaults
+DEFAULT_OPTIMIZE_AFTER_MINE = True  # Set False to disable auto-compaction
+DEFAULT_BACKUP_BEFORE_OPTIMIZE = False  # Set True to snapshot before risky operations
+
 DEFAULT_TOPIC_WINGS = [
     "emotions",
     "consciousness",
@@ -122,6 +126,22 @@ class MempalaceConfig:
     def hall_keywords(self):
         """Mapping of hall names to keyword lists."""
         return self._file_config.get("hall_keywords", DEFAULT_HALL_KEYWORDS)
+
+    @property
+    def optimize_after_mine(self):
+        """Whether to run optimize() after mining. Disable to prevent compaction corruption."""
+        env_val = os.environ.get("MEMPALACE_OPTIMIZE_AFTER_MINE")
+        if env_val is not None:
+            return env_val.lower() in ("1", "true", "yes")
+        return self._file_config.get("optimize_after_mine", DEFAULT_OPTIMIZE_AFTER_MINE)
+
+    @property
+    def backup_before_optimize(self):
+        """Whether to create a backup before optimize(). Recommended for safety."""
+        env_val = os.environ.get("MEMPALACE_BACKUP_BEFORE_OPTIMIZE")
+        if env_val is not None:
+            return env_val.lower() in ("1", "true", "yes")
+        return self._file_config.get("backup_before_optimize", DEFAULT_BACKUP_BEFORE_OPTIMIZE)
 
     def init(self):
         """Create config directory and write default config.json if it doesn't exist."""

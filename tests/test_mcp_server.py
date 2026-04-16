@@ -773,3 +773,54 @@ class TestAggregationRegression:
             assert lang in result["supported_languages"], (
                 f"DevOps language {lang!r} missing from supported_languages hint"
             )
+
+
+# ── Degraded Palace (FIX-LANCE-CORRUPT) ──────────────────────────────────
+
+
+class TestDegradedPalace:
+    """AC-7: When count() > 0 but count_by_pair raises, MCP tools return error + hint."""
+
+    def test_tool_status_count_by_pair_raises_returns_error_and_hint(
+        self, monkeypatch, config, palace_path, kg
+    ):
+        """tool_status() must include 'error' and 'hint' when taxonomy call fails."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        store = _ensure_store(palace_path)
+        store.add(
+            ids=["degrade_1"],
+            documents=["degraded palace test drawer content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        from mempalace import mcp_server
+
+        # Force the singleton to open so we have an instance to patch
+        live_store = mcp_server._get_store()
+        assert live_store is not None
+
+        def _broken_count_by_pair(col_a, col_b):
+            raise RuntimeError("fragment missing: IO error reading data file")
+
+        monkeypatch.setattr(live_store, "count_by_pair", _broken_count_by_pair)
+
+        result = mcp_server.tool_status()
+
+        assert "error" in result, f"Expected 'error' key in result, got: {result}"
+        assert "hint" in result, f"Expected 'hint' key in result, got: {result}"
+        assert result.get("total_drawers", 0) > 0, (
+            "total_drawers should still be populated from count()"
+        )
+        # Silent empty wings/rooms must not appear without explanation
+        assert "wings" not in result or "error" in result
+
+    def test_tool_status_healthy_palace_has_no_error_key(
+        self, monkeypatch, config, palace_path, seeded_collection, kg
+    ):
+        """Healthy palace must not include 'error' in tool_status() response."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_status
+
+        result = tool_status()
+        assert "error" not in result
+        assert result["total_drawers"] == 4

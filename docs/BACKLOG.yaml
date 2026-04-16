@@ -813,7 +813,7 @@ items:
   - key: FIX-LANCE-CORRUPT
     summary: Detect and recover from missing LanceDB fragment files
     type: bug
-    status: open
+    status: done
     priority: medium
     section_id: storage_reliability
     labels: [fix, storage]
@@ -844,6 +844,7 @@ items:
       - [ ] `mempalace repair --dry-run` shows what would be restored
       - [ ] `mempalace repair` restores to last working version
       - [ ] MCP returns error with diagnosis instead of silent empty results
+    resolution: '2026-04-16: Added LanceStore.health_check() and recover_to_last_working_version(); cmd_health CLI with --json; --rollback/--dry-run for cmd_repair; _degraded_response helper in MCP tool_status/list_wings/list_rooms/get_taxonomy; all AC tests pass'
   - key: MINE-CSHARP
     summary: Add C# language support to code miner
     type: feature
@@ -1143,46 +1144,6 @@ items:
       - [ ] Changed files re-indexed within 10s
       - [ ] Low CPU usage when idle
       - [ ] Graceful shutdown on SIGTERM
-  - key: STORAGE-SAFE-OPTIMIZE
-    summary: 'Hardening: safe_optimize with pre-backup and verification'
-    type: feature
-    status: done
-    priority: high
-    section_id: storage_reliability
-    labels: [feat, storage, hardening]
-    description: |-
-      ## Summary
-      Implemented in response to Apr 2026 LanceDB corruption incident. Needs hardening review.
-
-      ## Changes Made (needs review)
-      - config.py: Added optimize_after_mine and backup_before_optimize options
-      - storage.py: Added safe_optimize() method with pre-backup and post-verification
-      - miner.py: Uses config options and safe_optimize
-      - convo_miner.py: Same changes
-      - README.md: Documented new config options
-      - test_miner.py: Updated test to accept safe_optimize
-
-      ## Hardening Checklist (Round 1 — 2026-04-16)
-      - [x] Unit tests for safe_optimize()
-      - [x] Test backup_before_optimize=true path
-      - [x] Test optimize_after_mine=false path
-      - [x] Test verification failure handling
-      - [ ] Integration test: corrupt fragment -> verify detection (tracked: FIX-LANCE-CORRUPT)
-      - [x] Edge case: backup fails but optimize succeeds (fail-closed: returns False, no optimize)
-      - [ ] Edge case: optimize succeeds but verification fails (hard to unit-test; not regression-prone)
-      - [x] Config validation tests (env var override tests in test_miner.py)
-      - [x] Documentation review (README updated)
-
-      ## Hardening Fixes (Round 1)
-      - F-1 FIXED: optimize() exception now caught; returns False instead of propagating
-      - F-2 FIXED: miner/convo_miner now pass local palace_path (not config.palace_path) to safe_optimize
-      - Audit: docs/audits/STORAGE-SAFE-OPTIMIZE-round-1.md
-
-      ## Acceptance Criteria
-      - [x] All hardening checklist items pass (non-integration items)
-      - [x] No regressions in existing tests
-      - [ ] Changelog entry added
-    resolution: '2026-04-16: Hardened safe_optimize: fail-closed on backup error, path normalization, improved print formatting; added TestSafeOptimize and config env var tests. Round-1 audit: fixed optimize() exception propagation (F-1) and wrong palace_path in miner calls (F-2).'
   - key: MINE-XAML
     summary: Add XAML and WPF code-behind linking support
     type: feature

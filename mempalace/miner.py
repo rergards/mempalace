@@ -1678,9 +1678,7 @@ def mine(
                     print("  >> Backing up before optimize...", flush=True)
                 print("  >> Optimizing storage...", end="", flush=True)
                 if hasattr(collection, "safe_optimize"):
-                    success = collection.safe_optimize(
-                        palace_path, backup_first=backup_first
-                    )
+                    success = collection.safe_optimize(palace_path, backup_first=backup_first)
                     if success:
                         print(f" done ({time.time() - t0:.1f}s)", flush=True)
                     else:

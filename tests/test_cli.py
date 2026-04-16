@@ -169,3 +169,94 @@ class TestDiaryWrite:
         assert exc.value.code != 0
         captured = capsys.readouterr()
         assert "boom" in captured.err
+
+
+class TestHealthCommand:
+    """AC-5: mempalace health on a healthy palace exits 0 and prints 'ok'."""
+
+    def test_health_command_healthy_palace(self, tmp_path, capsys):
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["health_test_1"],
+            documents=["health command test drawer content"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "health"]):
+            main()  # must not raise (exit 0)
+
+        captured = capsys.readouterr()
+        assert "ok" in captured.out.lower()
+        assert "1" in captured.out  # total_rows = 1
+
+    def test_health_command_json_output(self, tmp_path, capsys):
+        import json
+
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["hj1"],
+            documents=["health json test drawer content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "health", "--json"]):
+            main()
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["ok"] is True
+        assert data["total_rows"] == 1
+        assert data["errors"] == []
+
+    def test_health_command_nonexistent_palace_exits_nonzero(self, tmp_path, capsys):
+        palace = str(tmp_path / "nonexistent")
+
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "health"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code != 0
+
+
+class TestRepairRollbackCommand:
+    """AC-6: mempalace repair --rollback --dry-run exits 0 without mutating palace."""
+
+    def test_repair_rollback_dry_run_healthy_palace(self, tmp_path, capsys):
+        """On a healthy palace with one version, dry-run rollback exits 0 (no candidate needed)."""
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["repair_1"],
+            documents=["repair rollback dry run test content"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+        count_before = store.count()
+
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "repair", "--rollback", "--dry-run"],
+        ):
+            main()  # must not raise
+
+        # Palace must not be mutated
+        store2 = open_store(palace, create=False)
+        assert store2.count() == count_before
+
+        captured = capsys.readouterr()
+        # Output should mention version, candidate, or no-candidate message
+        assert captured.out.strip() != ""
+
+    def test_repair_dry_run_without_rollback_exits_2(self, tmp_path, capsys):
+        """--dry-run without --rollback must print an error and exit 2."""
+        palace = str(tmp_path / "palace")
+
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "repair", "--dry-run"],
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 2

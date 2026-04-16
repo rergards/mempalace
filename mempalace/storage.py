@@ -673,6 +673,188 @@ class LanceStore(DrawerStore):
             logger.error("Table unreadable after optimize: %s", e)
             return False
 
+    def health_check(self) -> dict:
+        """Probe the store for fragment-missing or read errors.
+
+        Runs three probes covering the failure surfaces from the 2026-04-16 incident:
+          1. count_rows() — touches the manifest
+          2. head(1).to_pydict() — touches at least one fragment's data
+          3. to_arrow().select(["wing","room"]) group-by — touches every fragment's metadata
+
+        Returns a structured report. Never raises — all exceptions are caught.
+
+        Returns dict with keys:
+          ok: bool — True if all probes passed
+          total_rows: int — result of count_rows(), or 0 on failure
+          current_version: int or None — current table version number
+          errors: list of dicts with keys 'probe', 'kind', 'message'
+        """
+        if self._table is None:
+            return {
+                "ok": False,
+                "total_rows": 0,
+                "current_version": None,
+                "errors": [
+                    {
+                        "probe": "table_open",
+                        "kind": "read_failed",
+                        "message": "Table is None (not opened)",
+                    }
+                ],
+            }
+
+        def _classify(e: Exception) -> str:
+            msg = str(e).lower()
+            if any(s in msg for s in ("no such file", "object not found", "io error", "not found")):
+                return "fragment_missing"
+            if "schema" in msg:
+                return "schema_error"
+            if any(s in msg for s in ("read", "decode", "parse")):
+                return "read_failed"
+            return "other"
+
+        errors = []
+        total_rows = 0
+        current_version = None
+
+        # Probe 1: count_rows — touches manifest
+        try:
+            total_rows = self._table.count_rows()
+        except Exception as e:
+            errors.append({"probe": "count_rows", "kind": _classify(e), "message": str(e)})
+
+        # Probe 2: head(1) — touches at least one fragment's data
+        try:
+            self._table.head(1).to_pydict()
+        except Exception as e:
+            errors.append({"probe": "head", "kind": _classify(e), "message": str(e)})
+
+        # Probe 3: column scan — touches every fragment's metadata (the silent-failure surface)
+        try:
+            arrow_tbl = self._table.to_arrow().select(["wing", "room"])
+            arrow_tbl.group_by(["wing", "room"]).aggregate([("room", "count")])
+        except Exception as e:
+            errors.append({"probe": "count_by_pair", "kind": _classify(e), "message": str(e)})
+
+        # Version info — best-effort
+        try:
+            versions = self._table.list_versions()
+            if versions:
+                current_version = versions[-1]["version"]
+        except Exception as e:
+            errors.append({"probe": "list_versions", "kind": _classify(e), "message": str(e)})
+
+        return {
+            "ok": len(errors) == 0,
+            "total_rows": total_rows,
+            "current_version": current_version,
+            "errors": errors,
+        }
+
+    def recover_to_last_working_version(self, dry_run: bool = True) -> dict:
+        """Find and optionally restore the most recent healthy table version.
+
+        Walks list_versions() from newest to oldest (skipping current), probing each
+        version. Returns a structured result.
+
+        When dry_run=False and a candidate is found, calls table.restore(v) and
+        re-opens the table handle so subsequent reads use the restored head.
+
+        Exceptions from the version walk are caught per-version. Exceptions from the
+        final restore() call propagate — a failed restore is a terminal condition.
+
+        Returns dict with keys:
+          recovered: bool
+          candidate_version: int or None
+          dry_run: bool
+          restored_to: int (only when recovered=True and dry_run=False)
+          rows_after: int (only when recovered=True and dry_run=False)
+          checked_versions: list of int (versions that were probed)
+          walk_errors: list of dicts (probe failures during version walk)
+        """
+        if self._table is None:
+            return {
+                "recovered": False,
+                "candidate_version": None,
+                "dry_run": dry_run,
+                "message": "Table is None (not opened)",
+            }
+
+        try:
+            versions = self._table.list_versions()
+        except Exception as e:
+            return {
+                "recovered": False,
+                "candidate_version": None,
+                "dry_run": dry_run,
+                "error": f"Could not list versions: {e}",
+            }
+
+        if len(versions) < 2:
+            return {
+                "recovered": False,
+                "candidate_version": None,
+                "dry_run": dry_run,
+                "message": "No prior versions to roll back to",
+            }
+
+        candidate_version = None
+        checked_versions: list = []
+        walk_errors: list = []
+
+        try:
+            # Walk from second-newest to oldest (skip current = versions[-1])
+            for v in reversed(versions[:-1]):
+                ver_num = v["version"]
+                checked_versions.append(ver_num)
+                try:
+                    self._table.checkout(ver_num)
+                    # Run all three probes
+                    self._table.count_rows()
+                    self._table.head(1).to_pydict()
+                    arrow_tbl = self._table.to_arrow().select(["wing", "room"])
+                    arrow_tbl.group_by(["wing", "room"]).aggregate([("room", "count")])
+                    # All probes passed
+                    candidate_version = ver_num
+                    break
+                except Exception as e:
+                    walk_errors.append({"version": ver_num, "error": str(e)})
+                    continue
+        finally:
+            # Always return to latest version — leaves handle unpinned after dry-run walk
+            try:
+                self._table.checkout_latest()
+            except Exception:
+                pass
+
+        if candidate_version is None:
+            return {
+                "recovered": False,
+                "candidate_version": None,
+                "dry_run": dry_run,
+                "checked_versions": checked_versions,
+                "walk_errors": walk_errors,
+            }
+
+        if dry_run:
+            return {
+                "recovered": False,
+                "candidate_version": candidate_version,
+                "dry_run": True,
+                "checked_versions": checked_versions,
+            }
+
+        # Perform the restore — exceptions propagate (terminal condition)
+        self._table.restore(candidate_version)
+        self._table = self._db.open_table(_LANCE_TABLE)
+        rows_after = self._table.count_rows()
+        return {
+            "recovered": True,
+            "restored_to": candidate_version,
+            "rows_after": rows_after,
+            "dry_run": False,
+        }
+
     def warmup(self) -> None:
         """Embed a throwaway string to force model loading before batch processing."""
         self._embed(["warmup"])

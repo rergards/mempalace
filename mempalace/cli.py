@@ -17,6 +17,8 @@ Commands:
     mempalace wake-up                     Show L0 + L1 wake-up context
     mempalace wake-up --wing my_app       Wake-up for a specific project
     mempalace status                      Show what's been filed
+    mempalace health [--json]             Probe palace for fragment corruption
+    mempalace repair [--rollback] [--dry-run]  Repair palace (rollback or full rebuild)
     mempalace backup [--out FILE]         Snapshot palace to a .tar.gz archive
     mempalace restore FILE [--force]      Restore palace from a .tar.gz archive
     mempalace diary write --agent <name> --entry "<text>"  Write a diary entry
@@ -301,12 +303,101 @@ def cmd_migrate_storage(args):
     print(f"Source drawers: {src_count}  Destination drawers: {dst_count}")
 
 
-def cmd_repair(args):
-    """Rebuild palace — extract all drawers, backup, and re-insert."""
-    import shutil
-    from .storage import open_store
+def cmd_health(args):
+    """Probe the palace for fragment-missing or read errors."""
+    import json as _json
+    from .storage import open_store, LanceStore
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+
+    if not os.path.isdir(palace_path):
+        print(f"  No palace found at {palace_path}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        store = open_store(palace_path, create=False)
+    except Exception as e:
+        print(f"  Cannot open palace at {palace_path}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not isinstance(store, LanceStore):
+        print("  health check is only supported for LanceDB palaces", file=sys.stderr)
+        sys.exit(1)
+
+    report = store.health_check()
+
+    if getattr(args, "json", False):
+        print(_json.dumps(report, indent=2))
+    else:
+        status = "ok" if report["ok"] else "DEGRADED"
+        print(f"  Palace: {palace_path}")
+        print(f"  Status: {status}")
+        print(f"  Total rows: {report['total_rows']}")
+        print(f"  Current version: {report['current_version']}")
+        if report["errors"]:
+            print("  Errors:")
+            for err in report["errors"]:
+                print(f"    [{err['kind']}] {err['probe']}: {err['message']}")
+        else:
+            print("  No errors detected.")
+
+    if not report["ok"]:
+        sys.exit(1)
+
+
+def cmd_repair(args):
+    """Rebuild palace — rollback to last working version, or extract-and-rebuild."""
+    import shutil
+    from .storage import open_store, LanceStore
+
+    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    dry_run = getattr(args, "dry_run", False)
+    rollback = getattr(args, "rollback", False)
+
+    # --dry-run without --rollback is not supported for the full rebuild path
+    if dry_run and not rollback:
+        print("  --dry-run is only supported with --rollback for version restore.", file=sys.stderr)
+        print("  Full rebuild (without --rollback) always modifies the palace.", file=sys.stderr)
+        sys.exit(2)
+
+    if rollback:
+        if not os.path.isdir(palace_path):
+            print(f"  No palace found at {palace_path}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            store = open_store(palace_path, create=False)
+        except Exception as e:
+            print(f"  Cannot open palace at {palace_path}: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(store, LanceStore):
+            print("  --rollback is only supported for LanceDB palaces", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"\n{'=' * 55}")
+        print("  MemPalace Repair — Version Rollback")
+        print(f"{'=' * 55}\n")
+        print(f"  Palace: {palace_path}")
+        if dry_run:
+            print("  Mode: dry-run (no changes will be made)\n")
+        else:
+            print("  Mode: live (will restore if candidate found)\n")
+
+        result = store.recover_to_last_working_version(dry_run=dry_run)
+
+        if result.get("recovered"):
+            print(f"  Restored to version: {result['restored_to']}")
+            print(f"  Rows after restore: {result['rows_after']}")
+        elif result.get("candidate_version") is not None:
+            print(f"  Candidate version found: {result['candidate_version']}")
+            if dry_run:
+                print("  (dry-run — no changes made)")
+                print("  Run without --dry-run to apply the rollback.")
+        else:
+            msg = result.get("message") or result.get("error") or "no healthy prior version found"
+            print(f"  No candidate version: {msg}")
+            print("  Try: mempalace repair (full rebuild)")
+        print(f"\n{'=' * 55}\n")
+        return
 
     if not os.path.isdir(palace_path):
         print(f"\n  No palace found at {palace_path}")
@@ -741,10 +832,32 @@ def main():
         help="Verify per-wing counts after migration; exit non-zero on mismatch",
     )
 
+    # health
+    p_health = sub.add_parser(
+        "health",
+        help="Probe palace for fragment-missing or read errors",
+    )
+    p_health.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit raw JSON report instead of human-readable output",
+    )
+
     # repair
-    sub.add_parser(
+    p_repair = sub.add_parser(
         "repair",
         help="Rebuild palace vector index from stored data (fixes segfaults after corruption)",
+    )
+    p_repair.add_argument(
+        "--rollback",
+        action="store_true",
+        help="Attempt version rollback to last healthy version before falling back to full rebuild",
+    )
+    p_repair.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="With --rollback: show candidate version without restoring",
     )
 
     # status
@@ -858,6 +971,7 @@ def main():
         "compress": cmd_compress,
         "wake-up": cmd_wakeup,
         "migrate-storage": cmd_migrate_storage,
+        "health": cmd_health,
         "repair": cmd_repair,
         "status": cmd_status,
         "diary": cmd_diary,

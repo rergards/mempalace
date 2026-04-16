@@ -250,11 +250,50 @@ For local models (Llama, Mistral) that don't speak MCP, pipe `wake-up` into the 
 ### Backup & Restore
 
 ```bash
-mempalace backup                                  # → palace_backup_2026-04-14.tar.gz
-mempalace backup --output ~/safe/my_palace.tar.gz  # custom path
-mempalace restore palace_backup_2026-04-14.tar.gz  # restore
-mempalace restore backup.tar.gz --force            # overwrite existing
+mempalace backup                                  # create backup archive
+mempalace backup --out ~/safe/my_palace.tar.gz    # custom path
+mempalace restore palace_backup_2026-04-14.tar.gz # restore
+mempalace restore backup.tar.gz --force           # overwrite existing
 ```
+
+**Scheduled backups (recommended):**
+
+```bash
+# Create backup directory
+mkdir -p ~/.mempalace/backups
+
+# Add to crontab (daily at 3am):
+# crontab -e
+0 3 * * * /usr/local/bin/mempalace backup --out ~/.mempalace/backups/palace_$(date +\%Y\%m\%d).tar.gz
+
+# Or run manually before risky operations:
+mempalace backup --out ~/.mempalace/backups/palace_$(date +%Y%m%d_%H%M%S).tar.gz
+```
+
+**Auto-backup before optimize (safest):**
+
+Add to `~/.mempalace/config.json`:
+```json
+{
+  "backup_before_optimize": true
+}
+```
+
+Or set env var: `MEMPALACE_BACKUP_BEFORE_OPTIMIZE=1`
+
+This creates a backup before every `optimize()` call (runs after mining). If optimization corrupts the storage, you can restore from `~/.mempalace/backups/pre_optimize_*.tar.gz`.
+
+**Disable auto-optimize (paranoid mode):**
+
+```json
+{
+  "optimize_after_mine": false
+}
+```
+
+Skips compaction entirely. Storage will grow with more fragments but avoids any compaction-related corruption risk.
+
+**Why backup matters:** Manual drawer additions (via `mempalace_add_drawer`) are not recoverable from source code. If LanceDB storage gets corrupted, only backups preserve this data. Code-mined drawers can be restored by re-running `mempalace mine`.
 
 Also available: `mempalace export --only-manual` for JSONL export of manually-stored drawers.
 
