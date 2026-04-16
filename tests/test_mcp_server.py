@@ -774,6 +774,52 @@ class TestAggregationRegression:
                 f"DevOps language {lang!r} missing from supported_languages hint"
             )
 
+    def test_code_search_prose_languages_in_hint(
+        self, monkeypatch, config, palace_path, code_seeded_collection, kg
+    ):
+        """Prose/data language strings must appear in the supported_languages hint (CODE-SEARCH-LANG-PROSE)."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_code_search
+
+        result = tool_code_search(query="something", language="notareallangnnn")
+        assert "supported_languages" in result
+        for lang in ("markdown", "text", "csv"):
+            assert lang in result["supported_languages"], (
+                f"Prose/data language {lang!r} missing from supported_languages hint"
+            )
+
+    def test_code_search_markdown_language(
+        self, monkeypatch, config, palace_path, code_seeded_collection, kg
+    ):
+        """code_search(language='markdown') must return results, not an error (AC-1)."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        # Seed a markdown drawer so the filter returns at least one hit.
+        code_seeded_collection.add(
+            ids=["code_md_readme"],
+            documents=["# Introduction\n\nThis is the mempalace README.\n"],
+            metadatas=[
+                {
+                    "wing": "mempalace",
+                    "room": "backend",
+                    "source_file": "/project/README.md",
+                    "language": "markdown",
+                    "symbol_name": "",
+                    "symbol_type": "",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-06T00:00:00",
+                }
+            ],
+        )
+        from mempalace.mcp_server import tool_code_search
+
+        result = tool_code_search(query="introduction readme", language="markdown")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+        assert len(result["results"]) > 0, (
+            "language='markdown' filter returned no results despite seeded data"
+        )
+
 
 # ── Degraded Palace (FIX-LANCE-CORRUPT) ──────────────────────────────────
 

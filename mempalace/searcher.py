@@ -183,6 +183,10 @@ SUPPORTED_LANGUAGES = {
     "jinja2",
     "conf",
     "ini",
+    # prose / data
+    "markdown",
+    "text",
+    "csv",
 }
 
 VALID_SYMBOL_TYPES = {
