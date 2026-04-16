@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-16 · FIX-LANCE-CORRUPT
+
+Detect and recover from missing LanceDB fragment files: `safe_open_table` probes the table with a count query on open and rolls back to the last clean version automatically when fragment corruption is detected.
+
 ## 2026-04-14 · MINE-DEVOPS-INFRA
 
 Add DevOps/infrastructure file support to the miner: Terraform (`.tf`, `.tfvars`, `.hcl`), Dockerfiles, Makefiles, Helm templates (`.tpl`), Ansible Jinja2 templates (`.j2`, `.jinja2`), and general config files (`.conf`, `.cfg`, `.ini`) are now scanned and indexed.
