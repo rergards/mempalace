@@ -1137,3 +1137,59 @@ class TestLanceHealth:
             pytest.skip(
                 f"No recoverable version found: {result.get('message') or result.get('walk_errors')}"
             )
+
+
+# =============================================================================
+# $in operator in _where_to_arrow_mask (STORE-WHERE-ARROW-IN)
+# =============================================================================
+
+
+class TestWhereToArrowMaskIn:
+    """Verify that $in filtering works correctly via iter_all()."""
+
+    def _make_store(self, palace_path):
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["a1", "a2", "b1", "b2", "c1"],
+            documents=["doc a1", "doc a2", "doc b1", "doc b2", "doc c1"],
+            metadatas=[
+                {"wing": "alpha", "room": "general"},
+                {"wing": "alpha", "room": "notes"},
+                {"wing": "beta", "room": "general"},
+                {"wing": "beta", "room": "notes"},
+                {"wing": "gamma", "room": "general"},
+            ],
+        )
+        return store
+
+    def _ids(self, store, where):
+        batches = list(store.iter_all(where=where))
+        return {row["id"] for batch in batches for row in batch}
+
+    def test_in_matches_multiple_values(self, palace_path):
+        store = self._make_store(palace_path)
+        result = self._ids(store, {"wing": {"$in": ["alpha", "beta"]}})
+        assert result == {"a1", "a2", "b1", "b2"}
+
+    def test_in_matches_single_value(self, palace_path):
+        store = self._make_store(palace_path)
+        result = self._ids(store, {"wing": {"$in": ["gamma"]}})
+        assert result == {"c1"}
+
+    def test_in_empty_list_returns_no_rows(self, palace_path):
+        store = self._make_store(palace_path)
+        result = self._ids(store, {"wing": {"$in": []}})
+        assert result == set()
+
+    def test_in_no_matching_values_returns_empty(self, palace_path):
+        store = self._make_store(palace_path)
+        result = self._ids(store, {"wing": {"$in": ["delta", "epsilon"]}})
+        assert result == set()
+
+    def test_in_combined_with_eq(self, palace_path):
+        """$in on wing AND equality on room narrows results further."""
+        store = self._make_store(palace_path)
+        result = self._ids(
+            store, {"$and": [{"wing": {"$in": ["alpha", "beta"]}}, {"room": "general"}]}
+        )
+        assert result == {"a1", "b1"}

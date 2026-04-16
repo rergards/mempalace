@@ -557,7 +557,7 @@ class LanceStore(DrawerStore):
         """Recursively convert a where dict to a PyArrow boolean array for filtering.
 
         Mirrors _where_to_sql semantics but operates on an in-memory Arrow table.
-        Supports $and, $or, and simple {field: value} equality clauses.
+        Supports $and, $or, $in, and simple {field: value} equality/comparison clauses.
         """
         import pyarrow as pa
         import pyarrow.compute as pc

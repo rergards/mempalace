@@ -721,7 +721,7 @@ items:
       ## Origin
 
       Discovered during STORE-WHERE-ARROW-OPS hardening round-1 (2026-04-14).
-    resolution: '2026-04-16: Added $in operator to _where_to_arrow_mask via pc.is_in; empty list returns zero rows; 3 tests added'
+    resolution: '2026-04-16: Added $in operator to _where_to_arrow_mask via pc.is_in; empty list returns zero rows; 3 tests added. 2026-04-17: Hardening round-1 — 2 fixed (tests expanded to 5, docstring updated), 2 dismissed; audit at docs/audits/STORE-WHERE-ARROW-IN-round-1.md'
   - key: STORE-CHROMA-IMPORT-ERROR-TESTS
     summary: Add tests for ChromaStore ImportError paths when chromadb extra absent
     type: task
