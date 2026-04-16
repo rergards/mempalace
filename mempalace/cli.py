@@ -222,7 +222,7 @@ def cmd_status(args):
 
 
 def cmd_diary_write(args):
-    import hashlib
+    import uuid
     from datetime import datetime
     from .storage import open_store
     from .version import __version__
@@ -242,10 +242,7 @@ def cmd_diary_write(args):
         sys.exit(1)
 
     now = datetime.now()
-    entry_id = (
-        f"diary_{wing}_{now.strftime('%Y%m%d_%H%M%S')}"
-        f"_{hashlib.md5(entry[:50].encode()).hexdigest()[:8]}"
-    )
+    entry_id = f"diary_{wing}_{uuid.uuid4().hex}"
 
     try:
         store.add(

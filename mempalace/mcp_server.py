@@ -23,6 +23,7 @@ import sys
 import json
 import logging
 import hashlib
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -414,7 +415,7 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general"):
         return _no_palace()
 
     now = datetime.now()
-    entry_id = f"diary_{wing}_{now.strftime('%Y%m%d_%H%M%S')}_{hashlib.md5(entry[:50].encode()).hexdigest()[:8]}"
+    entry_id = f"diary_{wing}_{uuid.uuid4().hex}"
 
     try:
         col.add(
