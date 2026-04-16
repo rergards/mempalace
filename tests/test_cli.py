@@ -5,6 +5,7 @@ Tests exercise main() via sys.argv patching, verifying the full
 argparse → dispatch → storage path for the diary write subcommand.
 """
 
+import os
 import sys
 from unittest.mock import patch
 
@@ -321,3 +322,159 @@ class TestRepairRollbackCommand:
         assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "restore failed" in (captured.err + captured.out).lower()
+
+
+class TestBackupCommand:
+    """CLI tests for the backup subcommands."""
+
+    def test_backup_list_empty(self, tmp_path, capsys):
+        """AC-5: backup list with no backups/ dir → 'No backups found.' exit 0."""
+        palace = str(tmp_path / "palace")
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "backup", "list"]):
+            main()  # must not raise
+        captured = capsys.readouterr()
+        assert "No backups found" in captured.out
+
+    def test_backup_list_populated(self, tmp_path, capsys):
+        """backup list shows archive name and drawer count."""
+        from mempalace.backup import create_backup
+
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["bl1"],
+            documents=["backup list populated test content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        # Create a backup in the default location
+        create_backup(palace)
+
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "backup", "list"]):
+            main()
+        captured = capsys.readouterr()
+        # Should show a table row with drawer count
+        assert "1" in captured.out  # 1 drawer
+
+    def test_backup_list_extra_dir(self, tmp_path, capsys):
+        """backup list --dir includes archives outside <palace_parent>/backups/."""
+        from mempalace.backup import create_backup
+
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["bl2"],
+            documents=["backup list extra dir test content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        extra_dir = str(tmp_path / "elsewhere")
+        os.makedirs(extra_dir)
+        extra_archive = os.path.join(extra_dir, "mempalace_backup_extra.tar.gz")
+        create_backup(palace, out_path=extra_archive)
+
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "backup", "list", "--dir", extra_dir],
+        ):
+            main()
+        captured = capsys.readouterr()
+        assert "backup_extra" in captured.out
+
+    def test_backup_schedule_daily_darwin(self, tmp_path, capsys, monkeypatch):
+        """AC-7: darwin daily → stdout contains plist XML with StartCalendarInterval."""
+        import sys as _sys
+
+        palace = str(tmp_path / "palace")
+        monkeypatch.setattr(_sys, "platform", "darwin")
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "backup", "schedule", "--freq", "daily"],
+        ):
+            main()
+        captured = capsys.readouterr()
+        assert "<?xml" in captured.out
+        assert "StartCalendarInterval" in captured.out
+        assert "scheduled_" in captured.out
+
+    def test_backup_schedule_hourly_darwin(self, tmp_path, capsys, monkeypatch):
+        """darwin hourly → StartInterval and 3600."""
+        import sys as _sys
+
+        palace = str(tmp_path / "palace")
+        monkeypatch.setattr(_sys, "platform", "darwin")
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "backup", "schedule", "--freq", "hourly"],
+        ):
+            main()
+        captured = capsys.readouterr()
+        assert "StartInterval" in captured.out
+        assert "3600" in captured.out
+
+    def test_backup_schedule_daily_linux(self, tmp_path, capsys, monkeypatch):
+        """AC-8: linux daily → cron line with 0 3 pattern."""
+        import re
+        import sys as _sys
+
+        palace = str(tmp_path / "palace")
+        monkeypatch.setattr(_sys, "platform", "linux")
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "backup", "schedule", "--freq", "daily"],
+        ):
+            main()
+        captured = capsys.readouterr()
+        assert re.search(r"0\s+3\s+\*\s+\*\s+\*", captured.out)
+        assert "--out" in captured.out
+        assert "scheduled_" in captured.out
+
+    def test_backup_schedule_install_rejected(self, tmp_path, capsys):
+        """AC-15: --install exits non-zero with 'owner action required' message."""
+        palace = str(tmp_path / "palace")
+        with patch.object(
+            sys,
+            "argv",
+            ["mempalace", "--palace", palace, "backup", "schedule", "--freq", "daily", "--install"],
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code != 0
+        captured = capsys.readouterr()
+        assert "owner action required" in captured.err
+
+    def test_backup_no_verb_creates(self, tmp_path, capsys):
+        """AC-6: mempalace backup --out X with no verb still creates archive."""
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["nv1"],
+            documents=["backup no verb creates test content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        out = str(tmp_path / "noverb.tar.gz")
+        with patch.object(sys, "argv", ["mempalace", "--palace", palace, "backup", "--out", out]):
+            main()
+        assert os.path.isfile(out)
+
+    def test_backup_create_verb_with_out(self, tmp_path, capsys):
+        """AC-11: mempalace backup create --out X creates archive at X."""
+        palace = str(tmp_path / "palace")
+        store = open_store(palace, create=True)
+        store.add(
+            ids=["cv1"],
+            documents=["backup create verb test content here"],
+            metadatas=[{"wing": "test", "room": "general"}],
+        )
+
+        out = str(tmp_path / "create_verb.tar.gz")
+        with patch.object(
+            sys, "argv", ["mempalace", "--palace", palace, "backup", "create", "--out", out]
+        ):
+            main()
+        assert os.path.isfile(out)

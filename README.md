@@ -250,38 +250,47 @@ For local models (Llama, Mistral) that don't speak MCP, pipe `wake-up` into the 
 ### Backup & Restore
 
 ```bash
-mempalace backup                                  # create backup archive
-mempalace backup --out ~/safe/my_palace.tar.gz    # custom path
+mempalace backup create                           # create backup archive (default: <palace_parent>/backups/)
+mempalace backup create --out ~/safe/my.tar.gz   # custom path
+mempalace backup                                  # back-compat: same as 'backup create'
+mempalace backup --out ~/safe/my.tar.gz           # back-compat: same as 'backup create --out ...'
+mempalace backup list                             # list existing backups
+mempalace backup list --dir ~/old_backups/        # include extra directory in discovery
 mempalace restore palace_backup_2026-04-14.tar.gz # restore
 mempalace restore backup.tar.gz --force           # overwrite existing
 ```
 
-**Scheduled backups (recommended):**
+Backups are written to `<palace_parent>/backups/` by default. For a palace at `~/.mempalace/palace`, that is `~/.mempalace/backups/`.
+
+**Scheduled backups:**
 
 ```bash
-# Create backup directory
-mkdir -p ~/.mempalace/backups
+# Print a scheduler snippet (does NOT install — owner action required)
+mempalace backup schedule --freq daily    # daily at 03:00
+mempalace backup schedule --freq weekly   # weekly on Sunday at 03:00
+mempalace backup schedule --freq hourly   # every hour
 
-# Add to crontab (daily at 3am):
-# crontab -e
-0 3 * * * /usr/local/bin/mempalace backup --out ~/.mempalace/backups/palace_$(date +\%Y\%m\%d).tar.gz
+# macOS: save and load the launchd plist
+mempalace backup schedule --freq daily > ~/Library/LaunchAgents/com.mempalace.backup.plist
+launchctl load ~/Library/LaunchAgents/com.mempalace.backup.plist
 
-# Or run manually before risky operations:
-mempalace backup --out ~/.mempalace/backups/palace_$(date +%Y%m%d_%H%M%S).tar.gz
+# Linux: paste the printed cron line into crontab -e
+mempalace backup schedule --freq daily
+# → 0 3 * * * /usr/local/bin/mempalace backup create --out /path/to/backups/scheduled_$(date +%Y%m%d_%H%M%S).tar.gz
 ```
 
-**Auto-backup before optimize (safest):**
+**Auto-backup before optimize (on by default):**
 
-Add to `~/.mempalace/config.json`:
+`backup_before_optimize` is **`true` by default**. A backup is created under `<palace_parent>/backups/pre_optimize_*.tar.gz` before every `optimize()` call (runs after mining).
+
+To opt out, add to `~/.mempalace/config.json`:
 ```json
 {
-  "backup_before_optimize": true
+  "auto_backup_before_optimize": false
 }
 ```
 
-Or set env var: `MEMPALACE_BACKUP_BEFORE_OPTIMIZE=1`
-
-This creates a backup before every `optimize()` call (runs after mining). If optimization corrupts the storage, you can restore from `~/.mempalace/backups/pre_optimize_*.tar.gz`.
+Or set env var: `MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE=0` (preferred) or `MEMPALACE_BACKUP_BEFORE_OPTIMIZE=0`.
 
 **Disable auto-optimize (paranoid mode):**
 
@@ -387,7 +396,9 @@ mempalace search "query" --wing myapp             # scoped to wing
 mempalace search "query" --room auth              # scoped to room
 
 # Backup
-mempalace backup                                  # create backup archive
+mempalace backup create                           # create backup (default: <palace_parent>/backups/)
+mempalace backup list                             # list existing backups
+mempalace backup schedule --freq daily            # print daily scheduler snippet
 mempalace restore <archive>                       # restore from backup
 mempalace export --only-manual                    # JSONL export
 mempalace import <file>                           # JSONL import

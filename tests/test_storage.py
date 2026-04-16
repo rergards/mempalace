@@ -979,7 +979,9 @@ class TestLanceHealth:
             f"Expected a recognized error kind, got: {kinds}"
         )
 
-    def test_health_check_list_versions_failure_does_not_set_ok_false(self, palace_path, monkeypatch):
+    def test_health_check_list_versions_failure_does_not_set_ok_false(
+        self, palace_path, monkeypatch
+    ):
         """F-1 regression: list_versions() failure must NOT cause ok=False (false-positive degraded)."""
         from mempalace.storage import LanceStore
 

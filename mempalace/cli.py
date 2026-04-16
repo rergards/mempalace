@@ -594,7 +594,7 @@ def cmd_compress(args):
         print("  (dry run -- nothing stored)")
 
 
-def cmd_backup(args):
+def cmd_backup_create(args):
     from .backup import create_backup
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
@@ -607,6 +607,83 @@ def cmd_backup(args):
     print(f"  Backed up {meta['drawer_count']} drawers from {len(meta['wings'])} wing(s).")
     print(f"  Wings: {', '.join(meta['wings']) if meta['wings'] else '(none)'}")
     print(f"  Archive: {out_path}")
+
+
+def cmd_backup_list(args):
+    from .backup import list_backups
+
+    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    extra_dir = getattr(args, "dir", None)
+
+    try:
+        entries = list_backups(palace_path, extra_dir=extra_dir)
+    except Exception as exc:
+        print(f"  Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if not entries:
+        print("No backups found.")
+        return
+
+    # Fixed-width table: TIMESTAMP  SIZE  DRAWERS  KIND  PATH
+    print(f"{'TIMESTAMP':<25}  {'SIZE':>10}  {'DRAWERS':>7}  {'KIND':<14}  PATH")
+    print("-" * 80)
+    for e in entries:
+        ts = e["timestamp"] or "unknown"
+        if len(ts) > 19:
+            ts = ts[:19]
+        size_kb = e["size_bytes"] / 1024
+        drawers = str(e["drawer_count"]) if e["drawer_count"] is not None else "?"
+        kind = e["kind"]
+        path = e["path"]
+        print(f"{ts:<25}  {size_kb:>9.1f}K  {drawers:>7}  {kind:<14}  {path}")
+
+
+def cmd_backup_schedule(args):
+    import sys as _sys
+    from .backup import render_schedule
+
+    if getattr(args, "install", False):
+        print(
+            "  owner action required: --install is not supported.\n"
+            "  Print the snippet with 'mempalace backup schedule --freq <freq>'\n"
+            "  then install it yourself with: launchctl load <plist> (macOS)\n"
+            "  or: crontab -e (Linux).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    platform = _sys.platform
+    if platform.startswith("darwin"):
+        platform = "darwin"
+    elif platform.startswith("linux"):
+        platform = "linux"
+
+    try:
+        snippet = render_schedule(args.freq, palace_path, platform)
+    except ValueError as exc:
+        print(f"  Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(snippet, end="")
+    if platform == "darwin":
+        print("\n  # To install: launchctl load ~/Library/LaunchAgents/com.mempalace.backup.plist")
+    else:
+        print("\n  # To install: crontab -e  (paste the line above)")
+
+
+def cmd_backup(args):
+    backup_command = getattr(args, "backup_command", None)
+    if backup_command == "create":
+        cmd_backup_create(args)
+    elif backup_command == "list":
+        cmd_backup_list(args)
+    elif backup_command == "schedule":
+        cmd_backup_schedule(args)
+    else:
+        # No verb — back-compat: behaves as 'create'
+        cmd_backup_create(args)
 
 
 def cmd_restore(args):
@@ -893,13 +970,56 @@ def main():
     # backup
     p_backup = sub.add_parser(
         "backup",
-        help="Create a .tar.gz snapshot of the palace (lance data + KG + metadata)",
+        help="Palace backup commands: create, list, schedule",
     )
+    # Top-level --out for back-compat: 'mempalace backup --out X' still works
     p_backup.add_argument(
         "--out",
         default=None,
         metavar="FILE",
-        help="Output .tar.gz path (default: mempalace_backup_<timestamp>.tar.gz in CWD)",
+        help="Output .tar.gz path (default: <palace_parent>/backups/mempalace_backup_<ts>.tar.gz)",
+    )
+    backup_sub = p_backup.add_subparsers(dest="backup_command")
+
+    # backup create
+    p_backup_create = backup_sub.add_parser(
+        "create",
+        help="Create a .tar.gz snapshot of the palace (lance data + KG + metadata)",
+    )
+    p_backup_create.add_argument(
+        "--out",
+        default=None,
+        metavar="FILE",
+        help="Output .tar.gz path (default: <palace_parent>/backups/mempalace_backup_<ts>.tar.gz)",
+    )
+
+    # backup list
+    p_backup_list = backup_sub.add_parser(
+        "list",
+        help="List existing backup archives",
+    )
+    p_backup_list.add_argument(
+        "--dir",
+        default=None,
+        metavar="PATH",
+        help="Include an extra directory in backup discovery (e.g. a legacy CWD backup location)",
+    )
+
+    # backup schedule
+    p_backup_schedule = backup_sub.add_parser(
+        "schedule",
+        help="Print a scheduler snippet (launchd plist or cron line) for scheduled backups",
+    )
+    p_backup_schedule.add_argument(
+        "--freq",
+        required=True,
+        choices=["daily", "weekly", "hourly"],
+        help="Backup frequency",
+    )
+    p_backup_schedule.add_argument(
+        "--install",
+        action="store_true",
+        help="(Accepted but rejected with an explanation — owner action required)",
     )
 
     # restore

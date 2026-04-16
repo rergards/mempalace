@@ -11,10 +11,11 @@ Uses the shared fixtures from conftest.py:
 import json
 import os
 import tarfile
+import time
 
 import pytest
 
-from mempalace.backup import create_backup, restore_backup
+from mempalace.backup import create_backup, list_backups, render_schedule, restore_backup
 from mempalace.storage import open_store
 
 
@@ -89,20 +90,31 @@ def test_backup_includes_kg_when_present(seeded_collection, palace_path, tmp_dir
     assert "mempalace_backup/knowledge_graph.sqlite3" in names
 
 
-def test_backup_default_out_path(seeded_collection, palace_path, tmp_dir, monkeypatch):
-    """Default out_path is mempalace_backup_<ts>.tar.gz in CWD."""
-    monkeypatch.chdir(tmp_dir)
+def test_backup_default_out_path(seeded_collection, palace_path, tmp_dir):
+    """Default out_path is mempalace_backup_<ts>.tar.gz under <palace_parent>/backups/."""
     kg_path = os.path.join(tmp_dir, "kg.sqlite3")
     meta, default_out = create_backup(palace_path, kg_path=kg_path)
 
+    # palace_path = tmp_dir/palace, so palace_parent = tmp_dir
+    backups_dir = os.path.join(tmp_dir, "backups")
+    assert os.path.isdir(backups_dir), "backups/ directory should have been created"
     files = [
         f
-        for f in os.listdir(tmp_dir)
+        for f in os.listdir(backups_dir)
         if f.startswith("mempalace_backup_") and f.endswith(".tar.gz")
     ]
     assert len(files) == 1
-    assert os.path.basename(default_out) == files[0]
+    assert os.path.abspath(default_out) == os.path.abspath(os.path.join(backups_dir, files[0]))
     assert meta["drawer_count"] == 4
+
+
+def test_backup_explicit_out_overrides_default(seeded_collection, palace_path, tmp_dir):
+    """Explicit out_path still overrides the default backups/ directory (AC-14)."""
+    explicit_out = os.path.join(tmp_dir, "custom_backup.tar.gz")
+    kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+    meta, returned_out = create_backup(palace_path, out_path=explicit_out, kg_path=kg_path)
+    assert returned_out == explicit_out
+    assert os.path.isfile(explicit_out)
 
 
 # ── restore_backup ─────────────────────────────────────────────────────────────
@@ -195,3 +207,249 @@ def test_roundtrip_kg(seeded_kg, seeded_collection, palace_path, tmp_dir):
     assert predicates == {"does"}
     objects = {t["object"] for t in triples}
     assert objects == {"swimming", "chess"}
+
+
+# ── TestAutoBackupDefault ──────────────────────────────────────────────────────
+
+
+class TestAutoBackupDefault:
+    def test_default_is_true(self, tmp_dir):
+        """AC-1: fresh MempalaceConfig() has backup_before_optimize=True."""
+        from mempalace.config import MempalaceConfig
+
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        assert cfg.backup_before_optimize is True
+        assert cfg.auto_backup_before_optimize is True
+        assert cfg.backup_schedule == "off"
+
+    def test_legacy_env_opt_out(self, tmp_dir, monkeypatch):
+        """AC-2: MEMPALACE_BACKUP_BEFORE_OPTIMIZE=0 overrides flipped default → False."""
+        from mempalace.config import MempalaceConfig
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_BEFORE_OPTIMIZE", "0")
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        assert cfg.backup_before_optimize is False
+
+    def test_file_key_opt_out(self, tmp_dir):
+        """AC-3: config.json with backup_before_optimize=false is honored."""
+        import json as _json
+        from mempalace.config import MempalaceConfig
+
+        cfg_dir = os.path.join(tmp_dir, "cfg")
+        os.makedirs(cfg_dir)
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            _json.dump({"backup_before_optimize": False}, f)
+        cfg = MempalaceConfig(config_dir=cfg_dir)
+        assert cfg.backup_before_optimize is False
+
+    def test_auto_alias_file_key(self, tmp_dir):
+        """auto_backup_before_optimize file key takes precedence over backup_before_optimize."""
+        import json as _json
+        from mempalace.config import MempalaceConfig
+
+        cfg_dir = os.path.join(tmp_dir, "cfg")
+        os.makedirs(cfg_dir)
+        # backup_before_optimize=false but auto_ key overrides to true
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            _json.dump({"backup_before_optimize": False, "auto_backup_before_optimize": True}, f)
+        cfg = MempalaceConfig(config_dir=cfg_dir)
+        assert cfg.backup_before_optimize is True
+
+    def test_auto_env_beats_legacy_env(self, tmp_dir, monkeypatch):
+        """AC-12: MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE=1 wins over MEMPALACE_BACKUP_BEFORE_OPTIMIZE=0."""
+        from mempalace.config import MempalaceConfig
+
+        monkeypatch.setenv("MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE", "1")
+        monkeypatch.setenv("MEMPALACE_BACKUP_BEFORE_OPTIMIZE", "0")
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        assert cfg.backup_before_optimize is True
+
+
+# ── TestListBackups ────────────────────────────────────────────────────────────
+
+
+class TestListBackups:
+    def test_empty_no_backups_dir(self, palace_path, tmp_dir):
+        """AC-5 variant: list_backups() returns [] when backups/ doesn't exist."""
+        result = list_backups(palace_path)
+        assert result == []
+
+    def test_lists_all_kinds(self, seeded_collection, palace_path, tmp_dir):
+        """AC-4: archives of all three kinds are listed with correct kind field."""
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        # Create three archives with different name prefixes
+        pre_opt_path = os.path.join(backups_dir, "pre_optimize_20260101_120000.tar.gz")
+        manual_path = os.path.join(backups_dir, "mempalace_backup_20260101_110000.tar.gz")
+        scheduled_path = os.path.join(backups_dir, "scheduled_20260101_100000.tar.gz")
+
+        create_backup(palace_path, out_path=pre_opt_path, kg_path=kg_path)
+        time.sleep(0.01)
+        create_backup(palace_path, out_path=manual_path, kg_path=kg_path)
+        time.sleep(0.01)
+        create_backup(palace_path, out_path=scheduled_path, kg_path=kg_path)
+
+        result = list_backups(palace_path)
+        assert len(result) == 3
+
+        kinds = {e["kind"] for e in result}
+        assert kinds == {"pre_optimize", "manual", "scheduled"}
+
+        for e in result:
+            assert e["drawer_count"] == 4
+            assert e["wings"] is not None
+
+    def test_newest_first_ordering(self, seeded_collection, palace_path, tmp_dir):
+        """list_backups returns entries sorted newest mtime first."""
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        path_a = os.path.join(backups_dir, "mempalace_backup_a.tar.gz")
+        path_b = os.path.join(backups_dir, "mempalace_backup_b.tar.gz")
+        create_backup(palace_path, out_path=path_a, kg_path=kg_path)
+        time.sleep(0.05)
+        create_backup(palace_path, out_path=path_b, kg_path=kg_path)
+
+        result = list_backups(palace_path)
+        assert len(result) == 2
+        assert result[0]["path"] == os.path.abspath(path_b)
+        assert result[1]["path"] == os.path.abspath(path_a)
+
+    def test_missing_metadata_tolerated(self, palace_path, tmp_dir):
+        """Archives without metadata.json still appear in the list (drawer_count=None)."""
+        import io as _io
+        import tarfile as _tarfile
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        archive_path = os.path.join(backups_dir, "mempalace_backup_nometa.tar.gz")
+
+        # Create a minimal tar.gz with no metadata.json
+        with _tarfile.open(archive_path, "w:gz") as tar:
+            data = b"placeholder"
+            info = _tarfile.TarInfo(name="mempalace_backup/dummy.txt")
+            info.size = len(data)
+            tar.addfile(info, _io.BytesIO(data))
+
+        result = list_backups(palace_path)
+        assert len(result) == 1
+        assert result[0]["drawer_count"] is None
+        assert result[0]["wings"] == []
+
+    def test_corrupted_archive_skipped(self, palace_path, tmp_dir):
+        """Unreadable archives are logged and skipped."""
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        bad_path = os.path.join(backups_dir, "mempalace_backup_bad.tar.gz")
+
+        with open(bad_path, "wb") as f:
+            f.write(b"not a valid tar.gz")
+
+        result = list_backups(palace_path)
+        assert result == []
+
+    def test_extra_dir_merges_results(self, seeded_collection, palace_path, tmp_dir):
+        """--dir flag includes archives from an extra directory."""
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        extra_dir = os.path.join(tmp_dir, "legacy_backups")
+        os.makedirs(extra_dir)
+
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+        main_arch = os.path.join(backups_dir, "mempalace_backup_main.tar.gz")
+        extra_arch = os.path.join(extra_dir, "mempalace_backup_extra.tar.gz")
+
+        create_backup(palace_path, out_path=main_arch, kg_path=kg_path)
+        create_backup(palace_path, out_path=extra_arch, kg_path=kg_path)
+
+        result = list_backups(palace_path, extra_dir=extra_dir)
+        paths = {e["path"] for e in result}
+        assert os.path.abspath(main_arch) in paths
+        assert os.path.abspath(extra_arch) in paths
+
+    def test_extra_dir_deduplicates(self, seeded_collection, palace_path, tmp_dir):
+        """Passing backups_dir as extra_dir does not duplicate entries."""
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+        create_backup(palace_path, kg_path=kg_path)
+
+        result_no_extra = list_backups(palace_path)
+        result_with_same = list_backups(palace_path, extra_dir=backups_dir)
+        assert len(result_no_extra) == len(result_with_same)
+
+
+# ── TestRenderSchedule ─────────────────────────────────────────────────────────
+
+
+class TestRenderSchedule:
+    _BIN = "/usr/local/bin/mempalace"
+
+    def test_darwin_daily(self, palace_path, tmp_dir):
+        """AC-7: darwin daily emits plist with StartCalendarInterval Hour=3, Minute=0."""
+        out = render_schedule("daily", palace_path, "darwin", mempalace_bin=self._BIN)
+        assert "<?xml" in out
+        assert "StartCalendarInterval" in out
+        assert "<integer>3</integer>" in out  # Hour=3
+        assert "<integer>0</integer>" in out  # Minute=0
+        assert "Weekday" not in out
+        assert self._BIN in out
+        backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
+        assert backups_dir in out
+        assert "scheduled_" in out
+        # No bare 'mempalace backup' without --out
+        assert "--out" in out
+
+    def test_darwin_weekly(self, palace_path):
+        """darwin weekly adds Weekday=0 to StartCalendarInterval."""
+        out = render_schedule("weekly", palace_path, "darwin", mempalace_bin=self._BIN)
+        assert "StartCalendarInterval" in out
+        assert "Weekday" in out
+        assert "<integer>0</integer>" in out
+
+    def test_darwin_hourly(self, palace_path):
+        """AC: darwin hourly emits StartInterval=3600 (not StartCalendarInterval)."""
+        out = render_schedule("hourly", palace_path, "darwin", mempalace_bin=self._BIN)
+        assert "StartInterval" in out
+        assert "3600" in out
+        assert "StartCalendarInterval" not in out
+
+    def test_linux_daily(self, palace_path, tmp_dir):
+        """AC-8: linux daily emits cron line matching ^0 3 * * * pattern."""
+        import re
+
+        out = render_schedule("daily", palace_path, "linux", mempalace_bin=self._BIN)
+        assert re.match(r"^0\s+3\s+\*\s+\*\s+\*\s+", out)
+        assert self._BIN in out
+        assert "backup" in out
+        assert "create" in out
+        assert "--out" in out
+        backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
+        assert backups_dir in out
+        assert "scheduled_" in out
+
+    def test_linux_weekly(self, palace_path):
+        """linux weekly: cron line with dow=0."""
+        import re
+
+        out = render_schedule("weekly", palace_path, "linux", mempalace_bin=self._BIN)
+        assert re.match(r"^0\s+3\s+\*\s+\*\s+0\s+", out)
+
+    def test_linux_hourly(self, palace_path):
+        """linux hourly: cron line '0 * * * *'."""
+        import re
+
+        out = render_schedule("hourly", palace_path, "linux", mempalace_bin=self._BIN)
+        assert re.match(r"^0\s+\*\s+\*\s+\*\s+\*\s+", out)
+
+    def test_invalid_freq_raises(self, palace_path):
+        with pytest.raises(ValueError, match="Unsupported freq"):
+            render_schedule("monthly", palace_path, "linux", mempalace_bin=self._BIN)
+
+    def test_invalid_platform_raises(self, palace_path):
+        with pytest.raises(ValueError, match="Unsupported platform"):
+            render_schedule("daily", palace_path, "windows", mempalace_bin=self._BIN)

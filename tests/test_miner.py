@@ -1339,3 +1339,34 @@ def test_scan_project_skips_terraform_dir():
         assert terraform_files == [], f"Expected no .terraform/ files, got: {terraform_files}"
     finally:
         shutil.rmtree(tmpdir)
+
+
+def test_mine_default_calls_safe_optimize_backup_first():
+    """AC-9: mine() with default MempalaceConfig() calls safe_optimize(backup_first=True)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "hello.py", "# placeholder\ndef foo():\n    pass\n")
+        _make_palace_config(project_root)
+
+        palace_path = os.path.join(tmpdir, "palace")
+
+        with patch("mempalace.miner.get_collection") as mock_get_collection:
+            from unittest.mock import MagicMock
+
+            mock_store = MagicMock()
+            mock_store.add.return_value = None
+            # Return True from safe_optimize so miner doesn't fall back
+            mock_store.safe_optimize.return_value = True
+            mock_get_collection.return_value = mock_store
+            # No env overrides — default config has backup_before_optimize=True
+            mine(str(project_root), palace_path)
+
+        mock_store.safe_optimize.assert_called_once()
+        call_args, call_kwargs = mock_store.safe_optimize.call_args
+        backup_first_val = call_kwargs.get(
+            "backup_first", call_args[1] if len(call_args) > 1 else None
+        )
+        assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
+    finally:
+        shutil.rmtree(tmpdir)

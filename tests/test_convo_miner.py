@@ -50,3 +50,34 @@ def test_mine_convos_calls_optimize_once():
         assert mock_store.safe_optimize.called or mock_store.optimize.called
     finally:
         shutil.rmtree(tmpdir)
+
+
+def test_mine_convos_default_calls_safe_optimize_backup_first():
+    """AC-13: mine_convos() with default MempalaceConfig() calls safe_optimize(backup_first=True)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(tmpdir, "chat.txt"), "w") as f:
+            f.write(
+                "> What is memory?\nMemory is persistence.\n\n"
+                "> Why does it matter?\nIt enables continuity.\n"
+            )
+
+        palace_path = os.path.join(tmpdir, "palace")
+        with patch("mempalace.convo_miner.get_collection") as mock_get_collection:
+            from unittest.mock import MagicMock
+
+            mock_store = MagicMock()
+            mock_store.add.return_value = None
+            mock_store.safe_optimize.return_value = True
+            mock_get_collection.return_value = mock_store
+            # No env overrides — default config has backup_before_optimize=True
+            mine_convos(tmpdir, palace_path, wing="test_convos")
+
+        mock_store.safe_optimize.assert_called_once()
+        call_args, call_kwargs = mock_store.safe_optimize.call_args
+        backup_first_val = call_kwargs.get(
+            "backup_first", call_args[1] if len(call_args) > 1 else None
+        )
+        assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
+    finally:
+        shutil.rmtree(tmpdir)

@@ -13,7 +13,8 @@ DEFAULT_COLLECTION_NAME = "mempalace_drawers"
 
 # Storage safety defaults
 DEFAULT_OPTIMIZE_AFTER_MINE = True  # Set False to disable auto-compaction
-DEFAULT_BACKUP_BEFORE_OPTIMIZE = False  # Set True to snapshot before risky operations
+DEFAULT_BACKUP_BEFORE_OPTIMIZE = True  # Auto-backup before risky operations (on by default)
+DEFAULT_BACKUP_SCHEDULE = "off"  # Scheduled backup frequency: off|daily|weekly|hourly
 
 DEFAULT_TOPIC_WINGS = [
     "emotions",
@@ -137,11 +138,36 @@ class MempalaceConfig:
 
     @property
     def backup_before_optimize(self):
-        """Whether to create a backup before optimize(). Recommended for safety."""
+        """Whether to create a backup before optimize(). On by default.
+
+        Priority: MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE env > MEMPALACE_BACKUP_BEFORE_OPTIMIZE env
+                  > auto_backup_before_optimize file key > backup_before_optimize file key > default.
+        """
+        # auto_ env takes highest precedence (AC-12)
+        auto_env = os.environ.get("MEMPALACE_AUTO_BACKUP_BEFORE_OPTIMIZE")
+        if auto_env is not None:
+            return auto_env.lower() in ("1", "true", "yes")
+        # legacy env key
         env_val = os.environ.get("MEMPALACE_BACKUP_BEFORE_OPTIMIZE")
         if env_val is not None:
             return env_val.lower() in ("1", "true", "yes")
+        # auto_ file key takes precedence over legacy file key
+        if "auto_backup_before_optimize" in self._file_config:
+            return bool(self._file_config["auto_backup_before_optimize"])
         return self._file_config.get("backup_before_optimize", DEFAULT_BACKUP_BEFORE_OPTIMIZE)
+
+    @property
+    def auto_backup_before_optimize(self):
+        """Preferred alias for backup_before_optimize. Returns the same value."""
+        return self.backup_before_optimize
+
+    @property
+    def backup_schedule(self):
+        """Scheduled backup frequency: off | daily | weekly | hourly."""
+        env_val = os.environ.get("MEMPALACE_BACKUP_SCHEDULE")
+        if env_val is not None:
+            return env_val.lower()
+        return self._file_config.get("backup_schedule", DEFAULT_BACKUP_SCHEDULE)
 
     def init(self):
         """Create config directory and write default config.json if it doesn't exist."""

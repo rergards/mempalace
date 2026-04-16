@@ -14,6 +14,7 @@ The ``mempalace_backup/`` prefix prevents tarbomb extraction.
 
 import io
 import json
+import logging
 import os
 import shutil
 import sys
@@ -21,7 +22,9 @@ import tarfile
 import tempfile
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("mempalace")
 
 
 def create_backup(
@@ -57,7 +60,9 @@ def create_backup(
 
     if out_path is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = os.path.join(os.getcwd(), f"mempalace_backup_{ts}.tar.gz")
+        backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        out_path = os.path.join(backups_dir, f"mempalace_backup_{ts}.tar.gz")
 
     # Gather metadata — open store read-only; tolerate missing palace.
     try:
@@ -220,3 +225,195 @@ def restore_backup(
                 os.replace(kg_tmp, kg_path)
 
     return metadata
+
+
+def list_backups(palace_path: str, extra_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List backup archives under <palace_parent>/backups/ (plus extra_dir if given).
+
+    Parameters
+    ----------
+    palace_path:
+        Root directory of the palace.
+    extra_dir:
+        Optional additional directory to scan (e.g. a legacy CWD backup location).
+
+    Returns
+    -------
+    list of dicts, sorted newest-first, each with keys:
+        path, size_bytes, mtime, timestamp, drawer_count, wings, kind
+    """
+    backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
+
+    dirs_to_scan = [backups_dir]
+    if extra_dir is not None:
+        abs_extra = os.path.abspath(extra_dir)
+        if abs_extra != os.path.abspath(backups_dir):
+            dirs_to_scan.append(abs_extra)
+
+    seen_paths: set = set()
+    entries = []
+
+    for scan_dir in dirs_to_scan:
+        if not os.path.isdir(scan_dir):
+            continue
+        for fname in os.listdir(scan_dir):
+            if not fname.endswith(".tar.gz"):
+                continue
+            fpath = os.path.abspath(os.path.join(scan_dir, fname))
+            if fpath in seen_paths:
+                continue
+            seen_paths.add(fpath)
+
+            stat = os.stat(fpath)
+            entry: Dict[str, Any] = {
+                "path": fpath,
+                "size_bytes": stat.st_size,
+                "mtime": stat.st_mtime,
+                "timestamp": None,
+                "drawer_count": None,
+                "wings": [],
+                "kind": _classify_backup_kind(fname),
+            }
+
+            # Try to open the archive and read metadata.
+            # If the tar itself is unreadable, skip the entry entirely.
+            try:
+                with tarfile.open(fpath, "r:gz") as tar:
+                    members = {m.name for m in tar.getmembers()}
+                    if "mempalace_backup/metadata.json" in members:
+                        try:
+                            f = tar.extractfile(tar.getmember("mempalace_backup/metadata.json"))
+                            if f is not None:
+                                meta = json.loads(f.read().decode())
+                                entry["timestamp"] = meta.get("timestamp")
+                                entry["drawer_count"] = meta.get("drawer_count")
+                                entry["wings"] = meta.get("wings", [])
+                        except Exception:
+                            logger.warning("Could not parse metadata.json in archive: %s", fpath)
+            except Exception:
+                logger.warning("Could not open backup archive (skipped): %s", fpath)
+                continue
+
+            entries.append(entry)
+
+    # Sort newest-first by mtime
+    entries.sort(key=lambda e: e["mtime"], reverse=True)
+    return entries
+
+
+def _classify_backup_kind(filename: str) -> str:
+    """Classify a backup archive filename into a kind string."""
+    if filename.startswith("pre_optimize_"):
+        return "pre_optimize"
+    if filename.startswith("scheduled_"):
+        return "scheduled"
+    if filename.startswith("mempalace_backup_"):
+        return "manual"
+    return "other"
+
+
+def render_schedule(
+    freq: str,
+    palace_path: str,
+    platform: str,
+    mempalace_bin: Optional[str] = None,
+) -> str:
+    """Render a scheduler snippet (launchd plist or cron line) for scheduled backups.
+
+    Parameters
+    ----------
+    freq:
+        One of: daily, weekly, hourly.
+    palace_path:
+        Root directory of the palace (determines the output backup directory).
+    platform:
+        'darwin' for launchd plist, 'linux' for cron line.
+    mempalace_bin:
+        Override the mempalace binary path (default: resolved via shutil.which).
+
+    Returns
+    -------
+    str
+        Launchd plist XML (darwin) or cron line (linux).
+
+    Raises
+    ------
+    ValueError
+        If freq or platform is unsupported.
+    """
+    import shutil as _shutil
+
+    valid_freqs = ("daily", "weekly", "hourly")
+    if freq not in valid_freqs:
+        raise ValueError(f"Unsupported freq {freq!r}; must be one of: {valid_freqs}")
+    if platform not in ("darwin", "linux"):
+        raise ValueError(f"Unsupported platform {platform!r}; must be 'darwin' or 'linux'")
+
+    backups_dir = os.path.join(os.path.dirname(os.path.abspath(palace_path)), "backups")
+
+    if mempalace_bin is None:
+        mempalace_bin = _shutil.which("mempalace")
+        if mempalace_bin is None:
+            mempalace_bin = f"{sys.executable} -m mempalace"
+
+    out_arg = os.path.join(backups_dir, "scheduled_$(date +%Y%m%d_%H%M%S).tar.gz")
+
+    if platform == "linux":
+        # cron: minute hour dom month dow command
+        if freq == "daily":
+            cron_time = "0 3 * * *"
+        elif freq == "weekly":
+            cron_time = "0 3 * * 0"
+        else:  # hourly
+            cron_time = "0 * * * *"
+        return f"{cron_time} {mempalace_bin} backup create --out {out_arg}\n"
+
+    # darwin: launchd plist
+    label = "com.mempalace.backup"
+
+    if freq == "daily":
+        schedule_xml = (
+            "    <key>StartCalendarInterval</key>\n"
+            "    <dict>\n"
+            "        <key>Hour</key>\n"
+            "        <integer>3</integer>\n"
+            "        <key>Minute</key>\n"
+            "        <integer>0</integer>\n"
+            "    </dict>"
+        )
+    elif freq == "weekly":
+        schedule_xml = (
+            "    <key>StartCalendarInterval</key>\n"
+            "    <dict>\n"
+            "        <key>Hour</key>\n"
+            "        <integer>3</integer>\n"
+            "        <key>Minute</key>\n"
+            "        <integer>0</integer>\n"
+            "        <key>Weekday</key>\n"
+            "        <integer>0</integer>\n"
+            "    </dict>"
+        )
+    else:  # hourly
+        schedule_xml = "    <key>StartInterval</key>\n    <integer>3600</integer>"
+
+    plist = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"\n'
+        '  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+        '<plist version="1.0">\n'
+        "<dict>\n"
+        "    <key>Label</key>\n"
+        f"    <string>{label}</string>\n"
+        "    <key>ProgramArguments</key>\n"
+        "    <array>\n"
+        "        <string>/bin/sh</string>\n"
+        "        <string>-c</string>\n"
+        f"        <string>{mempalace_bin} backup create --out {out_arg}</string>\n"
+        "    </array>\n"
+        f"{schedule_xml}\n"
+        "    <key>RunAtLoad</key>\n"
+        "    <false/>\n"
+        "</dict>\n"
+        "</plist>\n"
+    )
+    return plist
