@@ -36,6 +36,13 @@ EXTENSION_LANG_MAP = {
     ".kt": "kotlin",
     ".kts": "kotlin",
     ".cs": "csharp",
+    ".fs": "fsharp",
+    ".fsi": "fsharp",
+    ".vb": "vbnet",
+    ".csproj": "xml",
+    ".fsproj": "xml",
+    ".vbproj": "xml",
+    ".sln": "dotnet-solution",
     ".sh": "shell",
     ".sql": "sql",
     ".md": "markdown",
@@ -99,6 +106,13 @@ READABLE_EXTENSIONS = {
     ".kt",
     ".kts",
     ".cs",
+    ".fs",
+    ".fsi",
+    ".vb",
+    ".csproj",
+    ".fsproj",
+    ".vbproj",
+    ".sln",
     ".go",
     ".rs",
     ".rb",
@@ -141,6 +155,9 @@ SKIP_DIRS = {
     ".cache",
     ".tox",
     ".nox",
+    ".vs",
+    "bin",
+    "obj",
     ".idea",
     ".vscode",
     ".ipynb_checkpoints",
@@ -564,6 +581,47 @@ CSHARP_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# F# structural boundaries — top-level and member declarations.
+# F# is whitespace-significant; top-level declarations start at column 0,
+# members may be indented. All boundary types are matched.
+FSHARP_BOUNDARY = re.compile(
+    r"^(?:"
+    r"module\s+\w+"
+    r"|type\s+\w+"
+    r"|let\s+(?:rec\s+)?(?:inline\s+)?\w+"
+    r"|member\s+(?:\w+)\.\w+"
+    r"|interface\s+\w+"
+    r"|exception\s+\w+"
+    r")",
+    re.MULTILINE,
+)
+
+# VB.NET structural boundaries. VB.NET keywords are case-insensitive.
+# Boundaries fire at the *opening* declaration; End Class / End Sub are not boundaries.
+VBNET_BOUNDARY = re.compile(
+    r"^(?:"
+    # Class with optional access + type modifiers
+    r"(?:(?:Public|Private|Protected\s+Friend|Private\s+Protected|Protected|Friend)\s+)?"
+    r"(?:(?:MustInherit|NotInheritable|Partial)\s+)*"
+    r"Class\s+\w+"
+    # Module
+    r"|(?:(?:Public|Friend)\s+)?Module\s+\w+"
+    # Structure
+    r"|(?:(?:Public|Private|Protected|Friend)\s+)?Structure\s+\w+"
+    # Interface
+    r"|(?:(?:Public|Private|Protected|Friend)\s+)?Interface\s+\w+"
+    # Enum
+    r"|(?:(?:Public|Private|Protected|Friend)\s+)?Enum\s+\w+"
+    # Sub/Function with optional access + method modifiers
+    r"|(?:(?:Public|Private|Protected\s+Friend|Private\s+Protected|Protected|Friend)\s+)?"
+    r"(?:(?:Shared|Overridable|MustOverride|NotOverridable|Overrides|Overloads|Async|Static)\s+)*"
+    r"(?:Sub|Function)\s+\w+"
+    # Property
+    r"|(?:(?:Public|Private|Protected|Friend)\s+)?(?:(?:Shared|ReadOnly|WriteOnly)\s+)?Property\s+\w+"
+    r")",
+    re.MULTILINE | re.IGNORECASE,
+)
+
 # Markdown heading boundaries
 HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
@@ -598,6 +656,11 @@ def get_boundary_pattern(language: str):
         ".kts": KOTLIN_BOUNDARY,
         "csharp": CSHARP_BOUNDARY,
         ".cs": CSHARP_BOUNDARY,
+        "fsharp": FSHARP_BOUNDARY,
+        ".fs": FSHARP_BOUNDARY,
+        ".fsi": FSHARP_BOUNDARY,
+        "vbnet": VBNET_BOUNDARY,
+        ".vb": VBNET_BOUNDARY,
         "terraform": HCL_BOUNDARY,
         ".tf": HCL_BOUNDARY,
         ".tfvars": HCL_BOUNDARY,
@@ -883,6 +946,98 @@ _CSHARP_EXTRACT = [
     ),
 ]
 
+_FSHARP_EXTRACT = [
+    # Discriminated union: type Foo = | ... or type Foo =\n    | ...
+    # Most specific — must precede record (type = {) and type catch-all.
+    (re.compile(r"^type\s+(\w+)\s*=\s*(?:\||\n\s*\|)", re.MULTILINE), "union"),
+    # Record: type Foo = {
+    (re.compile(r"^type\s+(\w+)\s*=\s*\{", re.MULTILINE), "record"),
+    # Interface with [<Interface>] attribute on preceding line
+    (
+        re.compile(r"\[<Interface>\][^\n]*\n\s*type\s+(\w+)", re.MULTILINE | re.IGNORECASE),
+        "interface",
+    ),
+    # Interface: type Foo = interface
+    (re.compile(r"^type\s+(\w+)\s*=\s*interface", re.MULTILINE | re.IGNORECASE), "interface"),
+    # Module
+    (re.compile(r"^module\s+(\w+)", re.MULTILINE), "module"),
+    # Exception
+    (re.compile(r"^exception\s+(\w+)", re.MULTILINE), "exception"),
+    # Type (catch-all: class, struct, abbreviation, etc.) — after all specific type patterns
+    (re.compile(r"^type\s+(\w+)", re.MULTILINE), "type"),
+    # Member function (indented: member this.Foo or member x.Foo)
+    (re.compile(r"^\s*member\s+(?:\w+)\.(\w+)", re.MULTILINE), "method"),
+    # Top-level let binding (function or value)
+    (re.compile(r"^let\s+(?:rec\s+)?(?:inline\s+)?(\w+)", re.MULTILINE), "function"),
+]
+
+_VBNET_EXTRACT = [
+    # Enum — before structure/class to avoid false matches on e.g. `Class EnumHelper`
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:Shared|Shadows|Partial)\s+)*Enum\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "enum",
+    ),
+    # Structure — before class
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:Partial|Shadows)\s+)*Structure\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "struct",
+    ),
+    # Interface — before class
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:Partial|Shadows)\s+)*Interface\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "interface",
+    ),
+    # Module — limited access (Public or Friend only)
+    (
+        re.compile(
+            r"^\s*(?:(?:Public|Friend)\s+)?Module\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "module",
+    ),
+    # Class
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:MustInherit|NotInheritable|Partial|Shadows)\s+)*Class\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "class",
+    ),
+    # Property — before Sub/Function
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:Shared|Default|ReadOnly|WriteOnly|Shadows|Overridable|NotOverridable|Overrides|Overloads)\s+)*"
+            r"Property\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "property",
+    ),
+    # Sub/Function
+    (
+        re.compile(
+            r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+            r"(?:(?:Shared|Overridable|MustOverride|NotOverridable|Overrides|Overloads|Async|Static|Default|Shadows)\s+)*"
+            r"(?:Sub|Function)\s+(\w+)",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "method",
+    ),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -896,6 +1051,8 @@ _LANG_EXTRACT_MAP = {
     "java": _JAVA_EXTRACT,
     "kotlin": _KOTLIN_EXTRACT,
     "csharp": _CSHARP_EXTRACT,
+    "fsharp": _FSHARP_EXTRACT,
+    "vbnet": _VBNET_EXTRACT,
 }
 
 
@@ -945,6 +1102,8 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "java",
         "kotlin",
         "csharp",
+        "fsharp",
+        "vbnet",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1334,7 +1493,8 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
     # and must be kept in the same chunk. Extend the lookback prefix set for csharp so that
     # lines starting with '[' are treated like comment lines during the lookback scan.
     comment_prefixes = ("//", "/*", "*", "*/", "#", '"""', "'''", "/**")
-    if canonical == "csharp":
+    if canonical in ("csharp", "fsharp"):
+        # C# uses [Attribute], F# uses [<Attribute>] — both start with '['.
         comment_prefixes = comment_prefixes + ("[",)
 
     for i, line in enumerate(lines):
@@ -1760,6 +1920,97 @@ def scan_project(
 
 
 # =============================================================================
+# .NET PROJECT FILE PARSING — KG triple extraction
+# =============================================================================
+
+# File extensions that trigger KG triple extraction during mining.
+_DOTNET_CONFIG_EXTENSIONS = frozenset({".csproj", ".fsproj", ".vbproj", ".sln"})
+
+# .sln project-line regex: captures (project_name, relative_path)
+_SLN_PROJECT_RE = re.compile(
+    r'Project\("[^"]*"\)\s*=\s*"([^"]+)",\s*"([^"]+)"',
+    re.IGNORECASE,
+)
+
+# Extensions that identify real project files within a solution (vs. SolutionFolders)
+_SLN_PROJECT_EXTS = frozenset({".csproj", ".fsproj", ".vbproj"})
+
+
+def parse_dotnet_project_file(filepath: Path) -> list:
+    """Parse a .csproj/.fsproj/.vbproj file and return KG triples.
+
+    Returns a list of (subject, predicate, object) tuples.
+    Project name is derived from the filename stem.
+    Uses stdlib xml.etree.ElementTree; no extra dependencies.
+    """
+    import xml.etree.ElementTree as ET
+
+    project_name = filepath.stem
+    triples = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8", errors="replace")
+        root = ET.fromstring(content)
+    except (ET.ParseError, OSError):
+        return triples
+
+    for elem in root.iter():
+        # Strip MSBuild namespace prefix if present (e.g. {http://schemas.microsoft.com/...})
+        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+        if tag == "TargetFramework":
+            val = (elem.text or "").strip()
+            if val:
+                triples.append((project_name, "targets_framework", val))
+
+        elif tag == "OutputType":
+            val = (elem.text or "").strip()
+            if val:
+                triples.append((project_name, "has_output_type", val))
+
+        elif tag == "PackageReference":
+            name = elem.get("Include", "").strip()
+            version = elem.get("Version", "").strip()
+            if name:
+                obj = f"{name}@{version}" if version else name
+                triples.append((project_name, "depends_on", obj))
+
+        elif tag == "ProjectReference":
+            include = elem.get("Include", "").strip()
+            if include:
+                ref_name = Path(include.replace("\\", "/")).stem
+                triples.append((project_name, "references_project", ref_name))
+
+    return triples
+
+
+def parse_sln_file(filepath: Path) -> list:
+    """Parse a .sln file and return KG triples.
+
+    Returns a list of (subject, predicate, object) tuples.
+    Only real project entries (.csproj/.fsproj/.vbproj) emit triples —
+    SolutionFolder entries are excluded.
+    Solution name is derived from the filename stem.
+    """
+    solution_name = filepath.stem
+    triples = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return triples
+
+    for match in _SLN_PROJECT_RE.finditer(content):
+        project_name = match.group(1)
+        project_path_str = match.group(2)
+        suffix = Path(project_path_str.replace("\\", "/")).suffix.lower()
+        if suffix in _SLN_PROJECT_EXTS:
+            triples.append((solution_name, "contains_project", project_name))
+
+    return triples
+
+
+# =============================================================================
 # MAIN: MINE
 # =============================================================================
 
@@ -1774,12 +2025,17 @@ def mine(
     respect_gitignore: bool = True,
     include_ignored: list = None,
     incremental: bool = True,
+    kg=None,
 ):
     """Mine a project directory into the palace.
 
     When *incremental* is True (default), only files whose content hash has changed
     since the last mine are re-chunked. Deleted files are swept after a full walk.
     Pass *incremental=False* (or --full from the CLI) to force a clean rebuild.
+
+    *kg* is an optional KnowledgeGraph instance. When provided, .NET project files
+    (.csproj, .fsproj, .vbproj) and solution files (.sln) are also parsed for
+    structured dependency triples that are written to the knowledge graph.
     """
 
     project_path = Path(project_dir).expanduser().resolve()
@@ -1886,9 +2142,13 @@ def mine(
                 # Hash mismatch or new file — delete old drawers then re-mine
                 if source_file in existing_hashes:
                     collection.delete_by_source_file(source_file, wing)
+                    if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+                        kg.invalidate_by_source_file(source_file)
             else:
                 # --full mode: unconditionally delete existing drawers and re-mine
                 collection.delete_by_source_file(source_file, wing)
+                if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+                    kg.invalidate_by_source_file(source_file)
 
             specs = _collect_specs_for_file(
                 filepath,
@@ -1900,6 +2160,16 @@ def mine(
                 mined_files=None,
                 source_hash=current_hash,
             )
+
+            # KG triple emission for .NET config files
+            if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+                if filepath.suffix.lower() == ".sln":
+                    triples = parse_sln_file(filepath)
+                else:
+                    triples = parse_dotnet_project_file(filepath)
+                for subj, pred, obj in triples:
+                    kg.add_triple(subj, pred, obj, source_file=source_file)
+
             if not specs:
                 files_skipped += 1
                 continue
@@ -1922,6 +2192,11 @@ def mine(
                 stale_paths = set(existing_hashes.keys()) - walked_paths
                 for stale_path in stale_paths:
                     collection.delete_by_source_file(stale_path, wing)
+                    if (
+                        kg is not None
+                        and Path(stale_path).suffix.lower() in _DOTNET_CONFIG_EXTENSIONS
+                    ):
+                        kg.invalidate_by_source_file(stale_path)
 
             config = MempalaceConfig()
             if config.optimize_after_mine:

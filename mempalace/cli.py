@@ -148,7 +148,9 @@ def cmd_mine(args):
         )
     else:
         from .miner import mine
+        from .knowledge_graph import KnowledgeGraph
 
+        kg = KnowledgeGraph()
         mine(
             project_dir=args.dir,
             palace_path=palace_path,
@@ -159,6 +161,7 @@ def cmd_mine(args):
             respect_gitignore=not args.no_gitignore,
             include_ignored=include_ignored,
             incremental=not args.full,
+            kg=kg,
         )
 
 

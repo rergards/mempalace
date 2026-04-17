@@ -1505,3 +1505,87 @@ def test_mine_default_calls_safe_optimize_backup_first():
         assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
     finally:
         shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# .NET language — process_file() roundtrip
+# =============================================================================
+
+
+def test_process_file_fsharp_roundtrip():
+    """process_file() on a .fs file stores a drawer with language='fsharp'."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        fs_code = (
+            "module Geometry\n\n"
+            "let area radius =\n"
+            "    System.Math.PI * radius * radius\n"
+            "// padding to exceed MIN_CHUNK threshold for adaptive merge split\n"
+        )
+        write_file(project_root / "geometry.fs", fs_code)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        languages = {m.get("language") for m in result.get("metadatas", []) if m.get("language")}
+        assert "fsharp" in languages, f"Expected 'fsharp' in languages, got {languages!r}"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_process_file_vbnet_roundtrip():
+    """process_file() on a .vb file stores a drawer with language='vbnet'."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        vb_code = (
+            "Public Class Calculator\n"
+            "    ' Provides basic arithmetic operations for integer values.\n"
+            "    Public Function Add(a As Integer, b As Integer) As Integer\n"
+            "        ' Returns the sum of two integer arguments passed to the method.\n"
+            "        Return a + b\n"
+            "    End Function\n"
+            "End Class\n"
+        )
+        write_file(project_root / "calculator.vb", vb_code)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        languages = {m.get("language") for m in result.get("metadatas", []) if m.get("language")}
+        assert "vbnet" in languages, f"Expected 'vbnet' in languages, got {languages!r}"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# SKIP_DIRS — .vs / bin / obj are skipped
+# =============================================================================
+
+
+def test_skip_dirs_dotnet():
+    """scan_project() skips .vs/, bin/, and obj/ directories."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        write_file(project_root / "src" / "App.cs", "public class App {}\n" * 20)
+        write_file(project_root / ".vs" / "settings.json", '{"version": 1}\n' * 20)
+        write_file(project_root / "bin" / "Debug" / "App.dll", "binary\n" * 20)
+        write_file(project_root / "obj" / "App.csproj.nuget.g.targets", "<Target/>\n" * 20)
+
+        result = scanned_files(project_root, respect_gitignore=False)
+        # Only the source file should be found; none of the skip-dir files
+        assert "src/App.cs" in result
+        assert not any(p.startswith(".vs/") for p in result), ".vs/ should be skipped"
+        assert not any(p.startswith("bin/") for p in result), "bin/ should be skipped"
+        assert not any(p.startswith("obj/") for p in result), "obj/ should be skipped"
+    finally:
+        shutil.rmtree(tmpdir)

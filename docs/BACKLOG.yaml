@@ -572,42 +572,10 @@ items:
 
       - Tests must use tempfile.mkdtemp() + shutil.rmtree() pattern (no pytest fixtures)
       - No palace/embedding needed — pure scan_project() call tests
-  - key: MINE-CSHARP
-    summary: Add C# language support to code miner
-    type: feature
-    status: done
-    priority: high
-    section_id: immediate
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      C# projects cannot be mined. Users with .NET/Unity codebases have no mempalace support.
-
-      ## Scope
-      - Add C# (.cs) file support to code miner
-      - Extract: classes, interfaces, structs, enums, records, methods, properties, fields, constructors, events
-      - Handle: namespaces, partial classes (cross-link definitions), attributes, regions
-      - Preserve XML doc comments and leading comments with declarations
-      - Support nested types and generic constraints
-
-      ## References
-      - GitHub issue: rergards/mempalace-code#1
-
-      ## Acceptance Criteria
-      - [ ] Miner extracts C# symbols with correct metadata (symbol_name, symbol_type, language='csharp')
-      - [ ] Partial class chunks include reference to other parts
-      - [ ] XML docs preserved in drawer content
-      - [ ] Events extracted as symbol_type='event'
-      - [ ] Works on real Unity/ASP.NET/WPF projects
-      - [ ] Tests for: classes, interfaces, records, partial classes, generics, events
-      - [ ] Benchmark on open-rpa/openrpa or similar large repo
-    size: L
-    resolution: '2026-04-17: Add C# (.cs) regex-based chunking and symbol extraction to miner.py: CSHARP_BOUNDARY, _CSHARP_EXTRACT, language detection, chunk_file dispatch, chunk_code attribute lookback. 50 new tests — all 701 suite tests passing.'
-    hardening: 'round-1 2026-04-17: 2 fixed (record pattern line-start anchoring + missing tests), 1 backlogged (MINE-CSHARP-EXPR-BODY expression-bodied properties), 1 dismissed (ReDoS info). 4 regression tests added, 705 suite tests passing.'
   - key: MINE-DOTNET
     summary: Add .NET ecosystem support to code miner
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: immediate
     labels: [feat, miner]
@@ -641,6 +609,7 @@ items:
       - [ ] Works on real ASP.NET Core / Blazor / MAUI / WPF projects
       - [ ] Benchmark on multi-project .NET repo
     size: L
+    resolution: '2026-04-17: Added F#/VB.NET language support, .csproj/.fsproj/.vbproj/.sln KG triple extraction, invalidate_by_source_file(), .vs/bin/obj SKIP_DIRS, and 60+ tests across 5 test files'
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature

@@ -40,6 +40,13 @@ from mempalace.miner import detect_language
         (".cpp", "cpp"),
         (".hpp", "cpp"),
         (".cs", "csharp"),
+        (".fs", "fsharp"),
+        (".fsi", "fsharp"),
+        (".vb", "vbnet"),
+        (".csproj", "xml"),
+        (".fsproj", "xml"),
+        (".vbproj", "xml"),
+        (".sln", "dotnet-solution"),
     ],
 )
 def test_extension_detection(ext, expected):

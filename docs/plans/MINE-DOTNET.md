@@ -5,17 +5,21 @@ risk: medium
 risk_note: "F#/VB.NET language patterns follow proven MINE-CSHARP recipe (low risk), but KG integration during mining is a new pattern — miner.py has never written to the knowledge graph before. XML parsing of project files and regex parsing of .sln files add surface area beyond simple extension-map additions."
 files:
   - path: mempalace/miner.py
-    change: "Add .fs/.fsi/.vb to EXTENSION_LANG_MAP and READABLE_EXTENSIONS; add .csproj/.fsproj/.vbproj/.sln to READABLE_EXTENSIONS; add FSHARP_BOUNDARY and VBNET_BOUNDARY regexes; register in get_boundary_pattern(); add _FSHARP_EXTRACT and _VBNET_EXTRACT pattern lists; register in _LANG_EXTRACT_MAP; add 'fsharp' and 'vbnet' to chunk_file() dispatch; add .vs/bin/obj to SKIP_DIRS; add parse_dotnet_project_file() and parse_sln_file() functions; extend mine() to call dotnet config parsers and emit KG triples"
+    change: "Add .fs/.fsi/.vb/.csproj/.fsproj/.vbproj/.sln to EXTENSION_LANG_MAP and READABLE_EXTENSIONS; add FSHARP_BOUNDARY and VBNET_BOUNDARY regexes; register in get_boundary_pattern(); add _FSHARP_EXTRACT and _VBNET_EXTRACT pattern lists; register in _LANG_EXTRACT_MAP; add 'fsharp' and 'vbnet' to chunk_file() dispatch; add .vs/bin/obj to SKIP_DIRS; add parse_dotnet_project_file() and parse_sln_file() functions; extend mine() to call dotnet config parsers, invalidate stale KG triples by source_file, and emit new KG triples"
+  - path: mempalace/knowledge_graph.py
+    change: "Add invalidate_by_source_file(source_file: str) method — sets valid_to on all active triples whose source_file matches, used by miner before re-adding triples for changed/deleted config files"
+  - path: mempalace/cli.py
+    change: "In cmd_mine(), instantiate KnowledgeGraph() (default path) and pass to mine() as kg parameter"
   - path: tests/test_lang_detect.py
-    change: "Add ('.fs', 'fsharp'), ('.fsi', 'fsharp'), ('.vb', 'vbnet') to extension-based detection parametrize list"
+    change: "Add ('.fs', 'fsharp'), ('.fsi', 'fsharp'), ('.vb', 'vbnet'), ('.csproj', 'xml'), ('.fsproj', 'xml'), ('.vbproj', 'xml'), ('.sln', 'dotnet-solution') to extension-based detection parametrize list"
   - path: tests/test_symbol_extract.py
     change: "Add F# section (module, type, record, discriminated union, let binding, member, interface) and VB.NET section (Class, Module, Structure, Interface, Enum, Sub, Function, Property)"
   - path: tests/test_chunking.py
     change: "Add F# chunking tests (module boundary, let binding boundary, type with members) and VB.NET chunking tests (Class/End Class boundary, Sub/Function boundary)"
   - path: tests/test_miner.py
-    change: "Add .fs and .vb roundtrip tests through process_file(); add .csproj/.sln parsing integration tests verifying KG triples are emitted"
+    change: "Add .fs and .vb roundtrip tests through process_file(); add .csproj/.sln parsing integration tests verifying KG triples are emitted; add SKIP_DIRS test verifying .vs/bin/obj are not scanned"
   - path: tests/test_dotnet_config.py
-    change: "New file — unit tests for parse_dotnet_project_file() and parse_sln_file(): XML extraction of PackageReference/ProjectReference/TargetFramework, .sln project list parsing, edge cases (empty files, malformed XML, no references)"
+    change: "New file — unit tests for parse_dotnet_project_file() and parse_sln_file(): XML extraction of PackageReference/ProjectReference/TargetFramework, .sln project list parsing, .sln SolutionFolder filtering (must not emit triples), edge cases (empty files, malformed XML, namespaced MSBuild XML, no references); KG lifecycle tests verifying re-mining a changed .csproj invalidates stale triples before adding new ones"
 acceptance:
   - id: AC-1
     when: "Mining a .fs file containing a module declaration"
@@ -61,7 +65,7 @@ acceptance:
     then: "Extracted with symbol_type='property'"
   - id: AC-15
     when: "Mining a .csproj file with PackageReference and ProjectReference elements"
-    then: "KG triples emitted: project depends_on package (with version), project references project (with path)"
+    then: "KG triples emitted: (project, depends_on, Package@Version) for each PackageReference; (project, references_project, ReferencedProjectName) for each ProjectReference — project name derived from path stem"
   - id: AC-16
     when: "Mining a .csproj file with TargetFramework and OutputType"
     then: "KG triples emitted: project targets_framework net8.0, project has_output_type Exe"
@@ -69,8 +73,8 @@ acceptance:
     when: "Mining a .sln file with Project entries"
     then: "KG triples emitted: solution contains_project ProjectName for each project listed"
   - id: AC-18
-    when: "Querying KG with subject=ProjectName, predicate=depends_on"
-    then: "Returns all package and project dependencies for that project"
+    when: "Querying KG with subject=ProjectName"
+    then: "Returns depends_on triples (package dependencies) and references_project triples (project references) as separate predicates"
   - id: AC-19
     when: "Mining a directory containing .vs/, bin/, obj/ subdirectories"
     then: "Those directories are skipped (not scanned)"
@@ -141,30 +145,35 @@ out_of_scope:
   6. `(?:modifiers\s+)*Property\s+(\w+)` → `"property"` — before Sub/Function
   7. `(?:modifiers\s+)*(?:Sub|Function)\s+(\w+)` → `"method"`
 
-- **KG integration is a new pattern for the miner.** Currently `mine()` only writes drawers (vector store). This task introduces the first miner→KG bridge. Implementation approach:
-  - `parse_dotnet_project_file(filepath: Path) -> list[tuple[str, str, str]]` — returns list of `(subject, predicate, object)` triples extracted from XML.
-  - `parse_sln_file(filepath: Path) -> list[tuple[str, str, str]]` — returns list of triples from .sln text.
-  - `mine()` gains an optional `kg: KnowledgeGraph = None` parameter. When provided, after processing config files, triples are added via `kg.add_triple()`.
-  - The CLI's `mine` command instantiates `KnowledgeGraph(palace_path + "/kg.db")` and passes it through.
+- **KG integration is a new pattern for the miner.** Currently `mine()` only writes drawers (vector store). This task introduces the first miner->KG bridge. Implementation approach:
+  - `parse_dotnet_project_file(filepath: Path) -> list[tuple[str, str, str]]` -- returns list of `(subject, predicate, object)` triples extracted from XML.
+  - `parse_sln_file(filepath: Path) -> list[tuple[str, str, str]]` -- returns list of triples from .sln text.
+  - `mine()` gains an optional `kg: KnowledgeGraph = None` parameter. When provided, after processing config files, triples are added via `kg.add_triple(subject, predicate, obj, source_file=str(filepath))`.
+  - The CLI's `cmd_mine()` instantiates `KnowledgeGraph()` (default path, `~/.mempalace/knowledge_graph.sqlite3`) and passes it to `mine()`. This is the same default path used by MCP server, export, and import -- all callers observe the same graph.
   - Config files (.csproj, .fsproj, .vbproj, .sln) are BOTH chunked as text drawers (for semantic search) AND parsed for KG triples (for structured queries). Dual storage is intentional.
 
+- **KG lifecycle on re-mine and deletion.** The KG schema already stores `source_file` on each triple. A new method `KnowledgeGraph.invalidate_by_source_file(source_file: str)` sets `valid_to = today` on all active triples (where `valid_to IS NULL`) whose `source_file` matches. This uses temporal invalidation (not physical deletion) to preserve history, consistent with the KG's temporal model.
+  - **Changed config files**: when `mine()` detects a hash mismatch on a `.csproj`/`.fsproj`/`.vbproj`/`.sln` file, it calls `kg.invalidate_by_source_file(source_file)` before re-parsing and adding new triples.
+  - **Deleted config files**: during the stale-file sweep, `mine()` calls `kg.invalidate_by_source_file(stale_path)` for each stale path that has a config extension.
+  - **First mine**: no invalidation needed -- triples are added fresh.
+
 - **Project file XML parsing.** Use `xml.etree.ElementTree` (stdlib, no new dependency). Extract:
-  - `<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>` → `(project_name, "targets_framework", "net8.0")`
-  - `<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>` → `(project_name, "has_output_type", "Exe")`
-  - `<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />` → `(project_name, "depends_on", "Newtonsoft.Json@13.0.3")`
-  - `<ProjectReference Include="../Shared/Shared.csproj" />` → `(project_name, "references_project", "Shared")`
-  - Project name derived from filename stem (e.g., `MyApp.csproj` → `MyApp`).
+  - `<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>` -- `(project_name, "targets_framework", "net8.0")`
+  - `<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>` -- `(project_name, "has_output_type", "Exe")`
+  - `<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />` -- `(project_name, "depends_on", "Newtonsoft.Json@13.0.3")`
+  - `<ProjectReference Include="../Shared/Shared.csproj" />` -- `(project_name, "references_project", "Shared")` -- referenced project name is the path stem, not the raw path. The full path is searchable via the text drawer.
+  - Project name derived from filename stem (e.g., `MyApp.csproj` -> `MyApp`).
 
 - **Solution file parsing.** `.sln` is a text format with `Project("...")` lines:
   ```
   Project("{FAE04EC0-...}") = "MyApp", "MyApp\MyApp.csproj", "{GUID}"
   ```
-  Regex: `Project\("[^"]*"\)\s*=\s*"([^"]+)",\s*"([^"]+)"` — capture group 1 = project name, group 2 = relative path. Solution name from filename stem. Triples: `(solution_name, "contains_project", project_name)`.
+  Regex: `Project\("[^"]*"\)\s*=\s*"([^"]+)",\s*"([^"]+)"` -- capture group 1 = project name, group 2 = relative path. **Filter**: only emit triples for entries whose path (group 2) ends in `.csproj`, `.fsproj`, or `.vbproj` -- this excludes SolutionFolder entries and other non-project items. Solution name from filename stem. Triples: `(solution_name, "contains_project", project_name)`.
 
 - **SKIP_DIRS additions.** `.vs` (Visual Studio user settings/cache), `bin` (build output), `obj` (intermediate build objects). All three are standard .NET gitignore entries and contain no source code.
 
 - **`bin` and `obj` risk.** These are common directory names. `bin` could exist in non-.NET projects (e.g., `~/bin` scripts). However, `SKIP_DIRS` applies only within the project being mined, and `bin`/`obj` at any depth inside a project are almost always build artifacts. The risk of skipping a legitimate `bin/` source directory is minimal and consistent with how `build`/`dist`/`target` are already skipped.
 
-- **Config file chunking.** `.csproj`/`.fsproj`/`.vbproj`/`.sln` files are added to `READABLE_EXTENSIONS` and chunked via `chunk_adaptive_lines()` (the default for non-code languages). They will also get language tags: `.csproj`/`.fsproj`/`.vbproj` → `"xml"`, `.sln` → `"dotnet-solution"`. No dedicated boundary patterns — these files are typically small enough for one or two chunks.
+- **Config file language tagging and chunking.** `.csproj`/`.fsproj`/`.vbproj`/`.sln` files need entries in **both** `EXTENSION_LANG_MAP` and `READABLE_EXTENSIONS`. `EXTENSION_LANG_MAP` entries: `.csproj` -> `"xml"`, `.fsproj` -> `"xml"`, `.vbproj` -> `"xml"`, `.sln` -> `"dotnet-solution"`. Without these, `detect_language()` would return `"unknown"`. Chunked via `chunk_adaptive_lines()` (the default for non-code languages). No dedicated boundary patterns -- these files are typically small enough for one or two chunks.
 
 - **Attribute handling for F#.** F# uses `[<Attribute>]` syntax (note angle brackets inside square brackets). Extend the `chunk_code()` lookback for `fsharp` to recognize `[<` as an attachable prefix, similar to how C# uses `[`.

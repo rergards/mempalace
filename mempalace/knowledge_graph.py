@@ -168,6 +168,22 @@ class KnowledgeGraph:
         conn.close()
         return triple_id
 
+    def invalidate_by_source_file(self, source_file: str, ended: str = None):
+        """Set valid_to on all active triples (valid_to IS NULL) whose source_file matches.
+
+        Used by the miner before re-parsing a changed or deleted .NET config file so that
+        stale KG triples are expired rather than left as contradictory active facts.
+        Temporal invalidation (not physical deletion) preserves history.
+        """
+        ended = ended or date.today().isoformat()
+        conn = self._conn()
+        conn.execute(
+            "UPDATE triples SET valid_to=? WHERE source_file=? AND valid_to IS NULL",
+            (ended, source_file),
+        )
+        conn.commit()
+        conn.close()
+
     def invalidate(self, subject: str, predicate: str, obj: str, ended: str = None):
         """Mark a relationship as no longer valid (set valid_to date)."""
         sub_id = self._entity_id(subject)

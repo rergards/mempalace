@@ -1003,6 +1003,114 @@ def test_csharp_unknown_language_returns_empty():
     assert extract_symbol("public class Foo {}\n", "unknown") == ("", "")
 
 
+# =============================================================================
+# F#
+# =============================================================================
+
+
+def test_fsharp_module():
+    assert extract_symbol("module MyModule\n\nlet x = 1\n", "fsharp") == ("MyModule", "module")
+
+
+def test_fsharp_type_class():
+    # plain type declaration — should be caught by catch-all 'type'
+    content = "type Config(host: string, port: int) =\n    member this.Host = host\n"
+    assert extract_symbol(content, "fsharp") == ("Config", "type")
+
+
+def test_fsharp_record():
+    content = "type Point = { X: float; Y: float }\n"
+    assert extract_symbol(content, "fsharp") == ("Point", "record")
+
+
+def test_fsharp_discriminated_union_inline():
+    content = "type Shape = | Circle of float | Square of float\n"
+    assert extract_symbol(content, "fsharp") == ("Shape", "union")
+
+
+def test_fsharp_discriminated_union_multiline():
+    content = "type Result =\n    | Ok of string\n    | Error of string\n"
+    assert extract_symbol(content, "fsharp") == ("Result", "union")
+
+
+def test_fsharp_interface():
+    content = "type IRepository =\n    interface\n        abstract member GetById: int -> string\n    end\n"
+    assert extract_symbol(content, "fsharp") == ("IRepository", "interface")
+
+
+def test_fsharp_exception():
+    content = "exception DatabaseError of string\n"
+    assert extract_symbol(content, "fsharp") == ("DatabaseError", "exception")
+
+
+def test_fsharp_let_function():
+    content = "let process input =\n    input |> String.trim\n"
+    assert extract_symbol(content, "fsharp") == ("process", "function")
+
+
+def test_fsharp_let_rec_function():
+    content = "let rec factorial n =\n    if n <= 1 then 1 else n * factorial (n - 1)\n"
+    assert extract_symbol(content, "fsharp") == ("factorial", "function")
+
+
+def test_fsharp_member():
+    content = "    member this.Process(input: string) =\n        input.Trim()\n"
+    assert extract_symbol(content, "fsharp") == ("Process", "method")
+
+
+# =============================================================================
+# VB.NET
+# =============================================================================
+
+
+def test_vbnet_class():
+    content = "Public Class UserService\nEnd Class\n"
+    assert extract_symbol(content, "vbnet") == ("UserService", "class")
+
+
+def test_vbnet_module():
+    content = "Public Module Utils\nEnd Module\n"
+    assert extract_symbol(content, "vbnet") == ("Utils", "module")
+
+
+def test_vbnet_structure():
+    content = (
+        "Public Structure Point\n    Public X As Integer\n    Public Y As Integer\nEnd Structure\n"
+    )
+    assert extract_symbol(content, "vbnet") == ("Point", "struct")
+
+
+def test_vbnet_interface():
+    content = "Public Interface IRepository\n    Function GetById(id As Integer) As String\nEnd Interface\n"
+    assert extract_symbol(content, "vbnet") == ("IRepository", "interface")
+
+
+def test_vbnet_enum():
+    content = "Public Enum Color\n    Red\n    Green\n    Blue\nEnd Enum\n"
+    assert extract_symbol(content, "vbnet") == ("Color", "enum")
+
+
+def test_vbnet_sub():
+    content = "    Public Sub Process(ByVal input As String)\n    End Sub\n"
+    assert extract_symbol(content, "vbnet") == ("Process", "method")
+
+
+def test_vbnet_function():
+    content = "    Public Function Calculate(a As Integer, b As Integer) As Integer\n        Return a + b\n    End Function\n"
+    assert extract_symbol(content, "vbnet") == ("Calculate", "method")
+
+
+def test_vbnet_property():
+    content = "    Public Property Name As String\n        Get\n            Return _name\n        End Get\n        Set(value As String)\n            _name = value\n        End Set\n    End Property\n"
+    assert extract_symbol(content, "vbnet") == ("Name", "property")
+
+
+def test_vbnet_case_insensitive():
+    # VB.NET keywords are case-insensitive
+    content = "public class MyClass\nend class\n"
+    assert extract_symbol(content, "vbnet") == ("MyClass", "class")
+
+
 def test_java_chunk_code_class_with_two_methods():
     """A class with two public methods should produce at most 2 content chunks."""
     java_code = (

@@ -1888,3 +1888,150 @@ def test_csharp_chunk_file_routing():
     combined = "\n".join(c["content"] for c in chunks)
     assert "Alpha" in combined
     assert "Beta" in combined
+
+
+# =============================================================================
+# chunk_code — F#
+# =============================================================================
+
+# A minimal F# module with two let bindings — padded to ensure each chunk
+# survives MIN_CHUNK (100 chars) filtering after adaptive_merge_split.
+_FSHARP_PAD = "    // padding to reach minimum chunk size for adaptive merge filtering\n"
+
+FSHARP_TWO_FUNCTIONS = (
+    "module Calculator\n"
+    "\n"
+    "let add (a: int) (b: int) =\n"
+    + _FSHARP_PAD
+    + "    a + b\n"
+    + "\n"
+    + "let subtract (a: int) (b: int) =\n"
+    + _FSHARP_PAD
+    + "    a - b\n"
+)
+
+FSHARP_TYPE_AND_LET = (
+    "type Point = { X: float; Y: float }\n"
+    + _FSHARP_PAD
+    + "\n"
+    + "let distance (p1: Point) (p2: Point) =\n"
+    + _FSHARP_PAD
+    + "    let dx = p1.X - p2.X\n"
+    + "    let dy = p1.Y - p2.Y\n"
+    + "    sqrt (dx * dx + dy * dy)\n"
+)
+
+FSHARP_DU_AND_LET = (
+    "type Shape =\n"
+    "    | Circle of float\n"
+    "    | Rectangle of float * float\n"
+    + _FSHARP_PAD
+    + "\n"
+    + "let area shape =\n"
+    + _FSHARP_PAD
+    + "    match shape with\n"
+    + "    | Circle r -> System.Math.PI * r * r\n"
+    + "    | Rectangle (w, h) -> w * h\n"
+)
+
+
+def test_fsharp_module_boundary():
+    """module declaration splits into its own chunk."""
+    chunks = chunk_code(FSHARP_TWO_FUNCTIONS, "fsharp", "Calculator.fs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "add" in combined
+    assert "subtract" in combined
+
+
+def test_fsharp_let_boundary():
+    """Each let binding triggers a boundary; both names appear in output."""
+    chunks = chunk_code(FSHARP_TWO_FUNCTIONS, "fsharp", "Calculator.fs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "add" in combined
+    assert "subtract" in combined
+
+
+def test_fsharp_type_and_let_boundary():
+    """A type declaration and a let binding produce separate boundary hits."""
+    chunks = chunk_code(FSHARP_TYPE_AND_LET, "fsharp", "Geometry.fs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Point" in combined
+    assert "distance" in combined
+
+
+def test_fsharp_du_boundary():
+    """A discriminated union type and a let binding both appear in output."""
+    chunks = chunk_code(FSHARP_DU_AND_LET, "fsharp", "Shape.fs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Shape" in combined
+    assert "area" in combined
+
+
+def test_fsharp_chunk_file_routing():
+    """chunk_file() routes .fs files through chunk_code() (not adaptive fallback)."""
+    from mempalace.miner import chunk_file
+
+    chunks = chunk_file(FSHARP_TWO_FUNCTIONS, ".fs", "Calculator.fs", language="fsharp")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "add" in combined
+
+
+# =============================================================================
+# chunk_code — VB.NET
+# =============================================================================
+
+_VB_PAD = "    ' padding comment to reach minimum chunk size for adaptive merge filtering\n"
+
+VBNET_CLASS_AND_SUB = (
+    "Public Class UserService\n"
+    + _VB_PAD
+    + "    Public Sub Process(ByVal input As String)\n"
+    + _VB_PAD
+    + "    End Sub\n"
+    + "\n"
+    + "    Public Function Calculate(a As Integer, b As Integer) As Integer\n"
+    + _VB_PAD
+    + "        Return a + b\n"
+    + "    End Function\n"
+    + "End Class\n"
+)
+
+VBNET_MODULE = (
+    "Public Module Utils\n"
+    + _VB_PAD
+    + "    Public Sub Helper()\n"
+    + _VB_PAD
+    + "    End Sub\n"
+    + "End Module\n"
+)
+
+
+def test_vbnet_class_boundary():
+    """Class declaration triggers a boundary; class name appears in output."""
+    chunks = chunk_code(VBNET_CLASS_AND_SUB, "vbnet", "UserService.vb")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "UserService" in combined
+
+
+def test_vbnet_sub_function_boundary():
+    """Sub and Function declarations both appear in output."""
+    chunks = chunk_code(VBNET_CLASS_AND_SUB, "vbnet", "UserService.vb")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Process" in combined
+    assert "Calculate" in combined
+
+
+def test_vbnet_module_boundary():
+    """Module declaration triggers a boundary."""
+    chunks = chunk_code(VBNET_MODULE, "vbnet", "Utils.vb")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Utils" in combined
+
+
+def test_vbnet_chunk_file_routing():
+    """chunk_file() routes .vb files through chunk_code() (not adaptive fallback)."""
+    from mempalace.miner import chunk_file
+
+    chunks = chunk_file(VBNET_MODULE, ".vb", "Utils.vb", language="vbnet")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Utils" in combined
