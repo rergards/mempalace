@@ -47,6 +47,7 @@ from mempalace.miner import detect_language
         (".fsproj", "xml"),
         (".vbproj", "xml"),
         (".sln", "dotnet-solution"),
+        (".xaml", "xaml"),
     ],
 )
 def test_extension_detection(ext, expected):

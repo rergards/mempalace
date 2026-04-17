@@ -10,6 +10,8 @@ files:
     change: "Rename to tests/test_kg_extract.py; add XAML parsing tests: x:Class extraction, code-behind triple, DataContext element binding, DataContext d:DesignInstance binding, x:Name control triples, StaticResource/DynamicResource reference triples, Command binding triples, edge cases (no x:Class, empty file, malformed XML, XAML with only resources), KG lifecycle (re-mining invalidates stale XAML triples)"
   - path: tests/test_lang_detect.py
     change: "Add ('.xaml', 'xaml') to extension-based detection parametrize list"
+  - path: tests/test_symbol_extract.py
+    change: "Add XAML symbol extraction tests: x:Class short-name extraction ('MyApp.MainWindow' -> 'MainWindow', type='view'), no x:Class returns ('', ''), filename-only XAML with no x:Class in chunk"
   - path: tests/test_miner.py
     change: "Add .xaml roundtrip test through process_file() asserting language='xaml', symbol_name matches view name from x:Class, and KG triples emitted for code-behind link"
 acceptance:
@@ -17,8 +19,8 @@ acceptance:
     when: "Mining a .xaml file containing x:Class='MyApp.MainWindow'"
     then: "Drawer has language='xaml', symbol_name='MainWindow', symbol_type='view'"
   - id: AC-2
-    when: "Mining a .xaml file with x:Class attribute"
-    then: "KG triple emitted: (MainWindow, 'has_code_behind', 'MainWindow.xaml.cs') derived from naming convention (filename + .cs)"
+    when: "Mining a .xaml file with x:Class attribute and an adjacent .xaml.cs file exists on disk"
+    then: "KG triple emitted: (MainWindow, 'has_code_behind', 'MainWindow.xaml.cs') derived from naming convention (filename + .cs); triple is NOT emitted when no .xaml.cs file is adjacent (e.g., resource dictionaries)"
   - id: AC-3
     when: "Mining a .xaml file with element-style DataContext: <Window.DataContext><local:MainViewModel /></Window.DataContext>"
     then: "KG triple emitted: (MainWindow, 'binds_viewmodel', 'MainViewModel')"
@@ -46,6 +48,9 @@ acceptance:
   - id: AC-11
     when: "Running `python -m pytest tests/ -x -q` and `ruff check mempalace/ tests/` after all changes"
     then: "All tests pass and lint is clean — no regressions"
+  - id: AC-12
+    when: "Post-implementation: mining a real WPF project (e.g., a shallow clone of open-rpa/openrpa)"
+    then: "parse_xaml_file() produces triples for at least one x:Class view, one DataContext binding, one resource reference, and one named control without errors; results logged as smoke-test evidence in the task directory"
 out_of_scope:
   - "Deep XAML binding expression parser — only simple {Binding PropertyName} and {StaticResource Key} patterns; complex multi-binding, converter, and fallback expressions are not parsed"
   - "XAML structural chunking (XML-element-aware splitting) — XAML files use chunk_adaptive_lines(); they are typically small enough for a few chunks"
@@ -163,4 +168,4 @@ out_of_scope:
   ```
   This single fixture exercises: x:Class, d:DataContext, x:Name, StaticResource, DynamicResource, Command binding.
 
-- **Real-world reference.** The acceptance criteria mention open-rpa/openrpa as a WPF project to validate against. This is a post-implementation smoke test, not an automated test fixture.
+- **Real-world verification (AC-12).** After implementation, shallow-clone a real WPF project (e.g., `open-rpa/openrpa`) and run `parse_xaml_file()` against its `.xaml` files. Required evidence: at least one `x:Class` view extracted, one `DataContext` binding, one resource reference, and one named control -- all without XML parse errors. Log results to `.tasks/TASK-MINE-XAML/wpf-smoke-test.log`. This is a manual post-implementation step, not an automated test fixture.

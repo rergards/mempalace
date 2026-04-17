@@ -43,6 +43,7 @@ EXTENSION_LANG_MAP = {
     ".fsproj": "xml",
     ".vbproj": "xml",
     ".sln": "dotnet-solution",
+    ".xaml": "xaml",
     ".sh": "shell",
     ".sql": "sql",
     ".md": "markdown",
@@ -113,6 +114,7 @@ READABLE_EXTENSIONS = {
     ".fsproj",
     ".vbproj",
     ".sln",
+    ".xaml",
     ".go",
     ".rs",
     ".rb",
@@ -1038,6 +1040,12 @@ _VBNET_EXTRACT = [
     ),
 ]
 
+_XAML_EXTRACT = [
+    # Extract view name from root element's x:Class attribute (fully-qualified → short name).
+    # Only the first chunk (root element) will match; subsequent chunks get ("", "").
+    (re.compile(r'x:Class="(?:[\w.]+\.)?(\w+)"'), "view"),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -1053,6 +1061,7 @@ _LANG_EXTRACT_MAP = {
     "csharp": _CSHARP_EXTRACT,
     "fsharp": _FSHARP_EXTRACT,
     "vbnet": _VBNET_EXTRACT,
+    "xaml": _XAML_EXTRACT,
 }
 
 
@@ -1924,7 +1933,7 @@ def scan_project(
 # =============================================================================
 
 # File extensions that trigger KG triple extraction during mining.
-_DOTNET_CONFIG_EXTENSIONS = frozenset({".csproj", ".fsproj", ".vbproj", ".sln"})
+_KG_EXTRACT_EXTENSIONS = frozenset({".csproj", ".fsproj", ".vbproj", ".sln", ".xaml"})
 
 # .sln project-line regex: captures (project_name, relative_path)
 _SLN_PROJECT_RE = re.compile(
@@ -2013,6 +2022,118 @@ def parse_sln_file(filepath: Path) -> list:
         suffix = Path(project_path_str.replace("\\", "/")).suffix.lower()
         if suffix in _SLN_PROJECT_EXTS:
             triples.append((solution_name, "contains_project", project_name))
+
+    return triples
+
+
+# =============================================================================
+# XAML FILE PARSING — KG triple extraction
+# =============================================================================
+
+# XAML namespace URI for the core XAML language (x: prefix by convention).
+_XAML_NS = "http://schemas.microsoft.com/winfx/2006/xaml"
+
+# d:DataContext design-time binding — e.g. d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+_XAML_D_DATACONTEXT_RE = re.compile(
+    r'd:DataContext="\{d:DesignInstance\s+(?:Type=)?(?:[\w]+:)?(\w+)',
+    re.IGNORECASE,
+)
+
+# StaticResource and DynamicResource references inside attribute values
+_XAML_RESOURCE_RE = re.compile(r"\{(?:Static|Dynamic)Resource\s+(\w+)\}")
+
+# Command binding — Command="{Binding SaveCommand}" or Command="{Binding Path=SaveCommand}"
+_XAML_COMMAND_RE = re.compile(r'Command\s*=\s*"\{Binding\s+(?:Path=)?(\w+)\}"')
+
+
+def parse_xaml_file(filepath: Path) -> list:
+    """Parse a .xaml file and return KG triples.
+
+    Returns a list of (subject, predicate, object) tuples.
+    Subject is the view name: short name from x:Class or filename stem.
+    Uses xml.etree.ElementTree for structured traversal (x:Class, x:Name,
+    DataContext element syntax) and regex for markup extension values
+    ({Binding}, {StaticResource}, {DynamicResource}, d:DataContext) that
+    ET treats as opaque attribute strings.
+    """
+    import xml.etree.ElementTree as ET
+
+    triples = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return triples
+
+    if not content.strip():
+        return triples
+
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return triples
+
+    # Determine view name: x:Class short name or filename stem
+    view_name = filepath.stem
+    xclass_attr = f"{{{_XAML_NS}}}Class"
+    raw_class = root.get(xclass_attr, "")
+    if not raw_class:
+        # Fallback: scan first 5 lines for raw x:Class text (namespace edge cases)
+        for line in content.splitlines()[:5]:
+            m = re.search(r'x:Class="([\w.]+)"', line)
+            if m:
+                raw_class = m.group(1)
+                break
+    if raw_class:
+        view_name = raw_class.rsplit(".", 1)[-1]
+
+    # 1. Code-behind link (only when an adjacent .xaml.cs file exists on disk)
+    code_behind = filepath.parent / (filepath.name + ".cs")
+    if code_behind.exists():
+        triples.append((view_name, "has_code_behind", code_behind.name))
+
+    # 2. ViewModel from element DataContext:
+    #    <Window.DataContext><local:MainViewModel /></Window.DataContext>
+    for elem in root.iter():
+        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+        if tag.endswith(".DataContext"):
+            for child in elem:
+                child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                # Strip namespace prefix (e.g. "local:MainViewModel" → "MainViewModel")
+                vm_name = child_tag.rsplit(":", 1)[-1] if ":" in child_tag else child_tag
+                if vm_name:
+                    triples.append((view_name, "binds_viewmodel", vm_name))
+
+    # 3. Named controls (x:Name attribute)
+    xname_attr = f"{{{_XAML_NS}}}Name"
+    for elem in root.iter():
+        name_val = elem.get(xname_attr, "")
+        if name_val:
+            triples.append((view_name, "has_named_control", name_val))
+
+    # 4. ViewModel from d:DataContext design-time attribute (regex — markup extension)
+    m = _XAML_D_DATACONTEXT_RE.search(content)
+    if m:
+        vm_name = m.group(1)
+        existing_vms = {t[2] for t in triples if t[0] == view_name and t[1] == "binds_viewmodel"}
+        if vm_name not in existing_vms:
+            triples.append((view_name, "binds_viewmodel", vm_name))
+
+    # 5. Resource references (StaticResource and DynamicResource — deduplicated)
+    seen_resources: set = set()
+    for rm in _XAML_RESOURCE_RE.finditer(content):
+        key = rm.group(1)
+        if key not in seen_resources:
+            triples.append((view_name, "references_resource", key))
+            seen_resources.add(key)
+
+    # 6. Command bindings (deduplicated)
+    seen_commands: set = set()
+    for cm in _XAML_COMMAND_RE.finditer(content):
+        cmd = cm.group(1)
+        if cmd not in seen_commands:
+            triples.append((view_name, "uses_command", cmd))
+            seen_commands.add(cmd)
 
     return triples
 
@@ -2149,12 +2270,12 @@ def mine(
                 # Hash mismatch or new file — delete old drawers then re-mine
                 if source_file in existing_hashes:
                     collection.delete_by_source_file(source_file, wing)
-                    if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+                    if kg is not None and filepath.suffix.lower() in _KG_EXTRACT_EXTENSIONS:
                         kg.invalidate_by_source_file(source_file)
             else:
                 # --full mode: unconditionally delete existing drawers and re-mine
                 collection.delete_by_source_file(source_file, wing)
-                if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+                if kg is not None and filepath.suffix.lower() in _KG_EXTRACT_EXTENSIONS:
                     kg.invalidate_by_source_file(source_file)
 
             specs = _collect_specs_for_file(
@@ -2168,10 +2289,12 @@ def mine(
                 source_hash=current_hash,
             )
 
-            # KG triple emission for .NET config files
-            if kg is not None and filepath.suffix.lower() in _DOTNET_CONFIG_EXTENSIONS:
+            # KG triple emission for project/config/XAML files
+            if kg is not None and filepath.suffix.lower() in _KG_EXTRACT_EXTENSIONS:
                 if filepath.suffix.lower() == ".sln":
                     triples = parse_sln_file(filepath)
+                elif filepath.suffix.lower() == ".xaml":
+                    triples = parse_xaml_file(filepath)
                 else:
                     triples = parse_dotnet_project_file(filepath)
                 for subj, pred, obj in triples:
@@ -2199,10 +2322,7 @@ def mine(
                 stale_paths = set(existing_hashes.keys()) - walked_paths
                 for stale_path in stale_paths:
                     collection.delete_by_source_file(stale_path, wing)
-                    if (
-                        kg is not None
-                        and Path(stale_path).suffix.lower() in _DOTNET_CONFIG_EXTENSIONS
-                    ):
+                    if kg is not None and Path(stale_path).suffix.lower() in _KG_EXTRACT_EXTENSIONS:
                         kg.invalidate_by_source_file(stale_path)
 
             config = MempalaceConfig()

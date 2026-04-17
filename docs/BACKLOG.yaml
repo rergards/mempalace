@@ -572,44 +572,6 @@ items:
 
       - Tests must use tempfile.mkdtemp() + shutil.rmtree() pattern (no pytest fixtures)
       - No palace/embedding needed — pure scan_project() call tests
-  - key: MINE-DOTNET
-    summary: Add .NET ecosystem support to code miner
-    type: feature
-    status: done
-    priority: high
-    section_id: immediate
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      .NET projects have multiple languages and config files not covered by MINE-CSHARP alone.
-
-      ## Scope
-      - F# (.fs, .fsi) — modules, functions, types, discriminated unions
-      - VB.NET (.vb) — classes, modules, functions
-      - Project files (.csproj, .fsproj, .vbproj):
-        - Extract: project name, target framework, output type
-        - Package references (name, version)
-        - Project references (path, dependency relationship)
-        - Store as KG triples: project -> depends_on -> other_project
-      - Solution files (.sln):
-        - Extract: solution name, project list, project GUIDs
-        - Project folders/hierarchy
-        - Store project membership in KG
-      - NuGet (packages.config, Directory.Packages.props, Directory.Build.props)
-
-      ## References
-      - GitHub issue: rergards/mempalace-code#1
-
-      ## Acceptance Criteria
-      - [ ] F# symbol extraction with correct metadata
-      - [ ] VB.NET symbol extraction
-      - [ ] .csproj parsed: dependencies stored in KG as triples
-      - [ ] .sln parsed: project list and structure in KG
-      - [ ] Query: 'which projects depend on X' works via kg_query
-      - [ ] Works on real ASP.NET Core / Blazor / MAUI / WPF projects
-      - [ ] Benchmark on multi-project .NET repo
-    size: L
-    resolution: '2026-04-17: Added F#/VB.NET language support, .csproj/.fsproj/.vbproj/.sln KG triple extraction, invalidate_by_source_file(), .vs/bin/obj SKIP_DIRS, and 60+ tests across 5 test files. Hardening round-1: fixed TargetFrameworks (plural) silent data-loss bug; backlogged bin/ SKIP_DIRS scope issue (MINE-BIN-SKIP-DIRS).'
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature
@@ -805,10 +767,18 @@ items:
   - key: MINE-XAML
     summary: Add XAML and WPF code-behind linking support
     type: feature
-    status: open
+    status: done
     priority: medium
     section_id: immediate
     labels: [feat, miner, dotnet]
+    done_date: "2026-04-17"
+    done_summary: >-
+      Added .xaml language detection, x:Class symbol extraction (view/view_name), and
+      parse_xaml_file() emitting KG triples for code-behind, DataContext ViewModel,
+      x:Name controls, StaticResource/DynamicResource references, and Command bindings.
+      Renamed _DOTNET_CONFIG_EXTENSIONS to _KG_EXTRACT_EXTENSIONS (includes .xaml).
+      Tests: test_kg_extract.py (renamed from test_dotnet_config.py) + XAML roundtrip
+      in test_miner.py. All tests and lint pass.
     description: |-
       ## Problem
       WPF/UWP/MAUI repos have .xaml files with code-behind that are not linked.

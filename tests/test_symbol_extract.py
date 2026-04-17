@@ -1111,6 +1111,35 @@ def test_vbnet_case_insensitive():
     assert extract_symbol(content, "vbnet") == ("MyClass", "class")
 
 
+# =============================================================================
+# XAML
+# =============================================================================
+
+
+def test_xaml_xclass_short_name():
+    """x:Class fully-qualified name extracts the short name as 'view' symbol."""
+    content = '<Window x:Class="MyApp.MainWindow"\n        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n</Window>\n'
+    assert extract_symbol(content, "xaml") == ("MainWindow", "view")
+
+
+def test_xaml_xclass_no_namespace():
+    """x:Class with no dot separator returns the whole value as view name."""
+    content = '<Window x:Class="MainWindow" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n</Window>\n'
+    assert extract_symbol(content, "xaml") == ("MainWindow", "view")
+
+
+def test_xaml_no_xclass_returns_empty():
+    """A XAML chunk without x:Class returns ('', '')."""
+    content = '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">\n    <TextBlock Text="Hello" />\n</Grid>\n'
+    assert extract_symbol(content, "xaml") == ("", "")
+
+
+def test_xaml_non_code_language_returns_empty():
+    """extract_symbol for non-code language 'xaml' (no x:Class) returns ('', '')."""
+    content = "Some content that might look like def foo() { return 1; }\n"
+    assert extract_symbol(content, "xaml") == ("", "")
+
+
 def test_java_chunk_code_class_with_two_methods():
     """A class with two public methods should produce at most 2 content chunks."""
     java_code = (

@@ -1589,3 +1589,89 @@ def test_skip_dirs_dotnet():
         assert not any(p.startswith("obj/") for p in result), "obj/ should be skipped"
     finally:
         shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# XAML language — process_file() roundtrip
+# =============================================================================
+
+_XAML_ROUNDTRIP = """\
+<Window x:Class="MyApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:local="clr-namespace:MyApp.ViewModels"
+        d:DataContext="{d:DesignInstance Type=local:MainViewModel}">
+    <Grid>
+        <TextBox x:Name="txtUsername" Style="{StaticResource InputStyle}" />
+        <Button Content="Save" Command="{Binding SaveCommand}"
+                Background="{DynamicResource ThemeBrush}" />
+    </Grid>
+</Window>
+"""
+
+
+def test_process_file_xaml_roundtrip():
+    """process_file() on a .xaml file stores drawers with language='xaml' and
+    symbol_name='MainWindow' (from x:Class), and mine() emits KG triples for
+    the code-behind link when an adjacent .xaml.cs file exists.
+    """
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        xaml_file = project_root / "MainWindow.xaml"
+        write_file(xaml_file, _XAML_ROUNDTRIP)
+        # Create adjacent code-behind so has_code_behind triple is emitted
+        write_file(project_root / "MainWindow.xaml.cs", "// partial class code-behind\n")
+        _make_palace_config(project_root)
+
+        palace_path = project_root / "palace"
+        palace = open_store(str(palace_path), create=True)
+
+        count = process_file(
+            filepath=xaml_file,
+            project_path=project_root,
+            collection=palace,
+            wing="test_wing",
+            rooms=[{"name": "general", "description": "General"}],
+            agent="test",
+            dry_run=False,
+        )
+        assert count > 0, "Expected at least one drawer from .xaml file"
+
+        result = palace.get(where={"source_file": str(xaml_file)}, include=["metadatas"])
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0
+
+        # All drawers must have language='xaml'
+        for meta in metadatas:
+            assert meta["language"] == "xaml", f"Expected language='xaml', got {meta['language']!r}"
+
+        # The first chunk (root element) must have symbol_name='MainWindow', symbol_type='view'
+        view_drawers = [m for m in metadatas if m.get("symbol_name") == "MainWindow"]
+        assert view_drawers, (
+            f"Expected a drawer with symbol_name='MainWindow'. "
+            f"Got symbol names: {[m.get('symbol_name') for m in metadatas]}"
+        )
+        assert view_drawers[0]["symbol_type"] == "view"
+
+        # mine() with KG should emit has_code_behind triple
+        kg = KnowledgeGraph(db_path=str(project_root / "kg.sqlite3"))
+        (project_root / "mempalace.yaml").write_text(
+            yaml.dump(
+                {"wing": "test_xaml_kg", "rooms": [{"name": "general", "description": "All"}]}
+            ),
+            encoding="utf-8",
+        )
+        mine(str(project_root), str(project_root / "palace2"), kg=kg, incremental=False)
+
+        triples = kg.query_entity("MainWindow")
+        code_behind = {t["object"] for t in triples if t["predicate"] == "has_code_behind"}
+        assert "MainWindow.xaml.cs" in code_behind, (
+            f"Expected has_code_behind triple, got code_behind={code_behind!r}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
