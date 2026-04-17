@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-17 · DOTNET-SYMBOL-GRAPH
+
+Cross-project symbol relationships via KG: interface implementations, inheritance, and type usage references are now detected during .NET mining and stored as KG triples, enabling `mempalace_kg_query` to surface all implementers or subclasses of a given type across projects.
+
 ## 2026-04-17 · MINE-DOTNET
 
 Add .NET ecosystem support to code miner: F# (`.fs`, `.fsi`), VB.NET (`.vb`), project files (`.csproj`, `.fsproj`, `.vbproj`), and solution files (`.sln`) are now mined with structured symbol extraction and KG triples for project dependencies, package references, and solution structure.
