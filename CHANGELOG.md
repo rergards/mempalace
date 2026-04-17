@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-17 · MINE-JAVA-SMART
+
+Add smart symbol extraction for Java: classes, interfaces, enums, records, methods, fields, and annotations are now extracted as structured drawers instead of plain chunks; generics, inner classes, and annotation types are handled correctly.
+
 ## 2026-04-17 · CODE-SEARCH-LANG-PROSE
 
 Add markdown, text, and csv to `SUPPORTED_LANGUAGES` so `code_search(language="markdown"|"text"|"csv")` validates and filters correctly instead of returning an error.
