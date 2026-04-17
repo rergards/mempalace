@@ -454,6 +454,7 @@ class TestSchemaMigration:
             for name, type_tag, _ in _META_FIELD_SPEC
             if type_tag == "string" and name not in OLD_9_COLS
         ]
+        assert len(new_string_cols) > 0, "expected at least one new string column from _META_FIELD_SPEC"
         for col in new_string_cols:
             assert m[col] == "", f"expected '' for {col!r}, got {m[col]!r}"
 
