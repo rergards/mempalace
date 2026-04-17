@@ -155,6 +155,32 @@ class TestDiaryWrite:
                 main()
         assert exc.value.code == 2
 
+    def test_diary_write_collision_resistance(self, tmp_path):
+        """AC-1: two writes with identical content in the same second both succeed with distinct IDs."""
+        palace = str(tmp_path / "palace")
+        for _ in range(2):
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "mempalace",
+                    "--palace",
+                    palace,
+                    "diary",
+                    "write",
+                    "--agent",
+                    "test",
+                    "--entry",
+                    "same content exactly",
+                ],
+            ):
+                main()  # must not raise
+
+        store = open_store(palace, create=False)
+        results = store.get(include=["documents"])
+        assert len(results["ids"]) == 2, "both entries must be stored"
+        assert results["ids"][0] != results["ids"][1], "IDs must be distinct"
+
     def test_diary_write_store_error(self, tmp_path, capsys):
         palace = str(tmp_path / "palace")
         from mempalace import storage

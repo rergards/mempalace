@@ -241,7 +241,7 @@ items:
     section_id: mcp_developer_tools
     labels: [cli, diary, mcp]
     description: 'diary write (cli.py cmd_diary_write) and tool_diary_write (mcp_server.py) both generate IDs using second-precision timestamps plus an 8-char MD5 suffix of the first 50 content chars. Two writes at the same second with identical first 50 chars produce the same ID, causing store.add() to raise a duplicate-ID error. Replace the ID formula in both sites with uuid.uuid4() to guarantee uniqueness. Deliverable: update cmd_diary_write and tool_diary_write atomically; update tests that assert on ID format if any. Constraints: keep all other metadata fields unchanged. AC: (1) two diary writes in the same second with identical content both succeed without error; (2) each produces a distinct ID; (3) all existing diary write tests pass; (4) ruff clean.'
-    resolution: '2026-04-17: 2026-04-17: Replaced timestamp+MD5 diary entry ID with uuid4 in cmd_diary_write (cli.py) and tool_diary_write (mcp_server.py); removed unused hashlib import from cli.py'
+    resolution: '2026-04-17: Replaced timestamp+MD5 diary entry ID with uuid4 in cmd_diary_write (cli.py) and tool_diary_write (mcp_server.py); removed unused hashlib import from cli.py. Hardening round-1: 0 fixed, 0 backlogged, 2 dismissed (lazy import placement info, ID format test gap info).'
   - key: MINE-BATCH-EMBED-DRY-RUN-REFACTOR
     summary: Remove process_file dry-run code duplication — delegate to _collect_specs_for_file
     type: task

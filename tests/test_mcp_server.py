@@ -436,6 +436,18 @@ class TestDiaryTools:
         r = tool_diary_read(agent_name="Nobody")
         assert r["entries"] == []
 
+    def test_diary_write_collision_resistance(self, monkeypatch, config, palace_path, kg):
+        """AC-1: two writes with identical content and same agent must both succeed with distinct IDs."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        _ensure_store(palace_path)
+        from mempalace.mcp_server import tool_diary_write
+
+        r1 = tool_diary_write(agent_name="TestAgent", entry="same entry", topic="test")
+        r2 = tool_diary_write(agent_name="TestAgent", entry="same entry", topic="test")
+        assert r1["success"] is True, f"first write failed: {r1}"
+        assert r2["success"] is True, f"second write failed: {r2}"
+        assert r1["entry_id"] != r2["entry_id"], "IDs must be distinct"
+
     def test_diary_read_beyond_legacy_limit(self, monkeypatch, config, palace_path, kg):
         """tool_diary_read must return entries when diary count exceeds legacy 10k limit."""
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
