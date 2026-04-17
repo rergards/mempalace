@@ -438,8 +438,22 @@ class TestSchemaMigration:
         assert len(result["metadatas"]) == 1
         m = result["metadatas"][0]
         # All string columns added by migration must be "" not None
-        OLD_9_COLS = {"id", "text", "vector", "wing", "room", "source_file", "chunk_index", "added_by", "filed_at"}
-        new_string_cols = [name for name, type_tag, _ in _META_FIELD_SPEC if type_tag == "string" and name not in OLD_9_COLS]
+        OLD_9_COLS = {
+            "id",
+            "text",
+            "vector",
+            "wing",
+            "room",
+            "source_file",
+            "chunk_index",
+            "added_by",
+            "filed_at",
+        }
+        new_string_cols = [
+            name
+            for name, type_tag, _ in _META_FIELD_SPEC
+            if type_tag == "string" and name not in OLD_9_COLS
+        ]
         for col in new_string_cols:
             assert m[col] == "", f"expected '' for {col!r}, got {m[col]!r}"
 
