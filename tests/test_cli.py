@@ -504,3 +504,31 @@ class TestBackupCommand:
         ):
             main()
         assert os.path.isfile(out)
+
+
+class TestMineCommand:
+    """CLI tests for the mine subcommand --full flag wiring."""
+
+    def test_mine_full_flag(self, tmp_path):
+        """AC-1: --full wires incremental=False to mine()."""
+        palace = str(tmp_path / "palace")
+        with patch("mempalace.miner.mine") as mock_mine:
+            with patch.object(
+                sys,
+                "argv",
+                ["mempalace", "--palace", palace, "mine", str(tmp_path), "--full"],
+            ):
+                main()
+        assert mock_mine.call_args.kwargs["incremental"] is False
+
+    def test_mine_default_incremental(self, tmp_path):
+        """AC-2: omitting --full wires incremental=True to mine()."""
+        palace = str(tmp_path / "palace")
+        with patch("mempalace.miner.mine") as mock_mine:
+            with patch.object(
+                sys,
+                "argv",
+                ["mempalace", "--palace", palace, "mine", str(tmp_path)],
+            ):
+                main()
+        assert mock_mine.call_args.kwargs["incremental"] is True
