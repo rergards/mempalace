@@ -1963,6 +1963,13 @@ def parse_dotnet_project_file(filepath: Path) -> list:
             if val:
                 triples.append((project_name, "targets_framework", val))
 
+        elif tag == "TargetFrameworks":
+            # Multi-target: <TargetFrameworks>net8.0;net6.0</TargetFrameworks>
+            for fw in (elem.text or "").split(";"):
+                fw = fw.strip()
+                if fw:
+                    triples.append((project_name, "targets_framework", fw))
+
         elif tag == "OutputType":
             val = (elem.text or "").strip()
             if val:

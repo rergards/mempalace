@@ -87,6 +87,40 @@ def test_parse_csproj_project_name_from_stem(tmp_path):
 
 
 # =============================================================================
+# parse_dotnet_project_file — TargetFrameworks (plural, multi-target)
+# =============================================================================
+
+_CSPROJ_MULTI_TARGET = """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net6.0;netstandard2.0</TargetFrameworks>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+</Project>
+"""
+
+
+def test_parse_csproj_multi_target_frameworks(tmp_path):
+    """TargetFrameworks (plural) with semicolon-delimited values emits one triple per target."""
+    f = tmp_path / "MyLib.csproj"
+    f.write_text(_CSPROJ_MULTI_TARGET, encoding="utf-8")
+    triples = triples_as_set(parse_dotnet_project_file(f))
+    assert ("MyLib", "targets_framework", "net8.0") in triples
+    assert ("MyLib", "targets_framework", "net6.0") in triples
+    assert ("MyLib", "targets_framework", "netstandard2.0") in triples
+
+
+def test_parse_csproj_multi_target_no_singular_duplicate(tmp_path):
+    """A project with only TargetFrameworks (plural) does NOT emit TargetFramework (singular)."""
+    f = tmp_path / "MyLib.csproj"
+    f.write_text(_CSPROJ_MULTI_TARGET, encoding="utf-8")
+    triples = parse_dotnet_project_file(f)
+    # Three separate triples, all with predicate "targets_framework"
+    fw_triples = [t for t in triples if t[1] == "targets_framework"]
+    assert len(fw_triples) == 3
+
+
+# =============================================================================
 # parse_dotnet_project_file — MSBuild namespace-prefixed XML
 # =============================================================================
 

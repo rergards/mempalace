@@ -609,7 +609,7 @@ items:
       - [ ] Works on real ASP.NET Core / Blazor / MAUI / WPF projects
       - [ ] Benchmark on multi-project .NET repo
     size: L
-    resolution: '2026-04-17: Added F#/VB.NET language support, .csproj/.fsproj/.vbproj/.sln KG triple extraction, invalidate_by_source_file(), .vs/bin/obj SKIP_DIRS, and 60+ tests across 5 test files'
+    resolution: '2026-04-17: Added F#/VB.NET language support, .csproj/.fsproj/.vbproj/.sln KG triple extraction, invalidate_by_source_file(), .vs/bin/obj SKIP_DIRS, and 60+ tests across 5 test files. Hardening round-1: fixed TargetFrameworks (plural) silent data-loss bug; backlogged bin/ SKIP_DIRS scope issue (MINE-BIN-SKIP-DIRS).'
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature
@@ -1050,3 +1050,24 @@ items:
       - [ ] extract_symbol('public int Count => _items.Count;\n', 'csharp') returns ('Count', 'property')
       - [ ] chunk_code() creates a boundary at expression-bodied property declarations
       - [ ] Existing tests unaffected
+  - key: MINE-BIN-SKIP-DIRS
+    summary: bin/ in SKIP_DIRS silently excludes non-.NET script directories
+    type: task
+    status: open
+    priority: low
+    size: S
+    section_id: immediate
+    labels: [miner]
+    description: |-
+      ## Problem
+      The MINE-DOTNET feature added 'bin' to SKIP_DIRS globally. In non-.NET projects (e.g. Ruby on Rails, Go), a 'bin/' directory legitimately contains source scripts/executables that should be mined. Currently these files are silently skipped with no warning.
+
+      ## Scope
+      - Investigate whether 'bin' should be kept global or made .NET-specific
+      - Option A: Replace global 'bin' entry with per-project detection (only skip bin/ when .csproj/.sln is present in the project root)
+      - Option B: Document as a known limitation in CLAUDE.md and README
+
+      ## Acceptance criteria
+      - A Ruby on Rails or Go project with a 'bin/' directory has those files mined correctly (option A), OR the limitation is clearly documented in user-facing docs (option B)
+      - .NET project mining still skips bin/ and obj/ correctly
+      - No existing tests regress
