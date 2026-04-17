@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-04-17 · SKILLS-HOOKS
+
+Add Claude Code skills and hooks from wh40k workflow: 12 skills (`/start`, `/status`, `/verify`, `/palace-health`, `/task-plan`, `/task-hardening`, `/doc-refresh`, `/ship`, `/release`, `/entropy-gc`, `/mine`, `/bench`), 3 shared modules (mode-classification, task-state, commit-checkpoint), Codex review integration, pre-commit verification gate, and edit logging hooks.
+
+## 2026-04-17 · BENCH-DOTNET
+
+Add .NET benchmark suite: `benchmarks/dotnet_bench.py` measures R@5/R@10 retrieval quality on C#/.NET repositories, validates symbol extraction accuracy, and reports embedding/query timing. Integrated with CI for regression detection.
+
+## 2026-04-17 · MINE-XAML
+
+Add XAML and WPF code-behind linking support: `.xaml` files are mined with control hierarchy extraction; `x:Name` references link to code-behind `.xaml.cs` files via KG triples; resource dictionaries and style references are indexed.
+
 ## 2026-04-17 · DOTNET-SYMBOL-GRAPH
 
 Cross-project symbol relationships via KG: interface implementations, inheritance, and type usage references are now detected during .NET mining and stored as KG triples, enabling `mempalace_kg_query` to surface all implementers or subclasses of a given type across projects.
