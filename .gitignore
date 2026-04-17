@@ -43,7 +43,8 @@ docs/audits/
 .tasks/
 autopilot.toml
 
-# Claude Code session data (keep skills and prompts tracked)
+# Claude Code session data (keep skills, prompts, settings.json tracked)
 .claude/*
 !.claude/skills/
 !.claude/prompts/
+!.claude/settings.json
