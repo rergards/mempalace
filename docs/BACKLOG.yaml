@@ -290,41 +290,10 @@ items:
       3. store.add() succeeds with all _META_FIELD_SPEC sentinel values.
       4. store.get() returns all fields with correct sentinel values.
       5. ruff clean.
-  - key: STORE-MIGRATION-TEST-DYNAMIC-COLS
-    summary: Derive migration NULL-safety assertion list from _META_FIELD_SPEC instead of hardcoding column names
-    type: task
-    status: done
-    priority: low
-    size: XS
-    section_id: quality
-    assignee: bot
-    labels: [storage, tests, migration]
-    description: |-
-      ## Problem
-
-      test_migration_existing_rows_get_empty_defaults hardcodes the 13 new string column names introduced by migration. If a new string column is added to _META_FIELD_SPEC in the future, the test will silently fail to assert that its migration default is empty-string (not NULL).
-
-      ## Deliverable
-
-      Replace the hardcoded new_string_cols list with a dynamic derivation:
-        OLD_9_COLS = {"id", "text", "vector", "wing", "room", "source_file", "chunk_index", "added_by", "filed_at"}
-        new_string_cols = [name for name, type_tag, _ in _META_FIELD_SPEC if type_tag == "string" and name not in OLD_9_COLS]
-      Import _META_FIELD_SPEC in the test module.
-
-      ## Scope
-
-      tests/test_storage.py — only the new_string_cols derivation inside test_migration_existing_rows_get_empty_defaults.
-
-      ## Acceptance Criteria
-
-      - Derive new_string_cols from _META_FIELD_SPEC dynamically at test-time
-      - Adding a new string field to _META_FIELD_SPEC automatically extends the assertion loop
-      - All 13 current migration tests pass unchanged
-    resolution: '2026-04-17: Replaced hardcoded 13-element new_string_cols list with dynamic derivation from _META_FIELD_SPEC (type_tag==string, name not in OLD_9_COLS). Harden round-1: 1 finding fixed (added non-empty guard assertion to prevent vacuous pass).'
   - key: MINE-BATCH-UPSERT-CONTENT-UPDATE-TEST
     summary: Add test verifying add_drawers_batch updates stored content on re-upsert with changed content
     type: task
-    status: open
+    status: done
     priority: low
     size: XS
     section_id: quality
@@ -341,20 +310,10 @@ items:
       2. Call add_drawers_batch again with content "v2" for the same drawer ID.
       3. Query the store and assert the stored text equals "v2".
 
-      ## Scope
+      ## Hardening — Round 1 (2026-04-17)
 
-      tests/test_miner.py only.
-
-      ## Acceptance criteria
-
-      - test_add_drawers_batch_updates_content passes with current implementation
-      - Test would fail if merge_insert did not call when_matched_update_all (remove it to verify)
-      - All existing 40 miner tests continue to pass
-      - ruff clean
-
-      ## Constraints
-
-      No production code changes needed. Test only. Identified in MINE-BATCH-EMBED-DEDUP-UPSERT harden round-1 (F-1).
+      1 finding fixed, 2 dismissed. Added non-empty guard assertion before indexing result['documents'][0] to surface a clear AssertionError instead of IndexError on empty result. Audit: docs/audits/MINE-BATCH-UPSERT-CONTENT-UPDATE-TEST-round-1.md
+    resolution: '2026-04-17: Added test_add_drawers_batch_updates_content to tests/test_miner.py; verifies content is overwritten on re-upsert with same ID'
   - key: STORE-SEARCH-SOURCE-FILE-FULL-PATH
     summary: search_memories should return full source_file path instead of basename, aligning with code_search
     type: task

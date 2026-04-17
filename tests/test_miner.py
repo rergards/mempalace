@@ -1123,6 +1123,7 @@ def test_add_drawers_batch_updates_content():
         )
 
         result = store.get(ids=[drawer_id], include=["documents"])
+        assert result.get("documents"), f"store.get returned no documents for id {drawer_id!r}"
         assert result["documents"][0] == "content version 2", (
             f"Expected 'content version 2' after re-upsert, got {result['documents'][0]!r}"
         )
