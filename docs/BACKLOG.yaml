@@ -642,7 +642,7 @@ items:
   - key: MINE-KOTLIN
     summary: Add Kotlin language support to code miner
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: immediate
     labels: [feat, miner]
@@ -663,6 +663,7 @@ items:
       - [ ] Works on Android and Ktor projects
       - [ ] Tests for: data classes, sealed classes, companion objects, extension functions
     size: M
+    resolution: '2026-04-17: Added Kotlin (.kt/.kts) language support to code miner with KOTLIN_BOUNDARY, _KOTLIN_EXTRACT, dispatch wiring, and 18 new tests covering all Kotlin symbol types'
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature
@@ -705,32 +706,6 @@ items:
       - [ ] Works on Laravel/WordPress projects
       - [ ] Tests for: classes, interfaces, traits, namespaces, PHP 8.1 enums
     size: M
-  - key: MINE-JAVA-SMART
-    summary: Add smart symbol extraction for Java
-    type: feature
-    status: done
-    priority: high
-    section_id: immediate
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      Java is listed in miner but has no symbol extraction - only basic chunking.
-
-      ## Scope
-      - Upgrade existing .java support
-      - Extract: classes, interfaces, enums, records, methods, fields, annotations
-      - Handle: generics, inner classes, lambdas, anonymous classes
-
-      ## References
-      - GitHub issue: rergards/mempalace-code#2
-
-      ## Acceptance Criteria
-      - [ ] Java added to _LANG_EXTRACT_MAP
-      - [ ] Works on Spring Boot / Android projects
-      - [ ] Tests for: classes, interfaces, records, annotations, generics
-    size: S
-    resolution: '2026-04-17: Added JAVA_BOUNDARY, _JAVA_EXTRACT patterns, and chunk_file dispatch; 13 new symbol-extraction tests; all tests green'
-    hardening: 'round-1 2026-04-17: 1 fixed (spurious @annotation boundary), 1 backlogged (MINE-JAVA-PKG-PRIVATE-METHODS), 1 dismissed; audit at docs/audits/MINE-JAVA-SMART-round-1.md'
   - key: MINE-K8S
     summary: Add Kubernetes manifest smart parsing
     type: feature

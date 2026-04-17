@@ -581,7 +581,7 @@ def test_java_method_nested_generic_return_type():
 
 def test_java_field_not_extracted():
     # fields have no () — should not be extracted
-    assert extract_symbol("private static final String URL = \"http://example.com\";\n", "java") == (
+    assert extract_symbol('private static final String URL = "http://example.com";\n', "java") == (
         "",
         "",
     )
@@ -595,6 +595,142 @@ def test_java_unknown_returns_empty():
 def test_java_ruby_still_returns_empty():
     content = "def foo\n  puts 'hello'\nend\n"
     assert extract_symbol(content, "ruby") == ("", "")
+
+
+# =============================================================================
+# KOTLIN
+# =============================================================================
+
+
+def test_kotlin_class():
+    assert extract_symbol("class UserService {\n}\n", "kotlin") == ("UserService", "class")
+
+
+def test_kotlin_data_class():
+    assert extract_symbol("data class Point(val x: Int, val y: Int)\n", "kotlin") == (
+        "Point",
+        "data_class",
+    )
+
+
+def test_kotlin_sealed_class():
+    assert extract_symbol("sealed class Result {\n}\n", "kotlin") == ("Result", "sealed_class")
+
+
+def test_kotlin_sealed_interface():
+    assert extract_symbol("sealed interface State\n", "kotlin") == ("State", "sealed_interface")
+
+
+def test_kotlin_object():
+    assert extract_symbol("object Database {\n}\n", "kotlin") == ("Database", "object")
+
+
+def test_kotlin_interface():
+    assert extract_symbol("interface Repository<T> {\n}\n", "kotlin") == (
+        "Repository",
+        "interface",
+    )
+
+
+def test_kotlin_enum_class():
+    assert extract_symbol("enum class Color { RED, GREEN, BLUE }\n", "kotlin") == (
+        "Color",
+        "enum",
+    )
+
+
+def test_kotlin_fun():
+    assert extract_symbol(
+        "fun process(input: String): String {\n    return input\n}\n", "kotlin"
+    ) == (
+        "process",
+        "function",
+    )
+
+
+def test_kotlin_suspend_fun():
+    assert extract_symbol(
+        "suspend fun fetchData(): List<Item> {\n    return emptyList()\n}\n", "kotlin"
+    ) == ("fetchData", "function")
+
+
+def test_kotlin_extension_fun():
+    # Extension function: receiver type is stripped, function name captured
+    assert extract_symbol(
+        "fun String.isPalindrome(): Boolean {\n    return true\n}\n", "kotlin"
+    ) == (
+        "isPalindrome",
+        "function",
+    )
+
+
+def test_kotlin_annotation_prefixed_fun():
+    content = "@JvmStatic\nfun create(): Builder {\n    return Builder()\n}\n"
+    assert extract_symbol(content, "kotlin") == ("create", "function")
+
+
+def test_kotlin_typealias():
+    assert extract_symbol("typealias UserId = String\n", "kotlin") == ("UserId", "typealias")
+
+
+def test_kotlin_private_class():
+    assert extract_symbol("private class Internal {\n}\n", "kotlin") == ("Internal", "class")
+
+
+def test_kotlin_property_not_extracted():
+    # Top-level properties must not be extracted
+    assert extract_symbol('val name: String = "test"\n', "kotlin") == ("", "")
+
+
+def test_kotlin_companion_object_unnamed():
+    # Unnamed companion object returns ("", "companion_object")
+    content = "companion object {\n    fun create() = Foo()\n}\n"
+    assert extract_symbol(content, "kotlin") == ("", "companion_object")
+
+
+def test_kotlin_chunk_no_spurious_companion_boundary():
+    # `companion object {` must NOT be a boundary — it stays inside the enclosing class chunk.
+    # (We use val properties so no `fun` keyword triggers a legitimate split.)
+    # Content is intentionally >MIN_CHUNK (100 chars) so the chunk survives adaptive filtering.
+    content = (
+        "class Repository {\n"
+        '    val name: String = "MainRepository"\n'
+        '    val endpoint: String = "https://api.example.com/v1"\n'
+        "    companion object {\n"
+        '        val TAG: String = "Repository"\n'
+        "        val DEFAULT_TIMEOUT: Int = 30\n"
+        "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(content, "kotlin", "Repository.kt")
+    # All content must be in a single chunk — no split at `companion object {`
+    assert len(chunks) == 1
+
+
+def test_kotlin_chunk_class_with_two_funs():
+    # A class + two top-level funs — both fun names must appear in some chunk.
+    # Content is sized so chunks survive MIN_CHUNK (100 char) adaptive filtering.
+    content = (
+        "class Service {\n"
+        '    val connectionString: String = "jdbc:postgresql://localhost:5432/db"\n'
+        "    val maxRetries: Int = 3\n"
+        "}\n"
+        "\n"
+        "fun doA(input: String): String {\n"
+        "    val result = input.trim().lowercase()\n"
+        '    return result.ifBlank { "default" }\n'
+        "}\n"
+        "\n"
+        "fun doB(items: List<String>): Int {\n"
+        "    val filtered = items.filter { it.isNotBlank() }\n"
+        "    return filtered.size\n"
+        "}\n"
+    )
+    chunks = chunk_code(content, "kotlin", "Service.kt")
+    assert len(chunks) <= 3
+    contents = [c["content"] for c in chunks]
+    assert any("doA" in c for c in contents)
+    assert any("doB" in c for c in contents)
 
 
 def test_java_chunk_code_no_spurious_boundary_on_inner_annotation():

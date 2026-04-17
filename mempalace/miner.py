@@ -33,6 +33,8 @@ EXTENSION_LANG_MAP = {
     ".rs": "rust",
     ".rb": "ruby",
     ".java": "java",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
     ".sh": "shell",
     ".sql": "sql",
     ".md": "markdown",
@@ -93,6 +95,8 @@ READABLE_EXTENSIONS = {
     ".html",
     ".css",
     ".java",
+    ".kt",
+    ".kts",
     ".go",
     ".rs",
     ".rb",
@@ -521,6 +525,19 @@ JAVA_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# Kotlin structural boundaries — matches against stripped lines.
+# Deliberately excludes `companion object` to avoid splitting enclosing class chunks.
+# Properties (val/var) are also excluded — too noisy as boundaries.
+KOTLIN_BOUNDARY = re.compile(
+    r"^(?:"
+    r"(?:(?:public|internal|protected|private|abstract|final|open|sealed|data|inner|value|annotation)\s+)*(?:class|interface|object)\s+\w+"
+    r"|(?:(?:public|internal|protected|private)\s+)*enum\s+class\s+\w+"
+    r"|(?:(?:public|internal|protected|private|abstract|open|final|override|inline|infix|operator|tailrec|suspend|external|expect|actual)\s+)*fun\s+"
+    r"|(?:(?:public|internal|protected|private)\s+)*typealias\s+\w+"
+    r")",
+    re.MULTILINE,
+)
+
 # Markdown heading boundaries
 HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
@@ -550,6 +567,9 @@ def get_boundary_pattern(language: str):
         ".rs": RUST_BOUNDARY,
         "java": JAVA_BOUNDARY,
         ".java": JAVA_BOUNDARY,
+        "kotlin": KOTLIN_BOUNDARY,
+        ".kt": KOTLIN_BOUNDARY,
+        ".kts": KOTLIN_BOUNDARY,
         "terraform": HCL_BOUNDARY,
         ".tf": HCL_BOUNDARY,
         ".tfvars": HCL_BOUNDARY,
@@ -704,6 +724,42 @@ _JAVA_EXTRACT = [
     ),
 ]
 
+_KOTLIN_EXTRACT = [
+    # Most-specific first to avoid premature matches by the plain class/interface patterns.
+    (re.compile(r"data\s+class\s+(\w+)", re.MULTILINE), "data_class"),
+    (re.compile(r"sealed\s+class\s+(\w+)", re.MULTILINE), "sealed_class"),
+    (re.compile(r"sealed\s+interface\s+(\w+)", re.MULTILINE), "sealed_interface"),
+    # enum class (Kotlin uses `enum class`, not bare `enum`)
+    (re.compile(r"enum\s+class\s+(\w+)", re.MULTILINE), "enum"),
+    # companion object — capture optional name (unnamed companions return "")
+    (re.compile(r"companion\s+object\s*(\w*)", re.MULTILINE), "companion_object"),
+    # standalone object declarations
+    (re.compile(r"object\s+(\w+)", re.MULTILINE), "object"),
+    (
+        re.compile(
+            r"^(?:(?:public|internal|protected|private|abstract|open|final|override|inline|infix|operator|tailrec|suspend|external|expect|actual)\s+)*interface\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "interface",
+    ),
+    (
+        re.compile(
+            r"^(?:(?:public|internal|protected|private|abstract|open|final|override|inline|infix|operator|tailrec|suspend|external|expect|actual)\s+)*class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # fun — optional receiver type prefix (e.g. `fun String.isEmpty()` → captures `isEmpty`)
+    (
+        re.compile(
+            r"^(?:(?:public|internal|protected|private|abstract|open|final|override|inline|infix|operator|tailrec|suspend|external|expect|actual)\s+)*fun\s+(?:\w+\.)?(\w+)",
+            re.MULTILINE,
+        ),
+        "function",
+    ),
+    (re.compile(r"typealias\s+(\w+)", re.MULTILINE), "typealias"),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -715,6 +771,7 @@ _LANG_EXTRACT_MAP = {
     "c": _C_EXTRACT,
     "cpp": _CPP_EXTRACT,
     "java": _JAVA_EXTRACT,
+    "kotlin": _KOTLIN_EXTRACT,
 }
 
 
@@ -753,7 +810,17 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
     if language is None:
         language = EXTENSION_LANG_MAP.get(ext, "unknown")
 
-    if language in ("python", "typescript", "javascript", "tsx", "jsx", "go", "rust", "java"):
+    if language in (
+        "python",
+        "typescript",
+        "javascript",
+        "tsx",
+        "jsx",
+        "go",
+        "rust",
+        "java",
+        "kotlin",
+    ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
         return chunk_code(content, language, source_file)
