@@ -1054,6 +1054,7 @@ items:
       - [ ] Relationships include: implements, inherits, references
       - [ ] Output structured for LLM to synthesize explanation
     resolution: '2026-04-18: Added mempalace_explain_subsystem MCP tool: semantic code search + KG expansion for subsystem queries'
+    hardening: 'round-1: 0 fixed, 1 backlogged (EXPLAIN-NRESULTS-CLAMP), 1 dismissed'
   - key: REPO-STRUCTURE-DEFAULTS
     summary: Auto-organize wings/rooms by .sln and project structure
     type: task
@@ -1174,3 +1175,28 @@ items:
       - [ ] test_find_references_depended_by passes
       - [ ] test_find_references_referenced_by passes
       - [ ] ruff check passes
+  - key: EXPLAIN-NRESULTS-CLAMP
+    summary: Clamp n_results in tool_explain_subsystem and add boundary tests
+    type: task
+    status: open
+    priority: low
+    size: S
+    section_id: mcp_developer_tools
+    description: |-
+      ## Problem
+
+      tool_explain_subsystem uses n_results directly in both code_search(n_results=n_results*2) and entry_points[:n_results] without input validation. code_search() in searcher.py already applies max(1, min(50, n)) before use, but the MCP handler does not mirror this guard. For n_results=0, entry_points[:0] silently returns an empty list. For n_results<0, Python slice semantics (e.g. list[:-1] removes the last element) produce wrong results with no error. No crash occurs, but callers receive incorrect output for out-of-range inputs without any diagnostic.
+
+      ## Scope
+
+      1. Add n_results = max(1, min(50, n_results)) at the top of tool_explain_subsystem (before the code_search call), mirroring the guard in code_search itself.
+      2. Add test_explain_subsystem_n_results_limit to TestExplainSubsystem: seed 5 code drawers, call with n_results=1, assert len(entry_points) == 1.
+      3. Add test_explain_subsystem_n_results_zero: call with n_results=0, assert result does not contain an error key and len(entry_points) <= 1 (clamped to 1).
+
+      ## Acceptance Criteria
+
+      - [ ] n_results=0 is clamped to 1, not silently returning empty
+      - [ ] n_results=-1 does not produce slice-from-end behavior
+      - [ ] n_results=1 returns exactly 1 entry_point when results exist
+      - [ ] ruff check passes
+      - [ ] All existing TestExplainSubsystem tests still pass
