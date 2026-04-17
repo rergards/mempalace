@@ -35,6 +35,7 @@ EXTENSION_LANG_MAP = {
     ".java": "java",
     ".kt": "kotlin",
     ".kts": "kotlin",
+    ".cs": "csharp",
     ".sh": "shell",
     ".sql": "sql",
     ".md": "markdown",
@@ -97,6 +98,7 @@ READABLE_EXTENSIONS = {
     ".java",
     ".kt",
     ".kts",
+    ".cs",
     ".go",
     ".rs",
     ".rb",
@@ -538,6 +540,30 @@ KOTLIN_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# C# structural boundaries — matches against stripped lines (members are indented inside
+# classes/namespaces). Requires at least one access modifier for methods/properties to avoid
+# false positives on field declarations and local variables.
+# Deliberately excludes: namespace declarations (wrap entire files), bare field declarations
+# (too noisy), using directives (import-like), and #region/#endregion (IDE-only markers).
+CSHARP_BOUNDARY = re.compile(
+    r"^(?:"
+    # Type declarations: class, struct, interface, record (covers partial, sealed, abstract, static)
+    r"(?:(?:public|private|protected|internal|static|abstract|sealed|partial|new|unsafe)\s+)*"
+    r"(?:class|struct|interface|record)\s+\w+"
+    # Enum (bare enum, not 'enum class' like Kotlin)
+    r"|(?:(?:public|private|protected|internal|new)\s+)*enum\s+\w+"
+    # Events — event keyword is the unique anchor
+    r"|(?:(?:public|private|protected|internal|static|virtual|override|sealed|new|abstract)\s+)*event\s+"
+    # Methods and constructors: at least one modifier required; return type optional for constructors
+    r"|(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe|async|partial)\s+)+"
+    r"(?:[\w<>\[\],?\s]+\s+)?\w+\s*[\(<]"
+    # Properties: at least one modifier, distinguished from fields by trailing {
+    r"|(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe)\s+)+"
+    r"[\w<>\[\],? ]+(?:\[\])*\s+\w+\s*\{"
+    r")",
+    re.MULTILINE,
+)
+
 # Markdown heading boundaries
 HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
@@ -570,6 +596,8 @@ def get_boundary_pattern(language: str):
         "kotlin": KOTLIN_BOUNDARY,
         ".kt": KOTLIN_BOUNDARY,
         ".kts": KOTLIN_BOUNDARY,
+        "csharp": CSHARP_BOUNDARY,
+        ".cs": CSHARP_BOUNDARY,
         "terraform": HCL_BOUNDARY,
         ".tf": HCL_BOUNDARY,
         ".tfvars": HCL_BOUNDARY,
@@ -764,6 +792,75 @@ _KOTLIN_EXTRACT = [
     (re.compile(r"typealias\s+(\w+)", re.MULTILINE), "typealias"),
 ]
 
+_CSHARP_EXTRACT = [
+    # record struct — most specific; must precede struct and bare record
+    (re.compile(r"record\s+struct\s+(\w+)", re.MULTILINE), "record"),
+    # record class — must precede class and bare record
+    (re.compile(r"record\s+class\s+(\w+)", re.MULTILINE), "record"),
+    # bare record Foo (implicitly a record class)
+    (re.compile(r"record\s+(\w+)", re.MULTILINE), "record"),
+    # enum — before class/struct; ^\s* handles members indented inside namespace blocks
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|new)\s+)*enum\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "enum",
+    ),
+    # struct — before class (more specific keyword)
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|new|readonly|unsafe)\s+)*struct\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "struct",
+    ),
+    # interface — before class
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|new)\s+)*interface\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "interface",
+    ),
+    # class (covers sealed, abstract, static, partial, etc.)
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|new|unsafe)\s+)*"
+            r"class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # event — before methods; event keyword is unique anchor
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|virtual|override|sealed|new|abstract)\s+)*"
+            r"event\s+[\w<>\[\],? ]+\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "event",
+    ),
+    # property: at least one modifier, anchored by trailing {
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe)\s+)+"
+            r"[\w<>\[\],? ]+(?:\[\])*\s+(\w+)\s*\{",
+            re.MULTILINE,
+        ),
+        "property",
+    ),
+    # method/constructor: at least one modifier; return type optional for constructors
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe|async|partial)\s+)+"
+            r"(?:[\w<>\[\],? ]+\s+)?(\w+)\s*[\(<]",
+            re.MULTILINE,
+        ),
+        "method",
+    ),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -776,6 +873,7 @@ _LANG_EXTRACT_MAP = {
     "cpp": _CPP_EXTRACT,
     "java": _JAVA_EXTRACT,
     "kotlin": _KOTLIN_EXTRACT,
+    "csharp": _CSHARP_EXTRACT,
 }
 
 
@@ -824,6 +922,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "rust",
         "java",
         "kotlin",
+        "csharp",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1209,6 +1308,13 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
     boundaries = []
     in_import_block = False
 
+    # C# attributes ([HttpGet], [Serializable], etc.) appear immediately before declarations
+    # and must be kept in the same chunk. Extend the lookback prefix set for csharp so that
+    # lines starting with '[' are treated like comment lines during the lookback scan.
+    comment_prefixes = ("//", "/*", "*", "*/", "#", '"""', "'''", "/**")
+    if canonical == "csharp":
+        comment_prefixes = comment_prefixes + ("[",)
+
     for i, line in enumerate(lines):
         stripped = line.strip()
         if not stripped:
@@ -1233,7 +1339,7 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
             j = i - 1
             while j >= 0:
                 prev = lines[j].strip()
-                if prev.startswith(("//", "/*", "*", "*/", "#", '"""', "'''", "/**")):
+                if prev.startswith(comment_prefixes):
                     comment_start = j
                     j -= 1
                 else:

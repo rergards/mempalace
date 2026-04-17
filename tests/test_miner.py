@@ -1410,6 +1410,72 @@ def test_scan_project_skips_terraform_dir():
         shutil.rmtree(tmpdir)
 
 
+def test_process_file_csharp_roundtrip():
+    """process_file() on a .cs file stores language='csharp' and correct symbol metadata."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        cs_file = project_root / "UserService.cs"
+        cs_content = (
+            "using System;\n\n"
+            "namespace MyApp {\n\n"
+            "    /// <summary>Manages user operations.</summary>\n"
+            "    public class UserService {\n"
+            "        private readonly ILogger _logger;\n\n"
+            "        public UserService(ILogger logger) {\n"
+            "            _logger = logger;\n"
+            "        }\n\n"
+            "        public void Process(string input) {\n"
+            "            _logger.Log(input);\n"
+            "            Console.WriteLine(input);\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        write_file(cs_file, cs_content)
+        _make_palace_config(project_root)
+
+        palace_path = project_root / "palace"
+        palace = open_store(str(palace_path), create=True)
+
+        count = process_file(
+            filepath=cs_file,
+            project_path=project_root,
+            collection=palace,
+            wing="test_wing",
+            rooms=[
+                {"name": "backend", "description": "Backend code"},
+                {"name": "general", "description": "General"},
+            ],
+            agent="test",
+            dry_run=False,
+        )
+        assert count > 0, "Expected at least one drawer from .cs file"
+
+        result = palace.get(where={"source_file": str(cs_file)}, include=["metadatas"])
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0
+
+        # Every drawer must have language='csharp'
+        for meta in metadatas:
+            assert meta["language"] == "csharp", (
+                f"Expected language='csharp', got {meta['language']!r}"
+            )
+
+        # At least one drawer must have symbol_type='class' and symbol_name='UserService'
+        class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "class" and m.get("symbol_name") == "UserService"
+        ]
+        assert class_drawers, (
+            f"Expected a drawer with symbol_type='class' and symbol_name='UserService'. "
+            f"Got symbol types: {[m.get('symbol_type') for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def test_mine_default_calls_safe_optimize_backup_first():
     """AC-9: mine() with default MempalaceConfig() calls safe_optimize(backup_first=True)."""
     tmpdir = tempfile.mkdtemp()

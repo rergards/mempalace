@@ -575,7 +575,7 @@ items:
   - key: MINE-CSHARP
     summary: Add C# language support to code miner
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: immediate
     labels: [feat, miner]
@@ -602,6 +602,7 @@ items:
       - [ ] Tests for: classes, interfaces, records, partial classes, generics, events
       - [ ] Benchmark on open-rpa/openrpa or similar large repo
     size: L
+    resolution: '2026-04-17: Add C# (.cs) regex-based chunking and symbol extraction to miner.py: CSHARP_BOUNDARY, _CSHARP_EXTRACT, language detection, chunk_file dispatch, chunk_code attribute lookback. 50 new tests — all 701 suite tests passing.'
   - key: MINE-DOTNET
     summary: Add .NET ecosystem support to code miner
     type: feature
@@ -639,32 +640,6 @@ items:
       - [ ] Works on real ASP.NET Core / Blazor / MAUI / WPF projects
       - [ ] Benchmark on multi-project .NET repo
     size: L
-  - key: MINE-KOTLIN
-    summary: Add Kotlin language support to code miner
-    type: feature
-    status: done
-    priority: high
-    section_id: immediate
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      Kotlin projects (Android, backend) cannot be mined.
-
-      ## Scope
-      - .kt, .kts files
-      - Extract: classes, objects, interfaces, functions, properties, data classes, sealed classes, enums
-      - Handle: companion objects, extension functions, coroutines, DSL builders
-
-      ## References
-      - GitHub issue: rergards/mempalace-code#2
-
-      ## Acceptance Criteria
-      - [ ] Symbol extraction for Kotlin constructs
-      - [ ] Works on Android and Ktor projects
-      - [ ] Tests for: data classes, sealed classes, companion objects, extension functions
-    size: M
-    resolution: '2026-04-17: Added Kotlin (.kt/.kts) language support to code miner with KOTLIN_BOUNDARY, _KOTLIN_EXTRACT, dispatch wiring, and 18 new tests covering all Kotlin symbol types'
-    hardening: 'round-1 2026-04-17: 4 fixed (companion_object ordering, generic fun type params, regression tests, inner/value/annotation class modifiers); 0 backlogged; 0 dismissed; 1 new backlog (MINE-KOTLIN-GENERIC-RECEIVER-NESTED); audit at docs/audits/MINE-KOTLIN-round-1.md'
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature

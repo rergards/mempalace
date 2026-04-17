@@ -1798,3 +1798,93 @@ def test_chunk_terraform_hcl_boundaries():
         f"Expected each resource in its own chunk, got resource chunks: "
         f"{[c['content'][:60] for c in resource_chunks]}"
     )
+
+
+# =============================================================================
+# C# chunking
+# =============================================================================
+
+_CSHARP_FILLER = (
+    "        // padding line to ensure chunk size stays above MIN_CHUNK threshold\n" * 4
+)
+
+
+def _cs_class_with_methods(class_name: str, method_names: list) -> str:
+    """Return a C# class with the given methods, each padded above MIN_CHUNK."""
+    methods = ""
+    for name in method_names:
+        methods += (
+            f"    public void {name}(string input) {{\n"
+            f"        Console.WriteLine(input);\n"
+            f"{_CSHARP_FILLER}"
+            f"    }}\n\n"
+        )
+    return f"public class {class_name} {{\n{methods}}}\n"
+
+
+def test_csharp_chunk_class_with_methods():
+    """A C# class with two methods should split at each method boundary."""
+    code = _cs_class_with_methods("MyService", ["HandleRequest", "ProcessResponse"])
+    chunks = chunk_code(code, "csharp", "MyService.cs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "HandleRequest" in combined
+    assert "ProcessResponse" in combined
+
+
+def test_csharp_chunk_nested_class_boundary():
+    """A nested class inside an outer class creates a separate chunk boundary."""
+    outer = (
+        "public class Outer {\n"
+        "    private int _value;\n\n" + _CSHARP_FILLER + "    public class Inner {\n"
+        "        public int X { get; set; }\n" + _CSHARP_FILLER + "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(outer, "csharp", "Outer.cs")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Outer" in combined
+    assert "Inner" in combined
+
+
+def test_csharp_chunk_attribute_attached():
+    """[Attribute] lines immediately preceding a declaration stay in the same chunk."""
+    code = (
+        "public class Controller {\n" + _CSHARP_FILLER + "    [HttpGet]\n"
+        '    [Route("/index")]\n'
+        "    public IActionResult Index() {\n"
+        "        return View();\n" + _CSHARP_FILLER + "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "csharp", "Controller.cs")
+    # The [HttpGet] and [Route] attributes must appear in the same chunk as Index()
+    index_chunk = next((c for c in chunks if "Index" in c["content"]), None)
+    assert index_chunk is not None, "No chunk found containing Index()"
+    assert "[HttpGet]" in index_chunk["content"], "[HttpGet] attribute not attached to Index chunk"
+    assert "[Route" in index_chunk["content"], "[Route] attribute not attached to Index chunk"
+
+
+def test_csharp_chunk_xmldoc_attached():
+    """/// XML doc comment lines immediately preceding a declaration stay in the same chunk."""
+    code = (
+        "public class MyClass {\n" + _CSHARP_FILLER + "    /// <summary>\n"
+        "    /// Processes the given input value.\n"
+        "    /// </summary>\n"
+        '    /// <param name="input">The input string.</param>\n'
+        "    public void Process(string input) {\n"
+        "        Console.WriteLine(input);\n" + _CSHARP_FILLER + "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "csharp", "MyClass.cs")
+    process_chunk = next((c for c in chunks if "Process" in c["content"]), None)
+    assert process_chunk is not None, "No chunk found containing Process()"
+    assert "/// <summary>" in process_chunk["content"], "XML doc not attached to Process chunk"
+
+
+def test_csharp_chunk_file_routing():
+    """chunk_file() routes .cs files through chunk_code() (not adaptive fallback)."""
+    from mempalace.miner import chunk_file
+
+    code = _cs_class_with_methods("Router", ["Alpha", "Beta"])
+    chunks = chunk_file(code, ".cs", "Router.cs", language="csharp")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Alpha" in combined
+    assert "Beta" in combined

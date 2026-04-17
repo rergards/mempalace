@@ -805,6 +805,171 @@ def test_java_chunk_code_no_spurious_boundary_on_inner_annotation():
     assert "@SuppressWarnings" in chunks[0]["content"]
 
 
+# =============================================================================
+# C#
+# =============================================================================
+
+
+def test_csharp_class():
+    assert extract_symbol("public class UserService {\n}\n", "csharp") == ("UserService", "class")
+
+
+def test_csharp_struct():
+    assert extract_symbol(
+        "public struct Point {\n    public int X;\n    public int Y;\n}\n", "csharp"
+    ) == (
+        "Point",
+        "struct",
+    )
+
+
+def test_csharp_interface():
+    assert extract_symbol(
+        "public interface IRepository<T> {\n    T GetById(int id);\n}\n", "csharp"
+    ) == ("IRepository", "interface")
+
+
+def test_csharp_enum():
+    assert extract_symbol("public enum Color { Red, Green, Blue }\n", "csharp") == ("Color", "enum")
+
+
+def test_csharp_record():
+    assert extract_symbol("public record Person(string Name, int Age);\n", "csharp") == (
+        "Person",
+        "record",
+    )
+
+
+def test_csharp_record_struct():
+    assert extract_symbol("public record struct Coordinate(double X, double Y);\n", "csharp") == (
+        "Coordinate",
+        "record",
+    )
+
+
+def test_csharp_sealed_class():
+    assert extract_symbol(
+        "public sealed class Singleton {\n    private Singleton() {}\n}\n", "csharp"
+    ) == (
+        "Singleton",
+        "class",
+    )
+
+
+def test_csharp_abstract_class():
+    assert extract_symbol(
+        "public abstract class Shape {\n    public abstract double Area();\n}\n", "csharp"
+    ) == (
+        "Shape",
+        "class",
+    )
+
+
+def test_csharp_static_class():
+    assert extract_symbol("public static class Extensions {\n}\n", "csharp") == (
+        "Extensions",
+        "class",
+    )
+
+
+def test_csharp_partial_class():
+    assert extract_symbol("public partial class Generated {\n}\n", "csharp") == (
+        "Generated",
+        "class",
+    )
+
+
+def test_csharp_method():
+    content = (
+        "public class Processor {\n"
+        "    public void Process(string input) {\n"
+        "        Console.WriteLine(input);\n"
+        "    }\n"
+        "}\n"
+    )
+    assert extract_symbol(content, "csharp") == ("Processor", "class")
+
+
+def test_csharp_method_alone():
+    assert extract_symbol("    public void Process(string input) {\n    }\n", "csharp") == (
+        "Process",
+        "method",
+    )
+
+
+def test_csharp_static_method():
+    assert extract_symbol(
+        "    public static int Calculate(int a, int b) {\n        return a + b;\n    }\n",
+        "csharp",
+    ) == ("Calculate", "method")
+
+
+def test_csharp_async_method():
+    assert extract_symbol(
+        "    public async Task<string> FetchAsync() {\n        return await _client.GetAsync();\n    }\n",
+        "csharp",
+    ) == ("FetchAsync", "method")
+
+
+def test_csharp_generic_method():
+    assert extract_symbol(
+        "    public T Convert<T>(object input) where T : class {\n        return (T)input;\n    }\n",
+        "csharp",
+    ) == ("Convert", "method")
+
+
+def test_csharp_constructor_as_method():
+    assert extract_symbol(
+        "    public UserService(ILogger logger) {\n        _logger = logger;\n    }\n",
+        "csharp",
+    ) == ("UserService", "method")
+
+
+def test_csharp_property():
+    assert extract_symbol("    public string Name { get; set; }\n", "csharp") == (
+        "Name",
+        "property",
+    )
+
+
+def test_csharp_event():
+    assert extract_symbol("    public event EventHandler<EventArgs> OnChanged;\n", "csharp") == (
+        "OnChanged",
+        "event",
+    )
+
+
+def test_csharp_attribute_prefixed_method():
+    content = "    [HttpGet]\n    public IActionResult Index() {\n        return View();\n    }\n"
+    assert extract_symbol(content, "csharp") == ("Index", "method")
+
+
+def test_csharp_xml_doc_attached():
+    content = (
+        "    /// <summary>\n"
+        "    /// Processes the given input.\n"
+        "    /// </summary>\n"
+        "    public void Process(string input) {\n"
+        "    }\n"
+    )
+    assert extract_symbol(content, "csharp") == ("Process", "method")
+
+
+def test_csharp_field_not_extracted():
+    assert extract_symbol("    private int _count;\n", "csharp") == ("", "")
+
+
+def test_csharp_using_not_extracted():
+    assert extract_symbol("using System;\nusing System.Collections.Generic;\n", "csharp") == (
+        "",
+        "",
+    )
+
+
+def test_csharp_unknown_language_returns_empty():
+    assert extract_symbol("public class Foo {}\n", "unknown") == ("", "")
+
+
 def test_java_chunk_code_class_with_two_methods():
     """A class with two public methods should produce at most 2 content chunks."""
     java_code = (

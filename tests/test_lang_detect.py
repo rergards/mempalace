@@ -39,6 +39,7 @@ from mempalace.miner import detect_language
         (".h", "c"),
         (".cpp", "cpp"),
         (".hpp", "cpp"),
+        (".cs", "csharp"),
     ],
 )
 def test_extension_detection(ext, expected):
