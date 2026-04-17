@@ -11,7 +11,12 @@ Covers:
 
 from pathlib import Path
 
-from mempalace.miner import parse_dotnet_project_file, parse_sln_file, parse_xaml_file
+from mempalace.miner import (
+    extract_type_relationships,
+    parse_dotnet_project_file,
+    parse_sln_file,
+    parse_xaml_file,
+)
 
 
 # =============================================================================
@@ -578,6 +583,25 @@ def test_parse_xaml_command_binding_path_form(tmp_path):
     assert ("EditView", "uses_command", "DeleteCommand") in triples
 
 
+def test_parse_xaml_command_bindings_deduplicated(tmp_path):
+    """Same command bound on multiple elements produces only one triple."""
+    content = """\
+<Window x:Class="App.ListingView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Button Command="{Binding SaveCommand}" Content="Save" />
+        <Button Command="{Binding SaveCommand}" Content="Save Again" />
+    </StackPanel>
+</Window>
+"""
+    f = tmp_path / "ListingView.xaml"
+    f.write_text(content, encoding="utf-8")
+    triples = parse_xaml_file(f)
+    command_triples = [t for t in triples if t[1] == "uses_command" and t[2] == "SaveCommand"]
+    assert len(command_triples) == 1
+
+
 # =============================================================================
 # parse_xaml_file — edge cases (AC-9)
 # =============================================================================
@@ -675,3 +699,492 @@ def test_xaml_remining_invalidates_stale_triples(tmp_path):
     assert "oldControl" not in current_controls, (
         f"oldControl should be invalidated, but is still current: {current_controls}"
     )
+
+
+# =============================================================================
+# C# type-relationship extraction — extract_type_relationships / _csharp_type_rels
+# =============================================================================
+
+
+def _cs(tmp_path: Path, content: str) -> set:
+    """Write content to a .cs file and return triples_as_set from extract_type_relationships."""
+    f = tmp_path / "Test.cs"
+    f.write_text(content, encoding="utf-8")
+    return triples_as_set(extract_type_relationships(f))
+
+
+def test_cs_single_interface(tmp_path):
+    """class Foo : IBar → (Foo, implements, IBar)."""
+    triples = _cs(tmp_path, "public class Foo : IBar { }")
+    assert ("Foo", "implements", "IBar") in triples
+
+
+def test_cs_multiple_interfaces(tmp_path):
+    """class Foo : IBar, IBaz → two implements triples."""
+    triples = _cs(tmp_path, "public class Foo : IBar, IBaz { }")
+    assert ("Foo", "implements", "IBar") in triples
+    assert ("Foo", "implements", "IBaz") in triples
+
+
+def test_cs_class_and_interface(tmp_path):
+    """class Svc : BaseService, IDisposable → inherits + implements (AC-3)."""
+    triples = _cs(tmp_path, "public class Svc : BaseService, IDisposable { }")
+    assert ("Svc", "inherits", "BaseService") in triples
+    assert ("Svc", "implements", "IDisposable") in triples
+
+
+def test_cs_struct_implements(tmp_path):
+    """struct Point : IEquatable<Point> → implements, generic stripped (AC-4)."""
+    triples = _cs(tmp_path, "public struct Point : IEquatable<Point> { }")
+    assert ("Point", "implements", "IEquatable") in triples
+
+
+def test_cs_interface_extends(tmp_path):
+    """interface IFoo : IBar, IBaz → two extends triples (AC-5)."""
+    triples = _cs(tmp_path, "public interface IFoo : IBar, IBaz { }")
+    assert ("IFoo", "extends", "IBar") in triples
+    assert ("IFoo", "extends", "IBaz") in triples
+
+
+def test_cs_record_implements(tmp_path):
+    """bare record : IRecord → implements (record is implicitly class-like)."""
+    triples = _cs(tmp_path, "public record MyRecord : IRecord;")
+    assert ("MyRecord", "implements", "IRecord") in triples
+
+
+def test_cs_generic_base_stripped(tmp_path):
+    """IEquatable<Foo> base type is stored as IEquatable (generic suffix stripped)."""
+    triples = _cs(tmp_path, "public class Foo : IEquatable<Foo> { }")
+    assert ("Foo", "implements", "IEquatable") in triples
+    # No entry with the raw generic form
+    assert not any(t[2].startswith("IEquatable<") for t in triples)
+
+
+def test_cs_where_constraint_ignored(tmp_path):
+    """where T : class constraints are truncated before base-list parsing."""
+    triples = _cs(
+        tmp_path,
+        "public class Repo<T> : IRepository<T> where T : class { }",
+    )
+    assert ("Repo", "implements", "IRepository") in triples
+
+
+def test_cs_partial_class(tmp_path):
+    """partial class Foo : IBar → implements."""
+    triples = _cs(tmp_path, "public partial class Foo : IBar { }")
+    assert ("Foo", "implements", "IBar") in triples
+
+
+def test_cs_nested_generics(tmp_path):
+    """Nested generic base (IConverter<Dictionary<string,int>, string>) is treated as a single base type."""
+    triples = _cs(
+        tmp_path,
+        "public class Mapper : IConverter<Dictionary<string, int>, string> { }",
+    )
+    assert ("Mapper", "implements", "IConverter") in triples
+
+
+def test_cs_no_base_type(tmp_path):
+    """Class without base list emits no triples."""
+    triples = _cs(tmp_path, "public class Standalone { }")
+    assert len(triples) == 0
+
+
+def test_cs_line_comment_skipped(tmp_path):
+    """Declaration inside a // comment must not produce triples."""
+    triples = _cs(tmp_path, "// public class Foo : IBar\npublic class Real { }")
+    assert len(triples) == 0
+
+
+def test_cs_block_comment_skipped(tmp_path):
+    """Declaration inside a /* */ block comment must not produce triples."""
+    triples = _cs(tmp_path, "/* public class Foo : IBar */\npublic class Real { }")
+    assert len(triples) == 0
+
+
+def test_cs_record_class_form(tmp_path):
+    """record class Config : IFoo → implements (explicit record class keyword, AC regression)."""
+    triples = _cs(tmp_path, "public record class Config : IFoo;")
+    assert ("Config", "implements", "IFoo") in triples
+
+
+def test_cs_record_struct_form(tmp_path):
+    """record struct Point : IEquatable<Point> → implements (AC regression)."""
+    triples = _cs(tmp_path, "public record struct Point : IEquatable<Point>;")
+    assert ("Point", "implements", "IEquatable") in triples
+
+
+# =============================================================================
+# F# type-relationship extraction
+# =============================================================================
+
+
+def _fs(tmp_path: Path, content: str) -> set:
+    """Write content to a .fs file and return triples_as_set from extract_type_relationships."""
+    f = tmp_path / "Test.fs"
+    f.write_text(content, encoding="utf-8")
+    return triples_as_set(extract_type_relationships(f))
+
+
+def test_fs_inherit(tmp_path):
+    """F# type with inherit → inherits triple (AC-6)."""
+    triples = _fs(
+        tmp_path,
+        "type MyClass() =\n    inherit Base()\n",
+    )
+    assert ("MyClass", "inherits", "Base") in triples
+
+
+def test_fs_single_interface(tmp_path):
+    """F# type with one interface → implements triple (AC-6)."""
+    triples = _fs(
+        tmp_path,
+        "type MyClass() =\n    interface IFoo with\n        member _.M() = ()\n",
+    )
+    assert ("MyClass", "implements", "IFoo") in triples
+
+
+def test_fs_multiple_interfaces(tmp_path):
+    """F# type implementing multiple interfaces → multiple implements triples."""
+    content = (
+        "type MyClass() =\n"
+        "    interface IFoo with\n"
+        "        member _.A() = ()\n"
+        "    interface IBar with\n"
+        "        member _.B() = ()\n"
+    )
+    triples = _fs(tmp_path, content)
+    assert ("MyClass", "implements", "IFoo") in triples
+    assert ("MyClass", "implements", "IBar") in triples
+
+
+def test_fs_inherit_and_interface(tmp_path):
+    """F# type with both inherit and interface → both triples emitted."""
+    content = (
+        "type Widget() =\n"
+        "    inherit Control()\n"
+        "    interface IDisposable with\n"
+        "        member _.Dispose() = ()\n"
+    )
+    triples = _fs(tmp_path, content)
+    assert ("Widget", "inherits", "Control") in triples
+    assert ("Widget", "implements", "IDisposable") in triples
+
+
+def test_fs_no_inheritance(tmp_path):
+    """F# type with no inherit or interface → no triples."""
+    content = "type Simple() =\n    let x = 1\n    member _.Value = x\n"
+    triples = _fs(tmp_path, content)
+    assert len(triples) == 0
+
+
+def test_fs_type_alias(tmp_path):
+    """F# type alias (no inheritance) → no triples."""
+    triples = _fs(tmp_path, "type MyInt = int\n")
+    assert len(triples) == 0
+
+
+# =============================================================================
+# VB.NET type-relationship extraction
+# =============================================================================
+
+
+def _vb(tmp_path: Path, content: str) -> set:
+    """Write content to a .vb file and return triples_as_set from extract_type_relationships."""
+    f = tmp_path / "Test.vb"
+    f.write_text(content, encoding="utf-8")
+    return triples_as_set(extract_type_relationships(f))
+
+
+def test_vb_inherits(tmp_path):
+    """VB Class Inherits → inherits triple (AC-7)."""
+    content = "Public Class MyClass\n    Inherits BaseClass\nEnd Class\n"
+    triples = _vb(tmp_path, content)
+    assert ("MyClass", "inherits", "BaseClass") in triples
+
+
+def test_vb_single_implements(tmp_path):
+    """VB Class Implements single interface → implements triple (AC-7)."""
+    content = "Public Class Foo\n    Implements IFoo\nEnd Class\n"
+    triples = _vb(tmp_path, content)
+    assert ("Foo", "implements", "IFoo") in triples
+
+
+def test_vb_multi_implements(tmp_path):
+    """VB Class Implements multiple interfaces on one line → multiple triples (AC-7)."""
+    content = "Public Class Foo\n    Implements IFoo, IBar\nEnd Class\n"
+    triples = _vb(tmp_path, content)
+    assert ("Foo", "implements", "IFoo") in triples
+    assert ("Foo", "implements", "IBar") in triples
+
+
+def test_vb_inherits_and_implements(tmp_path):
+    """VB Class with both Inherits and Implements → inherits + implements triples (AC-7)."""
+    content = (
+        "Public Class MyService\n"
+        "    Inherits ServiceBase\n"
+        "    Implements IMyService, IDisposable\n"
+        "End Class\n"
+    )
+    triples = _vb(tmp_path, content)
+    assert ("MyService", "inherits", "ServiceBase") in triples
+    assert ("MyService", "implements", "IMyService") in triples
+    assert ("MyService", "implements", "IDisposable") in triples
+
+
+def test_vb_structure_implements(tmp_path):
+    """VB Structure Implements → implements triple."""
+    content = "Public Structure MyStruct\n    Implements IEquatable\nEnd Structure\n"
+    triples = _vb(tmp_path, content)
+    assert ("MyStruct", "implements", "IEquatable") in triples
+
+
+def test_vb_interface_inherits(tmp_path):
+    """VB Interface Inherits → extends triple (interface-to-interface)."""
+    content = "Public Interface IFoo\n    Inherits IBar\nEnd Interface\n"
+    triples = _vb(tmp_path, content)
+    assert ("IFoo", "extends", "IBar") in triples
+
+
+def test_vb_no_inheritance(tmp_path):
+    """VB Class with no Inherits or Implements → no triples."""
+    content = "Public Class Simple\n    Public Sub DoSomething()\n    End Sub\nEnd Class\n"
+    triples = _vb(tmp_path, content)
+    assert len(triples) == 0
+
+
+# =============================================================================
+# KG lifecycle — C# type-relationship triples
+# =============================================================================
+
+
+def test_cs_remining_invalidates_stale_triples(tmp_path):
+    """After modifying a .cs file and re-mining, old type-relationship triples are invalidated."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    cs_file = project_root / "Service.cs"
+    cs_file.write_text(
+        "public class OldSvc : IOldInterface { }\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump(
+            {"wing": "test_cs_lifecycle", "rooms": [{"name": "general", "description": "All"}]}
+        ),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    # First mine — adds (OldSvc, implements, IOldInterface)
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    first_triples = kg.query_entity("OldSvc")
+    objs = {t["object"] for t in first_triples if t["predicate"] == "implements"}
+    assert "IOldInterface" in objs, f"Expected IOldInterface after first mine, got {objs}"
+
+    # Replace with a different class/interface
+    cs_file.write_text(
+        "public class NewSvc : INewInterface { }\n",
+        encoding="utf-8",
+    )
+
+    # Second mine — should invalidate OldSvc triples, add NewSvc triples
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    current_new = {
+        t["object"]
+        for t in kg.query_entity("NewSvc")
+        if t["predicate"] == "implements" and t["current"]
+    }
+    assert "INewInterface" in current_new, f"Expected INewInterface, got {current_new}"
+
+    current_old = {
+        t["object"]
+        for t in kg.query_entity("OldSvc")
+        if t["predicate"] == "implements" and t["current"]
+    }
+    assert len(current_old) == 0, (
+        f"OldSvc triples should be invalidated, still current: {current_old}"
+    )
+
+
+def test_cs_stale_sweep_invalidates_triples(tmp_path):
+    """Deleting a .cs file and running the stale sweep invalidates its KG triples."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    # File must be >= MIN_CHUNK (100 chars) so it generates a drawer and appears in existing_hashes,
+    # which is a prerequisite for the stale-file sweep to detect and invalidate it.
+    cs_file = project_root / "Widget.cs"
+    cs_file.write_text(
+        "public class Widget : IWidget\n"
+        "{\n"
+        "    public void DoWork()\n"
+        "    {\n"
+        "        // Perform widget work here.\n"
+        '        System.Console.WriteLine("working");\n'
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_cs_stale", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    # First mine — stores drawers and KG triple (Widget, implements, IWidget)
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    first_triples = kg.query_entity("Widget")
+    assert any(
+        t["predicate"] == "implements" and t["object"] == "IWidget" for t in first_triples
+    ), "Expected (Widget, implements, IWidget) after first mine"
+
+    # Delete the .cs file
+    cs_file.unlink()
+
+    # Re-mine incrementally — stale sweep should invalidate the triple
+    mine(str(project_root), palace_path, kg=kg, incremental=True)
+
+    stale_triples = kg.query_entity("Widget")
+    current_impls = [t for t in stale_triples if t["predicate"] == "implements" and t["current"]]
+    assert len(current_impls) == 0, (
+        f"Widget implements triples should be invalidated after file deletion, got {current_impls}"
+    )
+
+
+def test_cs_incremental_skip_unchanged(tmp_path):
+    """Unchanged .cs file is skipped on second incremental mine — no duplicate triples."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    cs_file = project_root / "Handler.cs"
+    cs_file.write_text(
+        "public class Handler : IHandler { }\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump(
+            {"wing": "test_cs_incremental", "rooms": [{"name": "general", "description": "All"}]}
+        ),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    # First mine
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    # Second mine — file unchanged, should skip (no invalidation, no re-emission)
+    mine(str(project_root), palace_path, kg=kg, incremental=True)
+
+    triples = kg.query_entity("Handler")
+    impl_triples = [t for t in triples if t["predicate"] == "implements" and t["current"]]
+    assert len(impl_triples) == 1, (
+        f"Expected exactly 1 current implements triple, got {len(impl_triples)}: {impl_triples}"
+    )
+    assert impl_triples[0]["object"] == "IHandler"
+
+
+# =============================================================================
+# Multi-project mine + query (AC-12) and incoming query assertions (AC-8/AC-9)
+# =============================================================================
+
+
+def test_multi_project_cross_project_interface_query(tmp_path):
+    """Mine two .NET projects sharing a KG; cross-project implementer is discoverable (AC-12).
+
+    Also exercises direction='incoming' query path (AC-8).
+    """
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    # Project A: defines the interface
+    project_a = tmp_path / "ProjectA"
+    project_a.mkdir()
+    (project_a / "IService.cs").write_text(
+        "public interface IService { void Execute(); }\n",
+        encoding="utf-8",
+    )
+    (project_a / "mempalace.yaml").write_text(
+        yaml.dump(
+            {"wing": "test_multiproject", "rooms": [{"name": "general", "description": "All"}]}
+        ),
+        encoding="utf-8",
+    )
+
+    # Project B: implements the interface
+    project_b = tmp_path / "ProjectB"
+    project_b.mkdir()
+    (project_b / "MySvc.cs").write_text(
+        "public class MySvc : IService { public void Execute() { } }\n",
+        encoding="utf-8",
+    )
+    (project_b / "mempalace.yaml").write_text(
+        yaml.dump(
+            {"wing": "test_multiproject", "rooms": [{"name": "general", "description": "All"}]}
+        ),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    # Mine both projects into the same KG
+    mine(str(project_a), palace_path, kg=kg, incremental=False)
+    mine(str(project_b), palace_path, kg=kg, incremental=False)
+
+    # AC-12: all implementers of IService should be discoverable (AC-8)
+    incoming = kg.query_entity("IService", direction="incoming")
+    impl_subjects = {t["subject"] for t in incoming if t["predicate"] == "implements"}
+    assert "MySvc" in impl_subjects, (
+        f"Expected MySvc as implementer of IService via incoming query, got {impl_subjects}"
+    )
+
+
+def test_cs_incoming_query_base_class(tmp_path):
+    """direction='incoming' on a base class returns all subclasses with predicate 'inherits' (AC-9)."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "Classes.cs").write_text(
+        "public class ChildA : BaseRepo { }\npublic class ChildB : BaseRepo { }\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_incoming", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    incoming = kg.query_entity("BaseRepo", direction="incoming")
+    inheriting_subjects = {t["subject"] for t in incoming if t["predicate"] == "inherits"}
+    assert "ChildA" in inheriting_subjects, f"Expected ChildA, got {inheriting_subjects}"
+    assert "ChildB" in inheriting_subjects, f"Expected ChildB, got {inheriting_subjects}"

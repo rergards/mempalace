@@ -1932,8 +1932,322 @@ def scan_project(
 # .NET PROJECT FILE PARSING — KG triple extraction
 # =============================================================================
 
+# =============================================================================
+# .NET SOURCE FILE TYPE-RELATIONSHIP EXTRACTION
+# =============================================================================
+
+# Ordered matcher list for C# type declarations with inheritance/implementation.
+# Most-specific patterns first (record struct > record class > bare record > struct > interface > class).
+# Each tuple: (compiled_regex, type_kind) — type_kind drives predicate assignment.
+# Regex groups: group(1) = type name, group(2) = raw base-type list (post-processed below).
+_CSHARP_TYPE_REL_MATCHERS = [
+    # record struct — must precede struct and bare record
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+            r"new|unsafe|readonly)\s+)*"
+            r"record\s+struct\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"(?:\s*\([^)]*\))?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "struct",
+    ),
+    # record class — must precede class and bare record
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+            r"new|unsafe)\s+)*"
+            r"record\s+class\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"(?:\s*\([^)]*\))?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # bare record (implicitly a record class)
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+            r"new|unsafe)\s+)*"
+            r"record\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"(?:\s*\([^)]*\))?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # struct — before class (struct cannot inherit classes in C#, only implements interfaces)
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+            r"new|unsafe|readonly)\s+)*"
+            r"struct\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "struct",
+    ),
+    # interface — before class
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|new)\s+)*"
+            r"interface\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "interface",
+    ),
+    # class (covers sealed, abstract, static, partial, etc.)
+    (
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+            r"new|unsafe)\s+)*"
+            r"class\s+"
+            r"(\w+)"
+            r"(?:<[^>]*>)?"
+            r"\s*:\s*"
+            r"(.+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+]
+
+
+def _split_base_list(base_str: str) -> list:
+    """Split a C# base-type list at depth-0 commas, respecting <> nesting.
+
+    Correctly handles nested generics like ``Dictionary<string, List<int>>``
+    where inner commas are type-argument separators, not base-type separators.
+    """
+    parts = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(base_str):
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(base_str[start:i].strip())
+            start = i + 1
+    parts.append(base_str[start:].strip())
+    return [p for p in parts if p]
+
+
+def _csharp_type_rels(filepath: Path) -> list:
+    """Extract inheritance/implementation triples from a C# source file.
+
+    Strips block and line comments first to avoid false-positive declarations.
+    Returns a list of (subject, predicate, object) tuples.
+    """
+    try:
+        text = filepath.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    # Strip block comments, then line comments to suppress false-positive declarations.
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    text = re.sub(r"//[^\n]*", "", text)
+    triples = []
+    seen: set = set()
+    for pattern, type_kind in _CSHARP_TYPE_REL_MATCHERS:
+        for m in pattern.finditer(text):
+            type_name = m.group(1)
+            base_list_str = m.group(2)
+            # Truncate at generic constraints, block open, statement terminator, or comment.
+            for stop in (" where ", "{", ";", "//"):
+                idx = base_list_str.find(stop)
+                if idx != -1:
+                    base_list_str = base_list_str[:idx]
+            for base_raw in _split_base_list(base_list_str):
+                # Strip generic suffix: IEquatable<Point> -> IEquatable
+                base_name = base_raw.split("<")[0].strip()
+                if not base_name or not base_name[0].isalpha():
+                    continue
+                if type_kind == "struct":
+                    pred = "implements"
+                elif type_kind == "interface":
+                    pred = "extends"
+                elif len(base_name) >= 2 and base_name[0] == "I" and base_name[1].isupper():
+                    pred = "implements"
+                else:
+                    pred = "inherits"
+                key = (type_name, pred, base_name)
+                if key not in seen:
+                    seen.add(key)
+                    triples.append(key)
+    return triples
+
+
+# Module-level compiled patterns for F# line-by-line scanning.
+_FS_TYPE_DECL_RE = re.compile(r"^type\s+(\w+)")
+_FS_MODULE_DECL_RE = re.compile(r"^module\s+\w+")
+_FS_INHERIT_RE = re.compile(r"^\s+inherit\s+(\w+)")
+_FS_IFACE_RE = re.compile(r"^\s+interface\s+(\w+)")
+
+
+def _fsharp_type_rels(filepath: Path) -> list:
+    """Extract inheritance/implementation triples from an F# source file.
+
+    Scans for unindented ``type Name`` declarations, then collects indented
+    ``inherit Base`` and ``interface IFoo with`` lines within the type's scope
+    (until the next unindented ``type`` or ``module`` declaration, or EOF).
+    """
+    try:
+        text = filepath.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    triples = []
+    seen: set = set()
+    current_type = None
+    for line in text.splitlines():
+        m = _FS_TYPE_DECL_RE.match(line)
+        if m:
+            current_type = m.group(1)
+            continue
+        if _FS_MODULE_DECL_RE.match(line):
+            current_type = None
+            continue
+        if current_type is None:
+            continue
+        m = _FS_INHERIT_RE.match(line)
+        if m:
+            key = (current_type, "inherits", m.group(1))
+            if key not in seen:
+                seen.add(key)
+                triples.append(key)
+            continue
+        m = _FS_IFACE_RE.match(line)
+        if m:
+            key = (current_type, "implements", m.group(1))
+            if key not in seen:
+                seen.add(key)
+                triples.append(key)
+    return triples
+
+
+# Module-level compiled patterns for VB.NET line-by-line scanning.
+_VB_CLASS_RE = re.compile(
+    r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+    r"(?:(?:Partial|MustInherit|NotInheritable|Shadows)\s+)*"
+    r"Class\s+(\w+)",
+    re.IGNORECASE,
+)
+_VB_STRUCT_RE = re.compile(
+    r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+    r"(?:(?:Partial|Shadows)\s+)*"
+    r"Structure\s+(\w+)",
+    re.IGNORECASE,
+)
+_VB_IFACE_DECL_RE = re.compile(
+    r"^\s*(?:(?:Protected\s+Friend|Private\s+Protected|Public|Private|Protected|Friend)\s+)?"
+    r"(?:(?:Partial|Shadows)\s+)*"
+    r"Interface\s+(\w+)",
+    re.IGNORECASE,
+)
+_VB_INHERITS_RE = re.compile(r"^\s*Inherits\s+(\w+)", re.IGNORECASE)
+_VB_IMPLEMENTS_RE = re.compile(r"^\s*Implements\s+(.+)", re.IGNORECASE)
+_VB_END_RE = re.compile(r"^\s*End\s+(?:Class|Structure|Interface)\b", re.IGNORECASE)
+
+
+def _vbnet_type_rels(filepath: Path) -> list:
+    """Extract inheritance/implementation triples from a VB.NET source file.
+
+    Scans for Class/Structure/Interface declarations, then collects ``Inherits``
+    and ``Implements`` lines within the block (until the matching ``End`` statement).
+    """
+    try:
+        text = filepath.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    triples = []
+    seen: set = set()
+    current_type = None
+    current_kind = None
+    for line in text.splitlines():
+        if _VB_END_RE.match(line):
+            current_type = None
+            current_kind = None
+            continue
+        m = _VB_CLASS_RE.match(line)
+        if m:
+            current_type = m.group(1)
+            current_kind = "class"
+            continue
+        m = _VB_STRUCT_RE.match(line)
+        if m:
+            current_type = m.group(1)
+            current_kind = "struct"
+            continue
+        m = _VB_IFACE_DECL_RE.match(line)
+        if m:
+            current_type = m.group(1)
+            current_kind = "interface"
+            continue
+        if current_type is None:
+            continue
+        m = _VB_INHERITS_RE.match(line)
+        if m:
+            base = m.group(1).strip()
+            pred = "extends" if current_kind == "interface" else "inherits"
+            key = (current_type, pred, base)
+            if key not in seen:
+                seen.add(key)
+                triples.append(key)
+            continue
+        m = _VB_IMPLEMENTS_RE.match(line)
+        if m:
+            for iface_raw in m.group(1).split(","):
+                iface = iface_raw.strip()
+                if iface:
+                    key = (current_type, "implements", iface)
+                    if key not in seen:
+                        seen.add(key)
+                        triples.append(key)
+    return triples
+
+
+def extract_type_relationships(filepath: Path) -> list:
+    """Extract interface-implementation and inheritance triples from .NET source files.
+
+    Supports C# (.cs), F# (.fs/.fsi), and VB.NET (.vb). Uses regex-based heuristics
+    (no Roslyn/semantic analysis). Returns a list of (subject, predicate, object) tuples.
+
+    Predicates:
+      - ``implements``: class/record/struct implements an interface (I-prefix heuristic)
+      - ``inherits``: class/record inherits a base class
+      - ``extends``: interface extends another interface
+    """
+    ext = filepath.suffix.lower()
+    if ext == ".cs":
+        return _csharp_type_rels(filepath)
+    if ext in (".fs", ".fsi"):
+        return _fsharp_type_rels(filepath)
+    if ext == ".vb":
+        return _vbnet_type_rels(filepath)
+    return []
+
+
 # File extensions that trigger KG triple extraction during mining.
-_KG_EXTRACT_EXTENSIONS = frozenset({".csproj", ".fsproj", ".vbproj", ".sln", ".xaml"})
+_KG_EXTRACT_EXTENSIONS = frozenset(
+    {".csproj", ".fsproj", ".vbproj", ".sln", ".xaml", ".cs", ".fs", ".fsi", ".vb"}
+)
 
 # .sln project-line regex: captures (project_name, relative_path)
 _SLN_PROJECT_RE = re.compile(
@@ -2289,12 +2603,15 @@ def mine(
                 source_hash=current_hash,
             )
 
-            # KG triple emission for project/config/XAML files
+            # KG triple emission for project/config/XAML/source files
             if kg is not None and filepath.suffix.lower() in _KG_EXTRACT_EXTENSIONS:
-                if filepath.suffix.lower() == ".sln":
+                ext = filepath.suffix.lower()
+                if ext == ".sln":
                     triples = parse_sln_file(filepath)
-                elif filepath.suffix.lower() == ".xaml":
+                elif ext == ".xaml":
                     triples = parse_xaml_file(filepath)
+                elif ext in (".cs", ".fs", ".fsi", ".vb"):
+                    triples = extract_type_relationships(filepath)
                 else:
                     triples = parse_dotnet_project_file(filepath)
                 for subj, pred, obj in triples:

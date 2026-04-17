@@ -7,7 +7,7 @@ files:
   - path: mempalace/miner.py
     change: "Add extract_type_relationships() dispatcher + per-language helpers (_csharp_type_rels, _fsharp_type_rels, _vbnet_type_rels). Expand _KG_EXTRACT_EXTENSIONS to include .cs/.fs/.fsi/.vb. Wire new extractor into the KG dispatch block in mine()."
   - path: tests/test_kg_extract.py
-    change: "Add test class/functions for C# type relationships (~15 cases), F# type relationships (~6 cases), VB.NET type relationships (~6 cases), and KG lifecycle tests for .cs/.fs/.vb re-mining."
+    change: "Add test class/functions for C# type relationships (~15 cases incl. record class/struct forms), F# type relationships (~6 cases), VB.NET type relationships (~6 cases), KG lifecycle tests for .cs/.fs/.vb re-mining, multi-project mine+query integration test (AC-12), and incoming-query end-to-end assertions (AC-8/AC-9)."
 acceptance:
   - id: AC-1
     when: "A C# file contains `public class Foo : IBar, IBaz`"
@@ -51,6 +51,7 @@ out_of_scope:
   - "Generic type parameter tracking (List<T> stored as List)"
   - "Nested type relationships (inner classes)"
   - "Cross-file type usage references (method parameters, return types, field types)"
+  - "Namespace-qualified entity identity — KG entities are keyed by short type name only (e.g. `IService`). Same-named types from different namespaces/projects will coalesce into one entity node. This is acceptable: it favors recall (all implementers found) over precision, and matches the KG's existing identity model. A future task can add namespace-qualified subjects if disambiguation is needed."
   - "New MCP tools — existing mempalace_kg_query with direction=incoming already satisfies the query use case"
 ---
 
@@ -58,9 +59,10 @@ out_of_scope:
 
 ### Extraction strategy
 
-- **C#**: Regex matches type declarations (`class|struct|interface|record`) and captures the
-  optional base-type list after `:`. The base list is split on `,` and generic parameters
-  (`<...>`) are stripped to yield bare type names.
+- **C#**: Ordered matcher list (most-specific first, matching `_CSHARP_EXTRACT` style) captures
+  type declarations (`record struct`, `record class`, bare `record`, `struct`, `interface`,
+  `class`) and the optional base-type list after `:`. The base list is split using a depth-aware
+  comma splitter (respects `<>` nesting) and generic suffixes are stripped to yield bare type names.
 
 - **F#**: Scans for `type Name(...) =` declarations, then looks at subsequent indented lines
   for `inherit BaseType(...)` and `interface IFoo with` patterns. Each type declaration's scope
@@ -85,25 +87,97 @@ predicate but the relationship is still recorded — the query still finds it, j
 
 ### Regex for C# base-type capture
 
+Uses an ordered matcher list (most-specific first) mirroring the established `_CSHARP_EXTRACT`
+pattern in miner.py. This avoids the `record class Config` misparsing that a single regex would
+produce.
+
 ```python
-_CSHARP_TYPE_REL_RE = re.compile(
-    r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
-    r"new|unsafe|file)\s+)*"
-    r"(class|struct|interface|record)\s+"
-    r"(\w+)"                          # type name
-    r"(?:<[^>]*>)?"                   # optional generic params
-    r"(?:\s*\([^)]*\))?"              # optional record primary ctor
-    r"\s*:\s*"                        # colon separator
-    r"(.+)",                          # base list (greedy — trimmed later)
-    re.MULTILINE,
-)
+_CSHARP_TYPE_REL_MATCHERS = [
+    # record struct — must precede struct and bare record
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+        r"new|unsafe|readonly)\s+)*"
+        r"record\s+struct\s+"
+        r"(\w+)"                          # type name
+        r"(?:<[^>]*>)?"                   # optional generic params
+        r"(?:\s*\([^)]*\))?"              # optional record primary ctor
+        r"\s*:\s*"                        # colon separator
+        r"(.+)",                          # base list
+        re.MULTILINE,
+    ), "struct"),
+    # record class — must precede class and bare record
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+        r"new|unsafe)\s+)*"
+        r"record\s+class\s+"
+        r"(\w+)"
+        r"(?:<[^>]*>)?"
+        r"(?:\s*\([^)]*\))?"
+        r"\s*:\s*"
+        r"(.+)",
+        re.MULTILINE,
+    ), "class"),
+    # bare record (implicitly a record class)
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+        r"new|unsafe)\s+)*"
+        r"record\s+"
+        r"(\w+)"
+        r"(?:<[^>]*>)?"
+        r"(?:\s*\([^)]*\))?"
+        r"\s*:\s*"
+        r"(.+)",
+        re.MULTILINE,
+    ), "class"),
+    # struct — before class
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+        r"new|unsafe|readonly)\s+)*"
+        r"struct\s+"
+        r"(\w+)"
+        r"(?:<[^>]*>)?"
+        r"\s*:\s*"
+        r"(.+)",
+        re.MULTILINE,
+    ), "struct"),
+    # interface — before class
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|new)\s+)*"
+        r"interface\s+"
+        r"(\w+)"
+        r"(?:<[^>]*>)?"
+        r"\s*:\s*"
+        r"(.+)",
+        re.MULTILINE,
+    ), "interface"),
+    # class (covers sealed, abstract, static, partial, etc.)
+    (re.compile(
+        r"^\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial|"
+        r"new|unsafe)\s+)*"
+        r"class\s+"
+        r"(\w+)"
+        r"(?:<[^>]*>)?"
+        r"\s*:\s*"
+        r"(.+)",
+        re.MULTILINE,
+    ), "class"),
+]
 ```
+
+All matchers are tried in order; the first match wins. Each returns (type_name, base_list_str)
+plus the type kind from the tuple.
 
 Post-processing on the base list:
 1. Truncate at first `where` keyword (generic constraints) or `{` or `//`
-2. Split on `,`
+2. **Depth-aware comma split**: walk the string tracking `<`/`>` nesting depth; only split on
+   commas at depth 0. This correctly handles nested generics like `Dictionary<string, List<int>>`
+   where commas inside angle brackets are part of a single type argument, not separators between
+   base types.
 3. Strip each item's generic suffix: `IEquatable<Point>` → `IEquatable`
 4. Strip whitespace, discard empties
+
+The depth-aware splitter is a ~10-line helper (`_split_base_list`), not a parser — it counts
+angle brackets and yields segments when it sees a comma at depth 0.
 
 ### Integration into mine()
 
@@ -140,5 +214,15 @@ Tests go in `tests/test_kg_extract.py` alongside the existing .NET KG extraction
 - **F# (~6 cases)**: inherit, single interface, multiple interfaces, no inheritance, type alias (no triple).
 - **VB.NET (~6 cases)**: Inherits, single Implements, multi Implements on one line,
   Structure Implements, Interface Inherits, no inheritance.
+- **C# record forms (~2 cases)**: `record class Config : IFoo` parsed as class/implements,
+  `record struct Point : IEquatable<Point>` parsed as struct/implements. Regression coverage
+  for explicit record forms matching `_CSHARP_EXTRACT` behavior.
 - **KG lifecycle (~3 cases)**: re-mining .cs invalidates old triples, stale .cs file sweep
   invalidates triples, incremental skip (unchanged hash) does not re-emit triples.
+- **Multi-project mine + query (~1 case, covers AC-12)**: mine two separate directories where
+  project A defines `interface IService` and project B defines `class MySvc : IService`. After
+  mining both, `kg.query_entity("IService", direction="incoming")` returns `MySvc` with
+  predicate `implements`.
+- **Incoming query assertions (covers AC-8/AC-9)**: at least one test calls
+  `kg.query_entity(<interface>, direction="incoming")` and asserts that the returned facts list
+  contains the expected subjects and predicates, exercising the actual KG API path end-to-end.

@@ -773,12 +773,7 @@ items:
     labels: [feat, miner, dotnet]
     done_date: "2026-04-17"
     done_summary: >-
-      Added .xaml language detection, x:Class symbol extraction (view/view_name), and
-      parse_xaml_file() emitting KG triples for code-behind, DataContext ViewModel,
-      x:Name controls, StaticResource/DynamicResource references, and Command bindings.
-      Renamed _DOTNET_CONFIG_EXTENSIONS to _KG_EXTRACT_EXTENSIONS (includes .xaml).
-      Tests: test_kg_extract.py (renamed from test_dotnet_config.py) + XAML roundtrip
-      in test_miner.py. All tests and lint pass.
+      Added .xaml language detection, x:Class symbol extraction (view/view_name), and parse_xaml_file() emitting KG triples for code-behind, DataContext ViewModel, x:Name controls, StaticResource/DynamicResource references, and Command bindings. Renamed _DOTNET_CONFIG_EXTENSIONS to _KG_EXTRACT_EXTENSIONS (includes .xaml). Tests: test_kg_extract.py (renamed from test_dotnet_config.py) + XAML roundtrip in test_miner.py. All tests and lint pass. Hardening round-1: fixed missing uses_command dedup test; backlogged plain Name= attribute support (MINE-XAML-NAME-ATTR); dismissed regex-matches-in-comments as accepted limitation of hybrid approach.
     description: |-
       ## Problem
       WPF/UWP/MAUI repos have .xaml files with code-behind that are not linked.
@@ -804,7 +799,7 @@ items:
   - key: DOTNET-SYMBOL-GRAPH
     summary: Cross-project symbol relationships via KG
     type: feature
-    status: open
+    status: done
     priority: medium
     section_id: immediate
     labels: [feat, miner, dotnet, kg]
@@ -838,6 +833,7 @@ items:
     links:
       - type: depends-on
         key: MINE-CSHARP
+    resolution: '2026-04-17: 2026-04-17: Added extract_type_relationships() for C#/F#/VB.NET source files; detects implements/inherits/extends triples via regex heuristics and stores them in KG during mine(). _KG_EXTRACT_EXTENSIONS expanded to cover .cs/.fs/.fsi/.vb; invalidation and stale-sweep handled by existing guards. 48 new tests across C#/F#/VB.NET cases, KG lifecycle, and multi-project cross-project query (AC-1 through AC-12). All tests and lint pass.'
   - key: BENCH-DOTNET
     summary: Benchmark suite for C#/.NET repo mining and retrieval
     type: task
@@ -1041,3 +1037,25 @@ items:
       - A Ruby on Rails or Go project with a 'bin/' directory has those files mined correctly (option A), OR the limitation is clearly documented in user-facing docs (option B)
       - .NET project mining still skips bin/ and obj/ correctly
       - No existing tests regress
+  - key: MINE-XAML-NAME-ATTR
+    summary: Track plain Name= attribute as well as x:Name for has_named_control triples
+    type: task
+    status: open
+    priority: low
+    size: S
+    section_id: immediate
+    labels: [miner, dotnet]
+    description: |-
+      ## Problem
+      The MINE-XAML feature tracks only x:Name attributes for has_named_control KG triples. WPF's FrameworkElement also exposes a CLR Name property (without x: prefix) as a shorthand that is semantically equivalent in most scenarios. Elements using <Button Name="myButton" /> instead of <Button x:Name="myButton" /> currently generate no has_named_control triple, causing a coverage gap in WPF repos that mix the two forms.
+
+      ## Scope
+      - Update parse_xaml_file() to also check for plain Name="" attributes (no namespace prefix)
+      - Deduplicate: if an element has both x:Name and Name with the same value, emit only one triple
+      - Add regression tests: plain Name= emits triple; both Name= and x:Name= on same element emits exactly one triple
+
+      ## Acceptance criteria
+      - <Button Name="myButton" /> emits ("ViewName", "has_named_control", "myButton")
+      - <TextBox x:Name="myBox" Name="myBox" /> emits only one has_named_control triple for "myBox"
+      - All existing test_parse_xaml_* tests continue to pass
+      - Origin: MINE-XAML hardening round-1 F-3
