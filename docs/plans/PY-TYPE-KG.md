@@ -26,7 +26,7 @@ acceptance:
     then: "extract_type_relationships returns (module_name, depends_on, foo.bar)"
   - id: AC-6
     when: "A .py file contains `import foo`"
-    then: "extract_type_relationships returns (module_name, imports, foo)"
+    then: "extract_type_relationships returns (module_name, depends_on, foo)"
   - id: AC-7
     when: "A class declaration appears inside a `#` comment"
     then: "No triples are emitted for that line"
@@ -48,6 +48,12 @@ acceptance:
   - id: AC-13
     when: "Existing C#/F#/VB.NET type extraction tests are run"
     then: "All pass unchanged (no regression)"
+  - id: AC-14
+    when: "A .py file is deleted and incremental mine (stale sweep) runs"
+    then: "All Python KG triples sourced from that file are invalidated"
+  - id: AC-15
+    when: "After mining a Python project, an incoming KG query on a base class"
+    then: "Returns the Python subclass(es) via inherits predicate (end-to-end architecture-query path)"
 out_of_scope:
   - "Full AST parsing (stick to regex like .NET extractors)"
   - "Dynamic type inference or runtime type resolution"
@@ -55,6 +61,8 @@ out_of_scope:
   - "Multiline class declarations spanning parentheses across lines (single-line regex covers >95% of real Python)"
   - "Dataclass/attrs struct-like detection (no clear KG predicate; can be added later)"
   - "Type alias extraction (`TypeAlias`, `TypeVar`)"
+  - "Triple-quoted string/docstring suppression (only `#` line comments are stripped, matching .NET line-comment approach; class patterns inside docstrings are rare and accepted as false positives for v1)"
+  - "Module name collisions across packages (module subject is filename stem or parent dir for `__init__.py` — can collide; acceptable for single-project mining scope)"
 ---
 
 ## Design Notes
@@ -73,10 +81,10 @@ out_of_scope:
   - All other bases -> `inherits`
   - No `extends` for Python (Python has no interface-extends-interface concept)
 
-- **Import extraction regex**: Two patterns:
-  - `^import (dotted.name)` -> `(module, imports, dotted.name)`
+- **Import extraction regex**: Two patterns, both emit `depends_on` (not `imports`) so that architecture tools (`find_references`, `extract_reusable`) surface them via existing `EXPANSION_PREDICATES` without mcp_server changes:
+  - `^import (dotted.name)` -> `(module, depends_on, dotted.name)`
   - `^from (dotted.name) import ...` -> `(module, depends_on, dotted.name)`
-  - Module name derived from filename stem (`foo.py` -> `foo`, `__init__.py` -> parent directory name)
+  - Module name derived from filename stem (`foo.py` -> `foo`, `__init__.py` -> parent directory name). Note: this can collide across packages; acceptable for single-project scope (see out_of_scope).
   - Skip relative imports (`from . import x`, `from ..foo import bar`) — these are internal and noisy
 
 - **Registration points**:
@@ -86,4 +94,6 @@ out_of_scope:
 
 - **mine() integration**: The `.py` extension must be handled in the KG extraction block (lines 2610-2621). Add `.py` alongside `.cs`, `.fs`, `.fsi`, `.vb` in the condition on line 2616 that calls `extract_type_relationships()`.
 
-- **Tests**: Add to `tests/test_kg_extract.py` following the existing `_cs()` / `_fs()` / `_vb()` helper pattern. Create a `_py(tmp_path, content)` helper. Test categories: simple inheritance, multiple inheritance, ABC, Protocol, imports, metaclass kwarg, generics, comments, no-base class, integration with mine+KG.
+- **Docstring update**: Update `extract_type_relationships()` docstring (currently says ".NET source files" and lists only C#/F#/VB.NET) to include Python and the `depends_on` predicate.
+
+- **Tests**: Add to `tests/test_kg_extract.py` following the existing `_cs()` / `_fs()` / `_vb()` helper pattern. Create a `_py(tmp_path, content)` helper. Test categories: simple inheritance, multiple inheritance, ABC, Protocol, imports (depends_on), metaclass kwarg, generics, comments, no-base class, integration with mine+KG, deleted-file stale sweep (AC-14, mirror `test_cs_stale_sweep_invalidates_triples`), and incoming-query end-to-end (AC-15, mirror `test_cs_incoming_query_base_class`).
