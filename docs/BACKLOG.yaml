@@ -1176,6 +1176,7 @@ items:
       - mempalace/miner.py (add extract_python_symbol_relationships)
       - tests/test_miner.py (Python KG extraction tests)
     resolution: '2026-04-18: Added _python_type_rels() to miner.py: class inheritance/ABC/Protocol extraction (implements/inherits predicates), import extraction (depends_on), .py added to _KG_EXTRACT_EXTENSIONS and mine() dispatch; 22 new tests covering all 15 ACs; all 906 suite tests pass'
+    hardening: 'round-1 2026-04-18: 1 fixed (F-1 multi-param generic spurious base name), 1 backlogged (F-2 multi-module import line → PY-MULTI-IMPORT), 0 dismissed'
   - key: EXTRACT-REUSABLE-REFERENCES-PROJECT-GLUE
     summary: 'Extract reusable: promote glue when entity references_project a platform project'
     type: feature
@@ -1230,3 +1231,29 @@ items:
       ## Constraints
 
       - Test must use mock.patch on mempalace.miner.mine and inspect call kwargs
+  - key: PY-MULTI-IMPORT
+    summary: Handle multi-module import lines (import os, sys) in Python KG extraction
+    type: task
+    status: open
+    priority: low
+    size: S
+    section_id: quality
+    labels: [mining, kg, python]
+    description: |-
+      ## Problem
+
+      _python_type_rels() uses _PY_IMPORT_RE which captures only the first module on a multi-module import line (e.g. 'import os, sys' yields only 'os', missing 'sys'). This is uncommon in idiomatic Python but can occur in legacy or third-party code.
+
+      ## Scope
+
+      Fix _PY_IMPORT_RE to capture all comma-separated module names on a single import line.
+
+      ## Acceptance Criteria
+
+      - [ ] extract_type_relationships on 'import os, sys\n' returns both (module, depends_on, os) and (module, depends_on, sys)
+      - [ ] Existing tests for single imports still pass
+      - [ ] ruff check passes
+
+      ## Constraints
+
+      Identified in PY-TYPE-KG hardening round-1 (F-2). Low priority -- multi-module imports are uncommon in modern Python.

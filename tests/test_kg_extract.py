@@ -1283,6 +1283,14 @@ def test_py_generic_base_stripped(tmp_path):
     assert not any(t[2].startswith("Generic[") for t in triples)
 
 
+def test_py_generic_multi_param_no_spurious(tmp_path):
+    """Generic[K, V] with multiple type params must not emit spurious base name 'V]'."""
+    triples = _py(tmp_path, "class Foo(Generic[K, V]):\n    pass\n")
+    assert ("Foo", "inherits", "Generic") in triples
+    # No trailing-bracket artifact
+    assert not any("]" in t[2] for t in triples)
+
+
 def test_py_metaclass_kwarg_skipped(tmp_path):
     """metaclass=ABCMeta keyword argument is skipped, not treated as a base — AC-10."""
     triples = _py(tmp_path, "class Foo(metaclass=ABCMeta):\n    pass\n")

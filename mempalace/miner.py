@@ -2264,15 +2264,18 @@ def _python_type_rels(filepath: Path) -> list:
     # Class inheritance extraction.
     for m in _PY_CLASS_RE.finditer(text):
         type_name = m.group(1)
-        for base_raw in m.group(2).split(","):
-            base_raw = base_raw.strip()
+        # Pre-strip generic type parameters before splitting by comma to avoid
+        # comma-split inside brackets (e.g. Generic[K, V] → Generic, not Generic + V]).
+        bases_str = re.sub(r"\[.*?\]", "", m.group(2))
+        for base_raw in bases_str.split(","):
+            # Strip trailing ] left by nested generics (e.g. Mapping[str, Tuple[int]]).
+            base_raw = base_raw.strip().rstrip("]").strip()
             if not base_raw:
                 continue
             # Skip keyword arguments: metaclass=ABCMeta, total=False, etc.
             if "=" in base_raw:
                 continue
-            # Strip generic brackets: Generic[T] -> Generic
-            base_name = base_raw.split("[")[0].strip()
+            base_name = base_raw
             if not base_name or not base_name[0].isalpha():
                 continue
             pred = "implements" if base_name in _PY_ABC_BASES else "inherits"
