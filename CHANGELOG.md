@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-18 · MINE-MULTI
+
+Add `mempalace mine-all <parent-dir>` command for batch multi-project mining: scans immediate subdirectories for project markers (`.git`, `pyproject.toml`, `package.json`, `*.sln`, `go.mod`, `Cargo.toml`, `go.sum`), mines each detected project into its own wing, and reports per-project results with a summary table.
+
 ## 2026-04-18 · LOGIC-EXTRACTION
 
 Add `mempalace_extract_reusable` MCP tool: classifies transitive dependencies of a symbol/subsystem as core, platform-specific, or glue, and identifies the minimal public interface needed for safe extraction.
