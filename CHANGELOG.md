@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-18 · LOGIC-EXTRACTION
+
+Add `mempalace_extract_reusable` MCP tool: classifies transitive dependencies of a symbol/subsystem as core, platform-specific, or glue, and identifies the minimal public interface needed for safe extraction.
+
 ## 2026-04-18 · ARCH-RETRIEVAL
 
 Add `mempalace_explain_subsystem` MCP tool: combines semantic search with KG traversal to answer "how does this subsystem work?" queries, returning entry points, extracted symbols, and expanded relationships.
