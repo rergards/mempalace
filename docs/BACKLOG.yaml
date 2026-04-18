@@ -1003,7 +1003,7 @@ items:
   - key: REPO-STRUCTURE-DEFAULTS
     summary: Auto-organize wings/rooms by .sln and project structure
     type: task
-    status: open
+    status: done
     priority: medium
     size: S
     section_id: coding_first
@@ -1028,6 +1028,7 @@ items:
       - [ ] Mining .NET repo auto-creates wing from .sln name
       - [ ] Projects become rooms within the wing
       - [ ] Configurable via mempalace.yaml
+    resolution: '2026-04-18: Auto-detect .sln wing and .csproj rooms when dotnet_structure: true in mempalace.yaml; added _detect_sln_wing, _build_csproj_room_map, _normalize_room_name helpers, csproj_room_map priority in detect_room, and 19 new tests'
   - key: ARCH-EXTRACTION-MODE
     summary: 'Architecture extraction mode: produce higher-level entities'
     type: task

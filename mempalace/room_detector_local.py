@@ -10,6 +10,7 @@ No internet. No API key. Your files stay on your machine.
 """
 
 import os
+import re
 import sys
 import yaml
 from pathlib import Path
@@ -92,6 +93,39 @@ FOLDER_ROOM_MAP = {
     "infra": "configuration",
     "deploy": "configuration",
 }
+
+
+def _rooms_from_csproj(proj_files: list) -> list:
+    """Build a room list from a set of .csproj/.fsproj/.vbproj files.
+
+    De-duplicates by normalized name, returns room dicts with a "general" fallback.
+    """
+    seen: dict = {}
+    for pf in proj_files:
+        name = pf.stem.lower().replace(".", "_").replace("-", "_").replace(" ", "_")
+        name = re.sub(r"[^a-z0-9_]", "", name) or "general"
+        if name not in seen:
+            seen[name] = pf.stem
+
+    rooms = []
+    for room_name, original in seen.items():
+        rooms.append(
+            {
+                "name": room_name,
+                "description": f"Files from {original}/",
+                "keywords": [room_name],
+            }
+        )
+
+    if not any(r["name"] == "general" for r in rooms):
+        rooms.append(
+            {
+                "name": "general",
+                "description": "Files that don't fit other rooms",
+                "keywords": [],
+            }
+        )
+    return rooms
 
 
 def detect_rooms_from_folders(project_dir: str) -> list:
@@ -252,7 +286,7 @@ def get_user_approval(rooms: list) -> list:
     return rooms
 
 
-def save_config(project_dir: str, project_name: str, rooms: list):
+def save_config(project_dir: str, project_name: str, rooms: list, dotnet_structure: bool = False):
     config = {
         "wing": project_name,
         "rooms": [
@@ -264,6 +298,8 @@ def save_config(project_dir: str, project_name: str, rooms: list):
             for r in rooms
         ],
     }
+    if dotnet_structure:
+        config["dotnet_structure"] = True
     config_path = Path(project_dir).expanduser().resolve() / "mempalace.yaml"
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -288,23 +324,36 @@ def detect_rooms_local(project_dir: str, yes: bool = False):
 
     files = scan_project(project_dir)
 
-    # Try folder structure first
-    rooms = detect_rooms_from_folders(project_dir)
-    source = "folder structure"
+    dotnet_structure = False
 
-    # If only "general" found, try filename patterns
-    if len(rooms) <= 1:
-        rooms = detect_rooms_from_files(project_dir)
-        source = "filename patterns"
+    # .NET repo: detect from .csproj/.fsproj/.vbproj files first
+    csproj_files = (
+        list(project_path.glob("**/*.csproj"))
+        + list(project_path.glob("**/*.fsproj"))
+        + list(project_path.glob("**/*.vbproj"))
+    )
+    if csproj_files:
+        rooms = _rooms_from_csproj(csproj_files)
+        source = ".csproj projects"
+        dotnet_structure = True
+    else:
+        # Try folder structure first
+        rooms = detect_rooms_from_folders(project_dir)
+        source = "folder structure"
 
-    # If still nothing, just use general
-    if not rooms:
-        rooms = [{"name": "general", "description": "All project files", "keywords": []}]
-        source = "fallback (flat project)"
+        # If only "general" found, try filename patterns
+        if len(rooms) <= 1:
+            rooms = detect_rooms_from_files(project_dir)
+            source = "filename patterns"
+
+        # If still nothing, just use general
+        if not rooms:
+            rooms = [{"name": "general", "description": "All project files", "keywords": []}]
+            source = "fallback (flat project)"
 
     print_proposed_structure(project_name, rooms, len(files), source)
     if yes:
         approved_rooms = rooms
     else:
         approved_rooms = get_user_approval(rooms)
-    save_config(project_dir, project_name, approved_rooms)
+    save_config(project_dir, project_name, approved_rooms, dotnet_structure=dotnet_structure)

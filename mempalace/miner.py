@@ -434,15 +434,32 @@ def load_config(project_dir: str) -> dict:
 # =============================================================================
 
 
-def detect_room(filepath: Path, content: str, rooms: list, project_path: Path) -> str:
+def detect_room(
+    filepath: Path,
+    content: str,
+    rooms: list,
+    project_path: Path,
+    csproj_room_map: "dict[Path, str] | None" = None,
+) -> str:
     """
     Route a file to the right room.
     Priority:
+    0. .csproj-derived map lookup (when dotnet_structure is enabled)
     1. Folder path matches a room name
     2. Filename matches a room name or keyword
     3. Content keyword scoring
     4. Fallback: "general"
     """
+    # Priority 0: .csproj-derived room map
+    if csproj_room_map:
+        check = filepath.parent.resolve()
+        while check != project_path and check != check.parent:
+            if check in csproj_room_map:
+                return csproj_room_map[check]
+            check = check.parent
+        if project_path in csproj_room_map:
+            return csproj_room_map[project_path]
+
     relative = str(filepath.relative_to(project_path)).lower()
     filename = filepath.stem.lower()
     content_lower = content[:2000].lower()
@@ -1764,6 +1781,7 @@ def _collect_specs_for_file(
     agent: str,
     mined_files: Optional[set] = None,
     source_hash: str = "",
+    csproj_room_map: Optional[dict] = None,
 ) -> list:
     """Read, chunk, and prepare drawer specs for one file without writing.
 
@@ -1795,7 +1813,7 @@ def _collect_specs_for_file(
         return []
 
     language = detect_language(filepath, content)
-    room = detect_room(filepath, content, rooms, project_path)
+    room = detect_room(filepath, content, rooms, project_path, csproj_room_map=csproj_room_map)
     chunks = chunk_file(content, filepath.suffix.lower(), source_file, language=language)
 
     specs = []
@@ -2566,6 +2584,15 @@ def mine(
     wing = wing_override or config["wing"]
     rooms = config.get("rooms", [{"name": "general", "description": "All project files"}])
 
+    dotnet_structure = config.get("dotnet_structure", False)
+    csproj_room_map: dict = {}
+    if dotnet_structure:
+        if not wing_override:
+            sln_wing = _detect_sln_wing(project_path)
+            if sln_wing:
+                wing = sln_wing
+        csproj_room_map = _build_csproj_room_map(project_path)
+
     files = scan_project(
         project_dir,
         respect_gitignore=respect_gitignore,
@@ -2641,7 +2668,9 @@ def mine(
                     dry_run=True,
                 )
                 total_drawers += drawers
-                room = detect_room(filepath, "", rooms, project_path)
+                room = detect_room(
+                    filepath, "", rooms, project_path, csproj_room_map=csproj_room_map
+                )
                 room_counts[room] += 1
                 continue
 
@@ -2681,6 +2710,7 @@ def mine(
                 agent,
                 mined_files=None,
                 source_hash=current_hash,
+                csproj_room_map=csproj_room_map if csproj_room_map else None,
             )
 
             # KG triple emission for project/config/XAML/source files
@@ -2903,6 +2933,51 @@ def _normalize_wing_name(name: str) -> str:
     name = name.lower().replace("-", "_").replace(" ", "_")
     name = re.sub(r"[^a-z0-9_]", "", name)
     return name or "project"
+
+
+def _normalize_room_name(name: str) -> str:
+    """Normalize a project name to a room name.
+
+    Lowercases, replaces dots/hyphens/spaces with underscores, strips other chars.
+    E.g. MyApp.Infrastructure -> myapp_infrastructure, My-Project.Api -> my_project_api.
+    """
+    name = name.lower().replace(".", "_").replace("-", "_").replace(" ", "_")
+    name = re.sub(r"[^a-z0-9_]", "", name)
+    return name or "general"
+
+
+def _detect_sln_wing(project_path: Path) -> Optional[str]:
+    """Return a normalized wing name derived from the root-level .sln file, or None.
+
+    If multiple .sln files exist, pick the one with the most contained projects;
+    ties are broken alphabetically.
+    """
+    sln_files = sorted(project_path.glob("*.sln"))
+    if not sln_files:
+        return None
+    if len(sln_files) == 1:
+        return _normalize_wing_name(sln_files[0].stem)
+    # Multiple .sln files — sort by (-project_count, name) and take first
+    ranked = sorted(sln_files, key=lambda f: (-len(parse_sln_file(f)), f.name.lower()))
+    return _normalize_wing_name(ranked[0].stem)
+
+
+def _build_csproj_room_map(project_path: Path) -> "dict[Path, str]":
+    """Build a mapping of {project_folder: room_name} from .csproj/.fsproj/.vbproj files.
+
+    The key is the resolved parent directory of each project file.
+    The value is the normalized room name derived from the project file stem.
+    """
+    proj_files: list = []
+    for pattern in ("**/*.csproj", "**/*.fsproj", "**/*.vbproj"):
+        proj_files.extend(project_path.glob(pattern))
+
+    room_map: dict = {}
+    for pf in proj_files:
+        folder = pf.parent.resolve()
+        room_name = _normalize_room_name(pf.stem)
+        room_map[folder] = room_name
+    return room_map
 
 
 # =============================================================================

@@ -9,9 +9,12 @@ import torch
 import yaml
 
 from mempalace.miner import (
+    _build_csproj_room_map,
     _detect_batch_size,
+    _detect_sln_wing,
     add_drawers_batch,
     detect_projects,
+    detect_room,
     derive_wing_name,
     mine,
     process_file,
@@ -1833,3 +1836,242 @@ class TestDeriveWingName:
         with patch("subprocess.run", side_effect=OSError("no git")):
             result = derive_wing_name(str(proj))
         assert result == "fallback_proj"
+
+
+# =============================================================================
+# REPO-STRUCTURE-DEFAULTS — .NET auto-organisation helpers
+# =============================================================================
+
+_SLN_CONTENT_ONE_PROJECT = """\
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyApp", "MyApp\\MyApp.csproj", "{AAA}"
+EndProject
+"""
+
+_SLN_CONTENT_THREE_PROJECTS = """\
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Web", "Web\\Web.csproj", "{BBB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\\Core.csproj", "{CCC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\\Tests.csproj", "{DDD}"
+EndProject
+"""
+
+
+class TestDetectSlnWing:
+    def test_single_sln(self, tmp_path):
+        (tmp_path / "MySolution.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        assert _detect_sln_wing(tmp_path) == "mysolution"
+
+    def test_no_sln(self, tmp_path):
+        assert _detect_sln_wing(tmp_path) is None
+
+    def test_multiple_sln_picks_most_projects(self, tmp_path):
+        (tmp_path / "Small.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        (tmp_path / "Large.sln").write_text(_SLN_CONTENT_THREE_PROJECTS)
+        assert _detect_sln_wing(tmp_path) == "large"
+
+    def test_multiple_sln_tie_break_alphabetical(self, tmp_path):
+        """When both have the same number of projects, pick alphabetically first."""
+        (tmp_path / "Bravo.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        (tmp_path / "Alpha.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        assert _detect_sln_wing(tmp_path) == "alpha"
+
+    def test_normalizes_name(self, tmp_path):
+        (tmp_path / "My-Solution.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        assert _detect_sln_wing(tmp_path) == "my_solution"
+
+    def test_ignores_nested_sln(self, tmp_path):
+        """Only root-level .sln files are picked up."""
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "Nested.sln").write_text(_SLN_CONTENT_ONE_PROJECT)
+        assert _detect_sln_wing(tmp_path) is None
+
+
+class TestBuildCsprojRoomMap:
+    def test_single_csproj(self, tmp_path):
+        proj_dir = tmp_path / "MyApp"
+        proj_dir.mkdir()
+        (proj_dir / "MyApp.csproj").write_text("<Project/>")
+        room_map = _build_csproj_room_map(tmp_path)
+        assert room_map[proj_dir.resolve()] == "myapp"
+
+    def test_multiple_projects(self, tmp_path):
+        for name in ("App", "Core", "Tests"):
+            d = tmp_path / name
+            d.mkdir()
+            (d / f"{name}.csproj").write_text("<Project/>")
+        room_map = _build_csproj_room_map(tmp_path)
+        assert room_map[(tmp_path / "App").resolve()] == "app"
+        assert room_map[(tmp_path / "Core").resolve()] == "core"
+        assert room_map[(tmp_path / "Tests").resolve()] == "tests"
+
+    def test_fsproj_and_vbproj(self, tmp_path):
+        (tmp_path / "FSharpLib").mkdir()
+        (tmp_path / "FSharpLib" / "FSharpLib.fsproj").write_text("<Project/>")
+        (tmp_path / "VbApp").mkdir()
+        (tmp_path / "VbApp" / "VbApp.vbproj").write_text("<Project/>")
+        room_map = _build_csproj_room_map(tmp_path)
+        assert room_map[(tmp_path / "FSharpLib").resolve()] == "fsharplib"
+        assert room_map[(tmp_path / "VbApp").resolve()] == "vbapp"
+
+    def test_empty_when_no_projects(self, tmp_path):
+        assert _build_csproj_room_map(tmp_path) == {}
+
+    def test_normalizes_dotted_names(self, tmp_path):
+        d = tmp_path / "MyApp.Infrastructure"
+        d.mkdir()
+        (d / "MyApp.Infrastructure.csproj").write_text("<Project/>")
+        room_map = _build_csproj_room_map(tmp_path)
+        assert room_map[d.resolve()] == "myapp_infrastructure"
+
+
+class TestDetectRoomCsprojMap:
+    def test_csproj_priority_over_folder_keyword(self, tmp_path):
+        """File under a .csproj project folder → map takes precedence."""
+        proj_dir = tmp_path / "backend"
+        (proj_dir / "src").mkdir(parents=True)
+        (proj_dir / "MyService.csproj").write_text("<Project/>")
+        cs_file = proj_dir / "src" / "Foo.cs"
+        cs_file.write_text("class Foo {}")
+        room_map = {proj_dir.resolve(): "myservice"}
+        rooms = [{"name": "backend", "description": "backend room", "keywords": ["backend"]}]
+        result = detect_room(cs_file, "class Foo {}", rooms, tmp_path, csproj_room_map=room_map)
+        assert result == "myservice"
+
+    def test_csproj_no_match_falls_through(self, tmp_path):
+        """File outside any project folder → falls through to existing logic."""
+        cs_file = tmp_path / "standalone" / "Foo.cs"
+        cs_file.parent.mkdir()
+        cs_file.write_text("class Foo {}")
+        room_map = {}
+        rooms = [
+            {"name": "general", "description": "General", "keywords": []},
+        ]
+        result = detect_room(cs_file, "class Foo {}", rooms, tmp_path, csproj_room_map=room_map)
+        assert result == "general"
+
+    def test_csproj_deeply_nested_file(self, tmp_path):
+        """Deeply nested file resolves to its ancestor project folder."""
+        proj_dir = tmp_path / "MyProject"
+        nested = proj_dir / "Controllers" / "HomeController.cs"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("class HomeController {}")
+        room_map = {proj_dir.resolve(): "myproject"}
+        rooms = [{"name": "general", "description": "General", "keywords": []}]
+        result = detect_room(
+            nested, "class HomeController {}", rooms, tmp_path, csproj_room_map=room_map
+        )
+        assert result == "myproject"
+
+    def test_no_csproj_map_unchanged(self, tmp_path):
+        """When csproj_room_map is None, existing detect_room logic is used."""
+        f = tmp_path / "backend" / "app.py"
+        f.parent.mkdir()
+        f.write_text("def main(): pass")
+        rooms = [
+            {"name": "backend", "description": "Backend code", "keywords": ["backend"]},
+            {"name": "general", "description": "General", "keywords": []},
+        ]
+        result = detect_room(f, "def main(): pass", rooms, tmp_path)
+        assert result == "backend"
+
+
+class TestMineWithDotnetStructure:
+    def _make_dotnet_repo(self, project_root: Path, sln_name: str = "MySolution"):
+        """Create a minimal .NET repo structure for testing."""
+        # Solution file
+        sln_content = (
+            'Project("{FAE04EC0}") = "AppCore", "AppCore\\AppCore.csproj", "{AAA}"\n'
+            "EndProject\n"
+            'Project("{FAE04EC0}") = "AppWeb", "AppWeb\\AppWeb.csproj", "{BBB}"\n'
+            "EndProject\n"
+        )
+        (project_root / f"{sln_name}.sln").write_text(sln_content)
+
+        # Two project dirs with .csproj files
+        for proj in ("AppCore", "AppWeb"):
+            proj_dir = project_root / proj
+            proj_dir.mkdir(parents=True, exist_ok=True)
+            (proj_dir / f"{proj}.csproj").write_text("<Project/>")
+            # Add a real .cs file large enough to mine
+            cs_code = (
+                "using System;\n\nnamespace App {\n    " + "public class Stub {}\n    " * 30 + "}"
+            )
+            (proj_dir / "Stub.cs").write_text(cs_code)
+
+        # Config with dotnet_structure enabled
+        config = {
+            "wing": "placeholder",
+            "dotnet_structure": True,
+            "rooms": [
+                {"name": "appcore", "description": "AppCore project", "keywords": ["appcore"]},
+                {"name": "appweb", "description": "AppWeb project", "keywords": ["appweb"]},
+                {"name": "general", "description": "General", "keywords": []},
+            ],
+        }
+        with open(project_root / "mempalace.yaml", "w") as f:
+            yaml.dump(config, f)
+
+    def test_mine_dotnet_structure_wing(self, tmp_path):
+        """Wing is derived from the .sln filename when dotnet_structure is true."""
+        project_root = tmp_path / "dotnet_repo"
+        project_root.mkdir()
+        self._make_dotnet_repo(project_root, sln_name="MySolution")
+        palace_path = tmp_path / "palace"
+
+        mine(str(project_root), str(palace_path))
+
+        store = open_store(str(palace_path), create=False)
+        wing_room_counts = store.count_by_pair("wing", "room")
+        assert "mysolution" in wing_room_counts
+
+    def test_mine_dotnet_structure_rooms(self, tmp_path):
+        """Rooms are derived from .csproj files when dotnet_structure is true."""
+        project_root = tmp_path / "dotnet_repo"
+        project_root.mkdir()
+        self._make_dotnet_repo(project_root, sln_name="MySolution")
+        palace_path = tmp_path / "palace"
+
+        mine(str(project_root), str(palace_path))
+
+        store = open_store(str(palace_path), create=False)
+        wing_room_counts = store.count_by_pair("wing", "room")
+        all_rooms: set = set()
+        for rooms_dict in wing_room_counts.values():
+            all_rooms.update(rooms_dict.keys())
+        assert "appcore" in all_rooms or "appweb" in all_rooms
+
+    def test_mine_dotnet_structure_wing_override(self, tmp_path):
+        """--wing override wins over .sln-derived wing."""
+        project_root = tmp_path / "dotnet_repo"
+        project_root.mkdir()
+        self._make_dotnet_repo(project_root, sln_name="MySolution")
+        palace_path = tmp_path / "palace"
+
+        mine(str(project_root), str(palace_path), wing_override="my_custom_wing")
+
+        store = open_store(str(palace_path), create=False)
+        wing_room_counts = store.count_by_pair("wing", "room")
+        assert "my_custom_wing" in wing_room_counts
+        assert "mysolution" not in wing_room_counts
+
+    def test_mine_dotnet_structure_off(self, tmp_path):
+        """Without dotnet_structure, wing stays as config value."""
+        project_root = tmp_path / "normal_repo"
+        project_root.mkdir()
+
+        (project_root / "app.py").write_text("def main(): pass\n" * 30)
+        config = {
+            "wing": "my_static_wing",
+            "rooms": [{"name": "general", "description": "General", "keywords": []}],
+        }
+        with open(project_root / "mempalace.yaml", "w") as f:
+            yaml.dump(config, f)
+
+        palace_path = tmp_path / "palace"
+        mine(str(project_root), str(palace_path))
+
+        store = open_store(str(palace_path), create=False)
+        wing_room_counts = store.count_by_pair("wing", "room")
+        assert "my_static_wing" in wing_room_counts
