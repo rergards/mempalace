@@ -7,6 +7,7 @@ argparse → dispatch → storage path for the diary write subcommand.
 
 import os
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -532,3 +533,212 @@ class TestMineCommand:
             ):
                 main()
         assert mock_mine.call_args.kwargs["incremental"] is True
+
+
+# =============================================================================
+# mine-all command tests
+# =============================================================================
+
+
+def _make_initialized_project(parent: Path, name: str, git_remote: str = "") -> Path:
+    """Create a minimal initialized project directory."""
+    proj = parent / name
+    proj.mkdir()
+    (proj / ".git").mkdir()
+    (proj / "mempalace.yaml").write_text(f"wing: {name}\n")
+    return proj
+
+
+def _make_uninit_project(parent: Path, name: str) -> Path:
+    """Create a project directory without mempalace.yaml."""
+    proj = parent / name
+    proj.mkdir()
+    (proj / ".git").mkdir()
+    return proj
+
+
+class TestMineAllCommand:
+    def _run_mine_all(self, palace: str, parent_dir: str, extra_args: list = None):
+        argv = ["mempalace", "--palace", palace, "mine-all", parent_dir]
+        if extra_args:
+            argv.extend(extra_args)
+        with patch.object(sys, "argv", argv):
+            main()
+
+    def test_mine_all_basic(self, tmp_path):
+        """AC-1: 3 initialized subdirs are all mined, each into correct wing."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "alpha")
+        _make_initialized_project(dev, "beta")
+        _make_initialized_project(dev, "gamma")
+
+        mine_calls = []
+
+        def fake_mine(**kwargs):
+            mine_calls.append(kwargs)
+
+        with patch("mempalace.miner.mine", side_effect=fake_mine):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                self._run_mine_all(palace, str(dev))
+
+        assert len(mine_calls) == 3
+        wings_called = {c["wing_override"] for c in mine_calls}
+        assert "alpha" in wings_called
+        assert "beta" in wings_called
+        assert "gamma" in wings_called
+
+    def test_mine_all_dry_run(self, tmp_path, capsys):
+        """AC-2: --dry-run prints projects without calling mine() or opening store."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "proj_a")
+
+        with patch("mempalace.miner.mine") as mock_mine:
+            with patch("mempalace.storage.open_store") as mock_open_store:
+                self._run_mine_all(palace, str(dev), ["--dry-run"])
+
+        mock_mine.assert_not_called()
+        mock_open_store.assert_not_called()
+        out = capsys.readouterr().out
+        assert "proj_a" in out
+        assert "Dry run" in out or "dry run" in out.lower()
+
+    def test_mine_all_skip_existing(self, tmp_path):
+        """AC-3: wing already in palace -> skipped; others still mined."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "existing")
+        _make_initialized_project(dev, "newproj")
+
+        mine_calls = []
+
+        def fake_mine(**kwargs):
+            mine_calls.append(kwargs)
+
+        with patch("mempalace.miner.mine", side_effect=fake_mine):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {"existing": 10}
+                self._run_mine_all(palace, str(dev))
+
+        wings_called = [c["wing_override"] for c in mine_calls]
+        assert "existing" not in wings_called
+        assert "newproj" in wings_called
+
+    def test_mine_all_force_remines(self, tmp_path):
+        """AC-4: --force re-mines even when wing already exists."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "existing")
+
+        mine_calls = []
+
+        def fake_mine(**kwargs):
+            mine_calls.append(kwargs)
+
+        with patch("mempalace.miner.mine", side_effect=fake_mine):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {"existing": 10}
+                self._run_mine_all(palace, str(dev), ["--force"])
+
+        wings_called = [c["wing_override"] for c in mine_calls]
+        assert "existing" in wings_called
+
+    def test_mine_all_no_projects(self, tmp_path, capsys):
+        """AC-7: empty dir prints 'no projects found'."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+
+        with patch("mempalace.miner.mine"):
+            with patch("mempalace.storage.open_store"):
+                self._run_mine_all(palace, str(dev))
+
+        out = capsys.readouterr().out
+        assert "No projects" in out or "no projects" in out.lower()
+
+    def test_mine_all_error_continues(self, tmp_path):
+        """AC-5: one mine() raises, others still mined; summary shows 1 error."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "good")
+        _make_initialized_project(dev, "bad")
+
+        call_order = []
+
+        def fake_mine(**kwargs):
+            call_order.append(kwargs["wing_override"])
+            if kwargs["wing_override"] == "bad":
+                raise RuntimeError("oops")
+
+        with patch("mempalace.miner.mine", side_effect=fake_mine):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                with pytest.raises(SystemExit) as exc_info:
+                    self._run_mine_all(palace, str(dev))
+        assert exc_info.value.code == 1
+        assert len(call_order) == 2  # both projects were attempted
+
+    def test_mine_all_skips_uninitialized(self, tmp_path, capsys):
+        """AC-9: subdir with .git but no mempalace.yaml is skipped with warning."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_uninit_project(dev, "uninit")
+
+        with patch("mempalace.miner.mine") as mock_mine:
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                self._run_mine_all(palace, str(dev))
+
+        mock_mine.assert_not_called()
+        out = capsys.readouterr().out
+        assert "not initialized" in out or "uninit" in out
+
+    def test_mine_all_exit_code_zero_on_success(self, tmp_path):
+        """AC-10: exit code 0 when all mined/skipped successfully."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "proj")
+
+        with patch("mempalace.miner.mine"):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                # Should not raise SystemExit
+                self._run_mine_all(palace, str(dev))
+
+    def test_mine_all_exit_code_one_on_error(self, tmp_path):
+        """AC-11: exit code 1 when any project errors."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "boom")
+
+        with patch("mempalace.miner.mine", side_effect=RuntimeError("fail")):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                with pytest.raises(SystemExit) as exc_info:
+                    self._run_mine_all(palace, str(dev))
+        assert exc_info.value.code == 1
+
+    def test_mine_all_system_exit_caught(self, tmp_path):
+        """SystemExit from mine() is caught and reported, not propagated as exit(1) without summary."""
+        palace = str(tmp_path / "palace")
+        dev = tmp_path / "dev"
+        dev.mkdir()
+        _make_initialized_project(dev, "proj")
+
+        with patch("mempalace.miner.mine", side_effect=SystemExit(1)):
+            with patch("mempalace.storage.open_store") as mock_store:
+                mock_store.return_value.count_by.return_value = {}
+                with pytest.raises(SystemExit) as exc_info:
+                    self._run_mine_all(palace, str(dev))
+        # The final sys.exit(1) from cmd_mine_all's error path is what propagates
+        assert exc_info.value.code == 1

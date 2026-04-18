@@ -13,6 +13,7 @@ Commands:
     mempalace split <dir>                 Split concatenated mega-files into per-session files
     mempalace mine <dir>                  Mine project files (default)
     mempalace mine <dir> --mode convos    Mine conversation exports
+    mempalace mine-all <parent-dir>       Mine all projects in a directory
     mempalace search "query"              Find anything, exact words
     mempalace wake-up                     Show L0 + L1 wake-up context
     mempalace wake-up --wing my_app       Wake-up for a specific project
@@ -163,6 +164,116 @@ def cmd_mine(args):
             incremental=not args.full,
             kg=kg,
         )
+
+
+def cmd_mine_all(args):
+    """Mine all detected projects in a parent directory."""
+    from .miner import mine, detect_projects, derive_wing_name
+    from .knowledge_graph import KnowledgeGraph
+
+    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+
+    parent_dir = Path(args.dir).expanduser().resolve()
+    if not parent_dir.is_dir():
+        print(f"  Error: directory not found: {parent_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    projects = detect_projects(str(parent_dir))
+
+    if not projects:
+        print(f"  No projects found in {parent_dir}")
+        return
+
+    # Derive wing names for all projects
+    project_entries = []
+    for proj in projects:
+        wing_name = derive_wing_name(proj["path"])
+        project_entries.append({**proj, "wing": wing_name})
+
+    print(f"\n  Found {len(project_entries)} project(s) in {parent_dir}\n")
+
+    if args.dry_run:
+        # Dry-run: only show detected projects, never open the store
+        for entry in project_entries:
+            name = Path(entry["path"]).name
+            status = "initialized" if entry["initialized"] else "not initialized"
+            print(f"  [{status}]  {name}  ->  wing: {entry['wing']}")
+        print("\n  Dry run — no mining performed.")
+        return
+
+    # Load existing wings from the store once (not per-project)
+    try:
+        from .storage import open_store
+
+        store = open_store(palace_path, create=True)
+        existing_wings = set(store.count_by("wing").keys())
+    except Exception as e:
+        print(f"  Error opening palace at {palace_path}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    mined = 0
+    skipped = 0
+    errors: list = []
+
+    include_ignored: list = []
+    for raw in args.include_ignored or []:
+        include_ignored.extend(part.strip() for part in raw.split(",") if part.strip())
+
+    for entry in project_entries:
+        proj_path = entry["path"]
+        proj_name = Path(proj_path).name
+        wing_name = entry["wing"]
+
+        if not entry["initialized"]:
+            print(f"  SKIP  {proj_name}  (not initialized — run: mempalace init {proj_path})")
+            skipped += 1
+            continue
+
+        if wing_name in existing_wings and not args.force:
+            print(
+                f"  SKIP  {proj_name}  (wing '{wing_name}' already exists — use --force to re-mine)"
+            )
+            skipped += 1
+            continue
+
+        print(f"  MINE  {proj_name}  ->  wing: {wing_name}")
+        try:
+            kg = KnowledgeGraph()
+            mine(
+                project_dir=proj_path,
+                palace_path=palace_path,
+                wing_override=wing_name,
+                agent=args.agent,
+                limit=0,
+                dry_run=False,
+                respect_gitignore=not args.no_gitignore,
+                include_ignored=include_ignored,
+                incremental=True,
+                kg=kg,
+            )
+            existing_wings.add(wing_name)
+            mined += 1
+        except KeyboardInterrupt:
+            print("\n  Interrupted.", file=sys.stderr)
+            raise
+        except BaseException as exc:
+            errors.append((proj_name, str(exc)))
+            print(f"  ERROR {proj_name}: {exc}", file=sys.stderr)
+
+    # Print error details then summary
+    print(f"\n  {'=' * 50}")
+    print(
+        f"  Summary: found {len(project_entries)}, mined {mined}, "
+        f"skipped {skipped}, errors {len(errors)}"
+    )
+    if errors:
+        print("  Errors:")
+        for proj_name, msg in errors:
+            print(f"    {proj_name}: {msg}")
+    print(f"  {'=' * 50}\n")
+
+    if errors:
+        sys.exit(1)
 
 
 def cmd_search(args):
@@ -842,6 +953,38 @@ def main():
         help="Extraction strategy for convos mode: 'exchange' (default) or 'general' (5 memory types)",
     )
 
+    # mine-all
+    p_mine_all = sub.add_parser(
+        "mine-all", help="Mine all projects in a parent directory (one wing per project)"
+    )
+    p_mine_all.add_argument("dir", help="Parent directory containing project subdirectories")
+    p_mine_all.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List detected projects and derived wing names without mining",
+    )
+    p_mine_all.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-mine even if the wing already exists in the palace",
+    )
+    p_mine_all.add_argument(
+        "--no-gitignore",
+        action="store_true",
+        help="Don't respect .gitignore files when scanning project files",
+    )
+    p_mine_all.add_argument(
+        "--include-ignored",
+        action="append",
+        default=[],
+        help="Always scan these project-relative paths even if ignored",
+    )
+    p_mine_all.add_argument(
+        "--agent",
+        default="mempalace",
+        help="Name recorded on every drawer (default: mempalace)",
+    )
+
     # search
     p_search = sub.add_parser("search", help="Find anything, exact words")
     p_search.add_argument("query", help="What to search for")
@@ -1107,6 +1250,7 @@ def main():
     dispatch = {
         "init": cmd_init,
         "mine": cmd_mine,
+        "mine-all": cmd_mine_all,
         "split": cmd_split,
         "search": cmd_search,
         "compress": cmd_compress,

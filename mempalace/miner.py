@@ -2689,6 +2689,146 @@ def mine(
 
 
 # =============================================================================
+# MULTI-PROJECT DETECTION
+# =============================================================================
+
+# Markers that indicate a directory is a software project
+PROJECT_MARKERS = frozenset(
+    [
+        ".git",  # directory
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+        "Gemfile",
+        "composer.json",
+    ]
+)
+
+# Glob-style patterns for markers (matched via fnmatch against filenames)
+PROJECT_MARKER_GLOBS = ["*.sln", "*.csproj"]
+
+# Files that indicate mempalace has been initialized for this project
+INIT_MARKERS = frozenset(["mempalace.yaml", "mempal.yaml"])
+
+
+def detect_projects(parent_dir: str) -> list:
+    """Scan immediate subdirectories of *parent_dir* for software projects.
+
+    A directory is considered a project if it contains at least one file or
+    directory matching PROJECT_MARKERS or PROJECT_MARKER_GLOBS.  Hidden
+    directories (names starting with ``"."``) are skipped as candidates.
+
+    Returns a list of dicts sorted by folder name::
+
+        [
+            {
+                "path": "/abs/path/to/project",
+                "markers": [".git", "pyproject.toml"],
+                "initialized": True,   # mempalace.yaml / mempal.yaml present
+            },
+            ...
+        ]
+    """
+    parent = Path(parent_dir).expanduser().resolve()
+    results = []
+
+    try:
+        entries = sorted(os.listdir(parent))
+    except OSError:
+        return results
+
+    for name in entries:
+        if name.startswith("."):
+            continue  # skip hidden directories
+
+        candidate = parent / name
+        if not candidate.is_dir():
+            continue
+
+        # Collect matching markers
+        found_markers: list = []
+        try:
+            dir_contents = set(os.listdir(candidate))
+        except OSError:
+            continue
+
+        for marker in PROJECT_MARKERS:
+            if marker in dir_contents:
+                found_markers.append(marker)
+
+        for pattern in PROJECT_MARKER_GLOBS:
+            for item in dir_contents:
+                if fnmatch.fnmatch(item, pattern):
+                    found_markers.append(item)
+                    break  # one match per glob pattern is enough
+
+        if not found_markers:
+            continue
+
+        initialized = bool(dir_contents & INIT_MARKERS)
+        results.append(
+            {
+                "path": str(candidate),
+                "markers": sorted(found_markers),
+                "initialized": initialized,
+            }
+        )
+
+    return results
+
+
+def derive_wing_name(project_dir: str) -> str:
+    """Derive a wing name for *project_dir*.
+
+    Tries ``git -C <dir> remote get-url origin`` first.  Parses the URL to
+    extract the repository name (strips ``.git`` suffix).  Falls back to the
+    folder basename when git is unavailable or the remote is not set.
+
+    The returned name is lowercased and normalized so that spaces and hyphens
+    become underscores and non-alphanumeric/underscore characters are stripped.
+    This matches the convention used by ``room_detector_local.detect_rooms_local()``.
+    """
+    import subprocess
+
+    project_path = Path(project_dir).expanduser().resolve()
+
+    # Attempt to get the repo name from the git remote URL
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_path), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            # Parse HTTPS: https://github.com/user/repo.git
+            # Parse SSH:   git@github.com:user/repo.git
+            repo_name = url.rstrip("/").split("/")[-1].split(":")[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+            if repo_name:
+                return _normalize_wing_name(repo_name)
+    except Exception:
+        pass
+
+    return _normalize_wing_name(project_path.name)
+
+
+def _normalize_wing_name(name: str) -> str:
+    """Lowercase, replace spaces/hyphens with underscores, strip other special chars."""
+    name = name.lower().replace("-", "_").replace(" ", "_")
+    name = re.sub(r"[^a-z0-9_]", "", name)
+    return name or "project"
+
+
+# =============================================================================
 # STATUS
 # =============================================================================
 

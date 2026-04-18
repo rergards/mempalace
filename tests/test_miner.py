@@ -8,7 +8,15 @@ import pytest
 import torch
 import yaml
 
-from mempalace.miner import _detect_batch_size, add_drawers_batch, mine, process_file, scan_project
+from mempalace.miner import (
+    _detect_batch_size,
+    add_drawers_batch,
+    detect_projects,
+    derive_wing_name,
+    mine,
+    process_file,
+    scan_project,
+)
 from mempalace.storage import open_store
 
 
@@ -1675,3 +1683,153 @@ def test_process_file_xaml_roundtrip():
         )
     finally:
         shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# detect_projects() tests
+# =============================================================================
+
+
+class TestDetectProjects:
+    def test_detect_finds_git_dirs(self, tmp_path):
+        proj = tmp_path / "myapp"
+        proj.mkdir()
+        (proj / ".git").mkdir()
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(proj) in paths
+
+    def test_detect_finds_pyproject(self, tmp_path):
+        proj = tmp_path / "pyapp"
+        proj.mkdir()
+        (proj / "pyproject.toml").write_text("[tool.poetry]\nname='x'\n")
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(proj) in paths
+
+    def test_detect_finds_package_json(self, tmp_path):
+        proj = tmp_path / "jsapp"
+        proj.mkdir()
+        (proj / "package.json").write_text("{}")
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(proj) in paths
+
+    def test_detect_skips_non_project_dirs(self, tmp_path):
+        empty = tmp_path / "empty_dir"
+        empty.mkdir()
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(empty) not in paths
+
+    def test_detect_no_recurse(self, tmp_path):
+        # Nested project should NOT be found (only immediate children)
+        outer = tmp_path / "outer"
+        outer.mkdir()
+        (outer / "pyproject.toml").write_text("")
+        nested = outer / "nested"
+        nested.mkdir()
+        (nested / "pyproject.toml").write_text("")
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(outer) in paths
+        assert str(nested) not in paths
+
+    def test_detect_reports_initialized_flag(self, tmp_path):
+        init_proj = tmp_path / "initialized"
+        init_proj.mkdir()
+        (init_proj / ".git").mkdir()
+        (init_proj / "mempalace.yaml").write_text("wing: test\n")
+
+        uninit_proj = tmp_path / "uninit"
+        uninit_proj.mkdir()
+        (uninit_proj / ".git").mkdir()
+
+        results = detect_projects(str(tmp_path))
+        result_map = {r["path"]: r for r in results}
+
+        assert result_map[str(init_proj)]["initialized"] is True
+        assert result_map[str(uninit_proj)]["initialized"] is False
+
+    def test_detect_skips_hidden_dirs(self, tmp_path):
+        hidden = tmp_path / ".hidden"
+        hidden.mkdir()
+        (hidden / "pyproject.toml").write_text("")
+
+        results = detect_projects(str(tmp_path))
+        paths = [r["path"] for r in results]
+        assert str(hidden) not in paths
+
+    def test_detect_multiple_markers(self, tmp_path):
+        proj = tmp_path / "combo"
+        proj.mkdir()
+        (proj / ".git").mkdir()
+        (proj / "pyproject.toml").write_text("")
+
+        results = detect_projects(str(tmp_path))
+        result_map = {r["path"]: r for r in results}
+        assert ".git" in result_map[str(proj)]["markers"]
+        assert "pyproject.toml" in result_map[str(proj)]["markers"]
+
+    def test_detect_empty_parent_dir(self, tmp_path):
+        results = detect_projects(str(tmp_path))
+        assert results == []
+
+
+# =============================================================================
+# derive_wing_name() tests
+# =============================================================================
+
+
+class TestDeriveWingName:
+    def test_wing_from_git_remote_https(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "https://github.com/user/my-repo.git\n"
+            result = derive_wing_name(str(tmp_path))
+        assert result == "my_repo"
+
+    def test_wing_from_git_remote_ssh(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "git@github.com:user/cool-project.git\n"
+            result = derive_wing_name(str(tmp_path))
+        assert result == "cool_project"
+
+    def test_wing_fallback_folder_name(self, tmp_path):
+        proj = tmp_path / "my-project"
+        proj.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+            result = derive_wing_name(str(proj))
+        assert result == "my_project"
+
+    def test_wing_name_normalization(self, tmp_path):
+        proj = tmp_path / "My App 2.0"
+        proj.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+            result = derive_wing_name(str(proj))
+        # spaces become underscores, non-alnum stripped
+        assert result == "my_app_20"
+
+    def test_wing_name_no_git_suffix(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "https://github.com/org/repo\n"
+            result = derive_wing_name(str(tmp_path))
+        assert result == "repo"
+
+    def test_wing_name_git_exception_falls_back(self, tmp_path):
+        proj = tmp_path / "fallback-proj"
+        proj.mkdir()
+        with patch("subprocess.run", side_effect=OSError("no git")):
+            result = derive_wing_name(str(proj))
+        assert result == "fallback_proj"
