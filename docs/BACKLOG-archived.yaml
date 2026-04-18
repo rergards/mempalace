@@ -115,3 +115,7 @@ items:
       summary: 'Reusable logic extraction: identify core vs platform-specific code'
       resolution: '2026-04-18: 2026-04-18: Add mempalace_extract_reusable MCP tool: BFS traversal of KG outgoing edges classifying entities as core/platform/glue using PLATFORM_PACKAGE_PREFIXES/FRAMEWORK_MARKERS/KG_PREDICATES; glue promotion for types bridging core interfaces and platform deps; boundary_interfaces extraction; 12 tests'
       archived_date: "2026-04-18"
+    - key: MINE-MULTI
+      summary: Mine all projects in a directory with one command
+      resolution: '2026-04-18: Added mine-all CLI command with detect_projects() and derive_wing_name() helpers in miner.py; cmd_mine_all with --dry-run/--force/--no-gitignore flags in cli.py; 25 new tests; all 885 suite tests pass. Hardening round-1 (2026-04-18): 1 fixed (F-1 duplicate wing collision with --force), 1 backlogged (MINE-MULTI-INCLUDE-IGNORED-TEST), 0 dismissed.'
+      archived_date: "2026-04-18"

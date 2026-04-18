@@ -2226,16 +2226,88 @@ def _vbnet_type_rels(filepath: Path) -> list:
     return triples
 
 
-def extract_type_relationships(filepath: Path) -> list:
-    """Extract interface-implementation and inheritance triples from .NET source files.
+# Compiled patterns for Python type-relationship extraction.
+_PY_CLASS_RE = re.compile(r"^\s*class\s+(\w+)\s*\(([^)]*)\)\s*:", re.MULTILINE)
+_PY_IMPORT_RE = re.compile(r"^import\s+([\w.]+)", re.MULTILINE)
+_PY_FROM_IMPORT_RE = re.compile(r"^from\s+([a-zA-Z][\w.]*)\s+import\s+", re.MULTILINE)
+# Base class names that receive the 'implements' predicate in Python.
+_PY_ABC_BASES = frozenset({"ABC", "ABCMeta", "Protocol"})
 
-    Supports C# (.cs), F# (.fs/.fsi), and VB.NET (.vb). Uses regex-based heuristics
-    (no Roslyn/semantic analysis). Returns a list of (subject, predicate, object) tuples.
+
+def _python_type_rels(filepath: Path) -> list:
+    """Extract inheritance/implementation and import triples from a Python source file.
+
+    Strips ``#`` line comments first to avoid false-positive declarations inside comments.
+    Returns a list of (subject, predicate, object) tuples.
 
     Predicates:
-      - ``implements``: class/record/struct implements an interface (I-prefix heuristic)
+      - ``implements``: class inherits from ABC, ABCMeta, or Protocol
+      - ``inherits``: class inherits from any other named base class
+      - ``depends_on``: module imports another module (``import x`` and ``from x import``)
+
+    Relative imports (``from . import x``, ``from ..foo import bar``) are skipped.
+    Multiline class declarations are out of scope; single-line covers >95% of real Python.
+    """
+    try:
+        text = filepath.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    # Strip # line comments to avoid matching class declarations inside comments.
+    text = re.sub(r"#[^\n]*", "", text)
+    triples = []
+    seen: set = set()
+
+    # Module name: filename stem, or parent directory name for __init__.py.
+    stem = filepath.stem
+    module_name = filepath.parent.name if stem == "__init__" else stem
+
+    # Class inheritance extraction.
+    for m in _PY_CLASS_RE.finditer(text):
+        type_name = m.group(1)
+        for base_raw in m.group(2).split(","):
+            base_raw = base_raw.strip()
+            if not base_raw:
+                continue
+            # Skip keyword arguments: metaclass=ABCMeta, total=False, etc.
+            if "=" in base_raw:
+                continue
+            # Strip generic brackets: Generic[T] -> Generic
+            base_name = base_raw.split("[")[0].strip()
+            if not base_name or not base_name[0].isalpha():
+                continue
+            pred = "implements" if base_name in _PY_ABC_BASES else "inherits"
+            key = (type_name, pred, base_name)
+            if key not in seen:
+                seen.add(key)
+                triples.append(key)
+
+    # Import extraction — emit depends_on triples for module-level imports.
+    for m in _PY_IMPORT_RE.finditer(text):
+        key = (module_name, "depends_on", m.group(1))
+        if key not in seen:
+            seen.add(key)
+            triples.append(key)
+    for m in _PY_FROM_IMPORT_RE.finditer(text):
+        key = (module_name, "depends_on", m.group(1))
+        if key not in seen:
+            seen.add(key)
+            triples.append(key)
+
+    return triples
+
+
+def extract_type_relationships(filepath: Path) -> list:
+    """Extract interface-implementation, inheritance, and import triples from source files.
+
+    Supports C# (.cs), F# (.fs/.fsi), VB.NET (.vb), and Python (.py). Uses regex-based
+    heuristics (no semantic analysis). Returns a list of (subject, predicate, object) tuples.
+
+    Predicates:
+      - ``implements``: class/record/struct implements an interface (C#/VB: I-prefix heuristic;
+        Python: base is ABC, ABCMeta, or Protocol)
       - ``inherits``: class/record inherits a base class
-      - ``extends``: interface extends another interface
+      - ``extends``: interface extends another interface (C#/VB only)
+      - ``depends_on``: Python module imports another module
     """
     ext = filepath.suffix.lower()
     if ext == ".cs":
@@ -2244,12 +2316,14 @@ def extract_type_relationships(filepath: Path) -> list:
         return _fsharp_type_rels(filepath)
     if ext == ".vb":
         return _vbnet_type_rels(filepath)
+    if ext == ".py":
+        return _python_type_rels(filepath)
     return []
 
 
 # File extensions that trigger KG triple extraction during mining.
 _KG_EXTRACT_EXTENSIONS = frozenset(
-    {".csproj", ".fsproj", ".vbproj", ".sln", ".xaml", ".cs", ".fs", ".fsi", ".vb"}
+    {".csproj", ".fsproj", ".vbproj", ".sln", ".xaml", ".cs", ".fs", ".fsi", ".vb", ".py"}
 )
 
 # .sln project-line regex: captures (project_name, relative_path)
@@ -2613,7 +2687,7 @@ def mine(
                     triples = parse_sln_file(filepath)
                 elif ext == ".xaml":
                     triples = parse_xaml_file(filepath)
-                elif ext in (".cs", ".fs", ".fsi", ".vb"):
+                elif ext in (".cs", ".fs", ".fsi", ".vb", ".py"):
                     triples = extract_type_relationships(filepath)
                 else:
                     triples = parse_dotnet_project_file(filepath)

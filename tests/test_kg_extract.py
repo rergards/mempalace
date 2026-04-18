@@ -1212,3 +1212,281 @@ def test_cs_incoming_query_base_class(tmp_path):
     inheriting_subjects = {t["subject"] for t in incoming if t["predicate"] == "inherits"}
     assert "ChildA" in inheriting_subjects, f"Expected ChildA, got {inheriting_subjects}"
     assert "ChildB" in inheriting_subjects, f"Expected ChildB, got {inheriting_subjects}"
+
+
+# =============================================================================
+# Python type-relationship extraction — _python_type_rels / extract_type_relationships
+# =============================================================================
+
+
+def _py(tmp_path: Path, content: str) -> set:
+    """Write content to a .py file and return triples_as_set from extract_type_relationships."""
+    f = tmp_path / "Test.py"
+    f.write_text(content, encoding="utf-8")
+    return triples_as_set(extract_type_relationships(f))
+
+
+def test_py_simple_inheritance(tmp_path):
+    """class Foo(Bar): → (Foo, inherits, Bar) — AC-1."""
+    triples = _py(tmp_path, "class Foo(Bar):\n    pass\n")
+    assert ("Foo", "inherits", "Bar") in triples
+
+
+def test_py_multiple_inheritance(tmp_path):
+    """class Foo(Bar, Baz): → two inherits triples — AC-2."""
+    triples = _py(tmp_path, "class Foo(Bar, Baz):\n    pass\n")
+    assert ("Foo", "inherits", "Bar") in triples
+    assert ("Foo", "inherits", "Baz") in triples
+
+
+def test_py_abc_implements(tmp_path):
+    """class Foo(ABC): → (Foo, implements, ABC) — AC-3."""
+    triples = _py(tmp_path, "class Foo(ABC):\n    pass\n")
+    assert ("Foo", "implements", "ABC") in triples
+
+
+def test_py_protocol_implements(tmp_path):
+    """class Foo(Protocol): → (Foo, implements, Protocol) — AC-4."""
+    triples = _py(tmp_path, "class Foo(Protocol):\n    pass\n")
+    assert ("Foo", "implements", "Protocol") in triples
+
+
+def test_py_from_import_depends_on(tmp_path):
+    """from foo.bar import baz → (Test, depends_on, foo.bar) — AC-5."""
+    triples = _py(tmp_path, "from foo.bar import baz\n")
+    assert ("Test", "depends_on", "foo.bar") in triples
+
+
+def test_py_import_depends_on(tmp_path):
+    """import foo → (Test, depends_on, foo) — AC-6."""
+    triples = _py(tmp_path, "import foo\n")
+    assert ("Test", "depends_on", "foo") in triples
+
+
+def test_py_comment_skipped(tmp_path):
+    """Class declaration inside a # comment must not produce triples — AC-7."""
+    triples = _py(tmp_path, "# class Foo(Bar):\nclass Real:\n    pass\n")
+    assert len(triples) == 0
+
+
+def test_py_no_base_class(tmp_path):
+    """class Foo: (no bases) → no inheritance triples — AC-8."""
+    triples = _py(tmp_path, "class Foo:\n    pass\n")
+    assert len(triples) == 0
+
+
+def test_py_generic_base_stripped(tmp_path):
+    """Generic[T] base has brackets stripped — AC-9."""
+    triples = _py(tmp_path, "class Foo(Generic[T], Protocol):\n    pass\n")
+    assert ("Foo", "inherits", "Generic") in triples
+    assert ("Foo", "implements", "Protocol") in triples
+    assert not any(t[2].startswith("Generic[") for t in triples)
+
+
+def test_py_metaclass_kwarg_skipped(tmp_path):
+    """metaclass=ABCMeta keyword argument is skipped, not treated as a base — AC-10."""
+    triples = _py(tmp_path, "class Foo(metaclass=ABCMeta):\n    pass\n")
+    inheritance_triples = [t for t in triples if t[0] == "Foo" and t[1] in ("inherits", "implements")]
+    assert len(inheritance_triples) == 0
+
+
+def test_py_abcmeta_implements(tmp_path):
+    """class Foo(ABCMeta): → (Foo, implements, ABCMeta)."""
+    triples = _py(tmp_path, "class Foo(ABCMeta):\n    pass\n")
+    assert ("Foo", "implements", "ABCMeta") in triples
+
+
+def test_py_mixed_bases(tmp_path):
+    """class Foo(Bar, ABC): → inherits for Bar, implements for ABC."""
+    triples = _py(tmp_path, "class Foo(Bar, ABC):\n    pass\n")
+    assert ("Foo", "inherits", "Bar") in triples
+    assert ("Foo", "implements", "ABC") in triples
+
+
+def test_py_relative_import_skipped(tmp_path):
+    """Relative imports (from . import x) must not produce depends_on triples."""
+    triples = _py(tmp_path, "from . import utils\nfrom ..foo import bar\n")
+    depends_on = [t for t in triples if t[1] == "depends_on"]
+    assert len(depends_on) == 0
+
+
+def test_py_import_deduplicated(tmp_path):
+    """Same import appearing twice in a file produces only one depends_on triple."""
+    triples = _py(tmp_path, "import os\nimport os\n")
+    os_triples = [t for t in triples if t[1] == "depends_on" and t[2] == "os"]
+    assert len(os_triples) == 1
+
+
+def test_py_indented_class(tmp_path):
+    """Indented class (e.g. nested in function body) is still matched."""
+    triples = _py(tmp_path, "def outer():\n    class Inner(Base):\n        pass\n")
+    assert ("Inner", "inherits", "Base") in triples
+
+
+def test_py_init_module_name(tmp_path):
+    """__init__.py uses parent directory name as module subject."""
+    pkg_dir = tmp_path / "mypackage"
+    pkg_dir.mkdir()
+    f = pkg_dir / "__init__.py"
+    f.write_text("import os\n", encoding="utf-8")
+    triples = triples_as_set(extract_type_relationships(f))
+    assert ("mypackage", "depends_on", "os") in triples
+
+
+# =============================================================================
+# KG lifecycle — Python type-relationship triples (AC-11, AC-12, AC-14, AC-15)
+# =============================================================================
+
+
+def test_py_mine_populates_kg(tmp_path):
+    """mine() on a Python project populates KG with class inheritance triples — AC-11."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "models.py").write_text(
+        "class ChildModel(BaseModel):\n    pass\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_py_kg", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    triples = kg.query_entity("ChildModel")
+    inherits_objs = {t["object"] for t in triples if t["predicate"] == "inherits"}
+    assert "BaseModel" in inherits_objs, f"Expected BaseModel in KG, got {inherits_objs}"
+
+
+def test_py_remining_invalidates_stale_triples(tmp_path):
+    """After modifying a .py file and re-mining, old type-relationship triples are invalidated — AC-12."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    py_file = project_root / "service.py"
+    py_file.write_text(
+        "class OldService(OldBase):\n    pass\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_py_lifecycle", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    first_objs = {t["object"] for t in kg.query_entity("OldService") if t["predicate"] == "inherits"}
+    assert "OldBase" in first_objs, f"Expected OldBase after first mine, got {first_objs}"
+
+    # Replace with a different class
+    py_file.write_text(
+        "class NewService(NewBase):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    current_new = {
+        t["object"]
+        for t in kg.query_entity("NewService")
+        if t["predicate"] == "inherits" and t["current"]
+    }
+    assert "NewBase" in current_new, f"Expected NewBase, got {current_new}"
+
+    current_old = {
+        t["object"]
+        for t in kg.query_entity("OldService")
+        if t["predicate"] == "inherits" and t["current"]
+    }
+    assert len(current_old) == 0, (
+        f"OldService triples should be invalidated, still current: {current_old}"
+    )
+
+
+def test_py_stale_sweep_invalidates_triples(tmp_path):
+    """Deleting a .py file and running the stale sweep invalidates its KG triples — AC-14."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    # File must be >= MIN_CHUNK (100 chars) so it generates a drawer and appears in existing_hashes,
+    # which is a prerequisite for the stale-file sweep to detect and invalidate it.
+    py_file = project_root / "handler.py"
+    py_file.write_text(
+        "class Handler(BaseHandler):\n"
+        "    \"\"\"Handles incoming requests by delegating to the base handler logic.\"\"\"\n"
+        "\n"
+        "    def handle(self, request):\n"
+        "        return super().handle(request)\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_py_stale", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    first_triples = kg.query_entity("Handler")
+    assert any(
+        t["predicate"] == "inherits" and t["object"] == "BaseHandler" for t in first_triples
+    ), "Expected (Handler, inherits, BaseHandler) after first mine"
+
+    # Delete the .py file
+    py_file.unlink()
+
+    # Re-mine incrementally — stale sweep should invalidate the triple
+    mine(str(project_root), palace_path, kg=kg, incremental=True)
+
+    stale_triples = kg.query_entity("Handler")
+    current_inherits = [t for t in stale_triples if t["predicate"] == "inherits" and t["current"]]
+    assert len(current_inherits) == 0, (
+        f"Handler inherits triples should be invalidated after file deletion, got {current_inherits}"
+    )
+
+
+def test_py_incoming_query_base_class(tmp_path):
+    """direction='incoming' on a Python base class returns subclasses via inherits predicate — AC-15."""
+    import yaml
+    from mempalace.knowledge_graph import KnowledgeGraph
+    from mempalace.miner import mine
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "models.py").write_text(
+        "class ChildA(PyBaseRepo):\n    pass\nclass ChildB(PyBaseRepo):\n    pass\n",
+        encoding="utf-8",
+    )
+    (project_root / "mempalace.yaml").write_text(
+        yaml.dump({"wing": "test_py_incoming", "rooms": [{"name": "general", "description": "All"}]}),
+        encoding="utf-8",
+    )
+
+    palace_path = str(tmp_path / "palace")
+    kg = KnowledgeGraph(db_path=str(tmp_path / "kg.sqlite3"))
+
+    mine(str(project_root), palace_path, kg=kg, incremental=False)
+
+    incoming = kg.query_entity("PyBaseRepo", direction="incoming")
+    inheriting_subjects = {t["subject"] for t in incoming if t["predicate"] == "inherits"}
+    assert "ChildA" in inheriting_subjects, f"Expected ChildA, got {inheriting_subjects}"
+    assert "ChildB" in inheriting_subjects, f"Expected ChildB, got {inheriting_subjects}"

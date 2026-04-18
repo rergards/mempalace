@@ -1137,7 +1137,7 @@ items:
   - key: PY-TYPE-KG
     summary: Python type extraction to KG (class inheritance, imports)
     type: feature
-    status: open
+    status: done
     priority: highest
     section_id: pre_release
     labels: [mining, kg, python]
@@ -1175,54 +1175,7 @@ items:
 
       - mempalace/miner.py (add extract_python_symbol_relationships)
       - tests/test_miner.py (Python KG extraction tests)
-  - key: MINE-MULTI
-    summary: Mine all projects in a directory with one command
-    type: feature
-    status: done
-    priority: highest
-    section_id: pre_release
-    labels: [mining, cli]
-    size: M
-    description: |
-      ## Problem
-
-      User has multiple projects in ~/dev/. Currently must run `mempalace mine` separately for each. Want one command to mine all, with each project as its own wing. Cross-project knowledge search and relationship discovery requires all projects in the same palace.
-
-      ## Scope
-
-      New CLI: `mempalace mine-all <parent-dir>` or `mempalace mine --all <parent-dir>`
-      - Scan immediate subdirectories for project markers (.git, pyproject.toml, package.json, *.sln, go.mod)
-      - Mine each detected project into its own wing (auto-name from folder or git remote)
-      - Skip already-mined projects unless --force
-      - Report summary: projects found, mined, skipped, errors
-
-      Wing auto-naming:
-      - Prefer git remote origin (github.com/user/repo -> repo)
-      - Fallback to folder name
-      - Conflict resolution: append suffix if wing exists from different path
-
-      ## Non-goals
-
-      - Recursive descent into nested projects (only immediate children)
-      - Parallel mining (sequential for v1, parallel later)
-      - Auto-detection of monorepo subprojects
-
-      ## Acceptance criteria
-
-      - [ ] `mempalace mine-all ~/dev` mines all projects in ~/dev
-      - [ ] Each project gets its own wing
-      - [ ] Wing names derived from git remote or folder
-      - [ ] --dry-run shows what would be mined without mining
-      - [ ] --force re-mines even if wing exists
-      - [ ] Summary shows: found X projects, mined Y, skipped Z
-      - [ ] Tests for: basic multi-mine, skip existing, force re-mine, no projects found
-
-      ## Files to touch
-
-      - mempalace/cli.py (add mine-all command or --all flag)
-      - mempalace/miner.py (wing auto-naming helper)
-      - tests/test_cli.py (mine-all tests)
-    resolution: '2026-04-18: Added mine-all CLI command with detect_projects() and derive_wing_name() helpers in miner.py; cmd_mine_all with --dry-run/--force/--no-gitignore flags in cli.py; 25 new tests; all 885 suite tests pass. Hardening round-1 (2026-04-18): 1 fixed (F-1 duplicate wing collision with --force), 1 backlogged (MINE-MULTI-INCLUDE-IGNORED-TEST), 0 dismissed.'
+    resolution: '2026-04-18: Added _python_type_rels() to miner.py: class inheritance/ABC/Protocol extraction (implements/inherits predicates), import extraction (depends_on), .py added to _KG_EXTRACT_EXTENSIONS and mine() dispatch; 22 new tests covering all 15 ACs; all 906 suite tests pass'
   - key: EXTRACT-REUSABLE-REFERENCES-PROJECT-GLUE
     summary: 'Extract reusable: promote glue when entity references_project a platform project'
     type: feature
