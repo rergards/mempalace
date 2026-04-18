@@ -1286,7 +1286,9 @@ def test_py_generic_base_stripped(tmp_path):
 def test_py_metaclass_kwarg_skipped(tmp_path):
     """metaclass=ABCMeta keyword argument is skipped, not treated as a base — AC-10."""
     triples = _py(tmp_path, "class Foo(metaclass=ABCMeta):\n    pass\n")
-    inheritance_triples = [t for t in triples if t[0] == "Foo" and t[1] in ("inherits", "implements")]
+    inheritance_triples = [
+        t for t in triples if t[0] == "Foo" and t[1] in ("inherits", "implements")
+    ]
     assert len(inheritance_triples) == 0
 
 
@@ -1379,7 +1381,9 @@ def test_py_remining_invalidates_stale_triples(tmp_path):
         encoding="utf-8",
     )
     (project_root / "mempalace.yaml").write_text(
-        yaml.dump({"wing": "test_py_lifecycle", "rooms": [{"name": "general", "description": "All"}]}),
+        yaml.dump(
+            {"wing": "test_py_lifecycle", "rooms": [{"name": "general", "description": "All"}]}
+        ),
         encoding="utf-8",
     )
 
@@ -1388,7 +1392,9 @@ def test_py_remining_invalidates_stale_triples(tmp_path):
 
     mine(str(project_root), palace_path, kg=kg, incremental=False)
 
-    first_objs = {t["object"] for t in kg.query_entity("OldService") if t["predicate"] == "inherits"}
+    first_objs = {
+        t["object"] for t in kg.query_entity("OldService") if t["predicate"] == "inherits"
+    }
     assert "OldBase" in first_objs, f"Expected OldBase after first mine, got {first_objs}"
 
     # Replace with a different class
@@ -1430,7 +1436,7 @@ def test_py_stale_sweep_invalidates_triples(tmp_path):
     py_file = project_root / "handler.py"
     py_file.write_text(
         "class Handler(BaseHandler):\n"
-        "    \"\"\"Handles incoming requests by delegating to the base handler logic.\"\"\"\n"
+        '    """Handles incoming requests by delegating to the base handler logic."""\n'
         "\n"
         "    def handle(self, request):\n"
         "        return super().handle(request)\n",
@@ -1477,7 +1483,9 @@ def test_py_incoming_query_base_class(tmp_path):
         encoding="utf-8",
     )
     (project_root / "mempalace.yaml").write_text(
-        yaml.dump({"wing": "test_py_incoming", "rooms": [{"name": "general", "description": "All"}]}),
+        yaml.dump(
+            {"wing": "test_py_incoming", "rooms": [{"name": "general", "description": "All"}]}
+        ),
         encoding="utf-8",
     )
 
