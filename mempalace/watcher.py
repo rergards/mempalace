@@ -149,10 +149,10 @@ def watch_and_mine(
 
     print(f"  Watching: {project_path}")
     print(f"  Palace:   {palace_path}")
-    print("  Running initial mine...")
+    print("  Initial mine...", flush=True)
 
     # Initial incremental mine — brings the palace up to date before watching.
-    mine(
+    stats = _quiet_mine(
         project_dir=str(project_path),
         palace_path=palace_path,
         wing_override=wing_override,
@@ -164,6 +164,12 @@ def watch_and_mine(
         incremental=True,
         kg=kg,
     )
+    filed = stats.get("drawers_filed", 0)
+    if filed:
+        print(
+            f"    {stats['files_processed']} file(s), {filed} drawer(s)",
+            flush=True,
+        )
 
     print("  Watching for changes... (Ctrl-C to stop)", flush=True)
 
@@ -273,6 +279,10 @@ def _quiet_mine(**kwargs) -> dict:
         os.dup2(devnull, 2)
         return mine(**kwargs) or {}
     finally:
+        # Flush Python buffers while fds still point to /dev/null,
+        # otherwise buffered text leaks to real stdout on restore.
+        sys.stdout.flush()
+        sys.stderr.flush()
         os.dup2(old_out, 1)
         os.dup2(old_err, 2)
         os.close(devnull)
@@ -355,12 +365,13 @@ def watch_all(
         print(f"    {pp.name} -> {project_map[pp]}")
     print(f"  Palace: {palace_path}")
 
-    # Initial incremental mine for all projects — skip per-project optimize,
-    # run a single optimize at the end to avoid N costly compaction passes.
-    print("  Running initial mine...")
+    # Initial incremental mine for all projects — quiet, with a summary line
+    # per project that actually had changes.
+    print("  Initial mine...", flush=True)
+    total_init_filed = 0
     for proj_path, wing in project_map.items():
         kg = KnowledgeGraph()
-        mine(
+        stats = _quiet_mine(
             project_dir=str(proj_path),
             palace_path=palace_path,
             wing_override=wing,
@@ -372,9 +383,17 @@ def watch_all(
             kg=kg,
             skip_optimize=True,
         )
+        filed = stats.get("drawers_filed", 0)
+        total_init_filed += filed
+        if filed:
+            print(
+                f"    {wing}: {stats['files_processed']} file(s), {filed} drawer(s)",
+                flush=True,
+            )
 
-    # Single optimize after all initial mines
-    _optimize_once(palace_path, open_store)
+    # Single optimize after all initial mines (only if something was filed)
+    if total_init_filed:
+        _optimize_once(palace_path, open_store)
 
     print("  Watching for changes... (Ctrl-C to stop)", flush=True)
 
