@@ -14,6 +14,8 @@ Commands:
     mempalace mine <dir>                  Mine project files (default)
     mempalace mine <dir> --mode convos    Mine conversation exports
     mempalace mine-all <parent-dir>       Mine all projects in a directory
+    mempalace watch <parent-dir>          Watch all projects for changes, re-mine automatically
+    mempalace watch <parent-dir> schedule Print launchd/cron snippet for watch daemon
     mempalace search "query"              Find anything, exact words
     mempalace wake-up                     Show L0 + L1 wake-up context
     mempalace wake-up --wing my_app       Wake-up for a specific project
@@ -770,6 +772,75 @@ def cmd_compress(args):
         print("  (dry run -- nothing stored)")
 
 
+def cmd_watch(args):
+    watch_command = getattr(args, "watch_command", None)
+    if watch_command == "schedule":
+        cmd_watch_schedule(args)
+        return
+
+    # Default: run the watcher
+    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+
+    try:
+        from .watcher import watch_all
+    except ImportError as exc:
+        print(f"  Error importing watcher: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    watch_all(
+        parent_dir=args.dir,
+        palace_path=palace_path,
+        agent=args.agent,
+        respect_gitignore=not args.no_gitignore,
+    )
+
+
+def cmd_watch_schedule(args):
+    import sys as _sys
+
+    if getattr(args, "install", False):
+        print(
+            "  owner action required: --install is not supported.\n"
+            "  Print the snippet with 'mempalace watch <dir> schedule'\n"
+            "  then install it yourself with: launchctl load <plist> (macOS)\n"
+            "  or: crontab -e (Linux).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    platform = _sys.platform
+    if platform.startswith("darwin"):
+        platform = "darwin"
+    elif platform.startswith("linux"):
+        platform = "linux"
+    else:
+        print(
+            f"  Error: watch scheduling is not supported on {_sys.platform}.\n"
+            "  'mempalace watch schedule' works on macOS (launchd) and Linux (cron) only.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    from .watcher import render_watch_schedule
+
+    try:
+        snippet = render_watch_schedule(args.dir, platform)
+    except ValueError as exc:
+        print(f"  Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(snippet, end="")
+    if platform == "darwin":
+        plist_path = "~/Library/LaunchAgents/com.mempalace.watch.plist"
+        print("\n  # To install:")
+        print(f"  #   mempalace watch {args.dir} schedule > {plist_path}")
+        print(f"  #   launchctl load {plist_path}")
+        print("  # To stop:")
+        print(f"  #   launchctl unload {plist_path}")
+    else:
+        print("\n  # To install: crontab -e  (paste the line above)")
+
+
 def cmd_backup_create(args):
     from .backup import create_backup
 
@@ -1190,6 +1261,38 @@ def main():
         help="Re-download even if already cached",
     )
 
+    # watch
+    p_watch = sub.add_parser(
+        "watch",
+        help="Watch all initialized projects for changes and re-mine automatically",
+    )
+    p_watch.add_argument(
+        "dir",
+        help="Parent directory containing project subdirectories",
+    )
+    p_watch.add_argument(
+        "--no-gitignore",
+        action="store_true",
+        help="Don't respect .gitignore files when scanning project files",
+    )
+    p_watch.add_argument(
+        "--agent",
+        default="mempalace",
+        help="Name recorded on every drawer (default: mempalace)",
+    )
+    watch_sub = p_watch.add_subparsers(dest="watch_command")
+
+    # watch schedule
+    p_watch_schedule = watch_sub.add_parser(
+        "schedule",
+        help="Print a scheduler snippet (launchd plist or cron line) for the watch daemon",
+    )
+    p_watch_schedule.add_argument(
+        "--install",
+        action="store_true",
+        help="(Accepted but rejected with an explanation — owner action required)",
+    )
+
     # backup
     p_backup = sub.add_parser(
         "backup",
@@ -1324,6 +1427,7 @@ def main():
         "init": cmd_init,
         "mine": cmd_mine,
         "mine-all": cmd_mine_all,
+        "watch": cmd_watch,
         "split": cmd_split,
         "search": cmd_search,
         "compress": cmd_compress,
