@@ -792,6 +792,7 @@ def cmd_watch(args):
         palace_path=palace_path,
         agent=args.agent,
         respect_gitignore=not args.no_gitignore,
+        on_commit=not getattr(args, "on_save", False),
     )
 
 
@@ -1279,6 +1280,11 @@ def main():
         "--agent",
         default="mempalace",
         help="Name recorded on every drawer (default: mempalace)",
+    )
+    p_watch.add_argument(
+        "--on-save",
+        action="store_true",
+        help="Re-mine on every file save instead of only on git commits (noisier)",
     )
     watch_sub = p_watch.add_subparsers(dest="watch_command")
 

@@ -134,10 +134,11 @@ Mining is **incremental** by default — content-hash based, only changed files 
 
 ### Auto-Watch
 
-Keep your palace in sync automatically — watches all initialized projects for file changes and re-mines incrementally (5s debounce, Rust-backed fsevents/inotify).
+Keep your palace in sync automatically. By default, watches `.git/refs/heads/` and re-mines only on **commit** — no noise from work-in-progress saves. Handles multiple branches and worktrees.
 
 ```bash
-mempalace watch ~/projects/                      # watch all projects (foreground)
+mempalace watch ~/projects/                      # watch all projects (on commit, default)
+mempalace watch ~/projects/ --on-save            # watch all file saves instead (noisier)
 mempalace watch ~/projects/ schedule             # print launchd/cron snippet for daemon
 ```
 

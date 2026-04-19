@@ -255,17 +255,35 @@ def _optimize_once(palace_path: str, open_store_fn) -> None:
         print(f" skipped ({exc})", flush=True)
 
 
+def _resolve_git_watch_paths(project_map: dict) -> dict:
+    """Build a mapping from .git/refs/heads/ paths to project paths.
+
+    Returns {git_refs_path: proj_path} for projects that have a .git/refs/heads/ dir.
+    Projects without git are silently skipped.
+    """
+    git_to_project: dict = {}
+    for proj_path in project_map:
+        refs_dir = proj_path / ".git" / "refs" / "heads"
+        if refs_dir.is_dir():
+            git_to_project[refs_dir] = proj_path
+    return git_to_project
+
+
 def watch_all(
     parent_dir: str,
     palace_path: str,
     agent: str = "mempalace",
     respect_gitignore: bool = True,
+    on_commit: bool = True,
 ) -> None:
-    """Watch all initialized projects under *parent_dir* for file changes.
+    """Watch all initialized projects under *parent_dir* and re-mine on changes.
 
-    Discovers projects via ``detect_projects()``, filters to initialized ones,
-    then watches all directories in a single ``watchfiles.watch()`` call.
-    On each change batch, routes events to the correct project and re-mines it.
+    When *on_commit* is True (default), only watches ``.git/refs/heads/`` for
+    each project — triggers re-mine only when a commit, merge, or rebase occurs.
+    This avoids re-mining half-written work-in-progress files.
+
+    When *on_commit* is False, watches the full project tree and re-mines on
+    any file save (5s debounce).
 
     Blocks until SIGTERM or KeyboardInterrupt.
 
@@ -301,16 +319,15 @@ def watch_all(
 
     # Build project path -> wing name mapping
     project_map: dict = {}  # resolved Path -> wing name
-    watch_paths: list = []
     for proj in initialized:
         proj_path = Path(proj["path"]).resolve()
         wing = derive_wing_name(proj["path"])
         project_map[proj_path] = wing
-        watch_paths.append(str(proj_path))
 
-    print(f"  Watching {len(watch_paths)} project(s):")
-    for wp in sorted(watch_paths):
-        print(f"    {Path(wp).name} -> {project_map[Path(wp)]}")
+    mode_label = "on commit" if on_commit else "on file save"
+    print(f"  Watching {len(project_map)} project(s) ({mode_label}):")
+    for pp in sorted(project_map):
+        print(f"    {pp.name} -> {project_map[pp]}")
     print(f"  Palace: {palace_path}")
 
     # Initial incremental mine for all projects — skip per-project optimize,
@@ -336,6 +353,20 @@ def watch_all(
 
     print("  Watching for changes... (Ctrl-C to stop)")
 
+    # Determine what to watch
+    if on_commit:
+        git_to_project = _resolve_git_watch_paths(project_map)
+        if not git_to_project:
+            print("  Error: no git repos found among initialized projects.", file=sys.stderr)
+            sys.exit(1)
+        watch_paths = [str(p) for p in git_to_project]
+        skipped = len(project_map) - len(git_to_project)
+        if skipped:
+            print(f"  ({skipped} project(s) without .git skipped)")
+    else:
+        watch_paths = [str(p) for p in project_map]
+        git_to_project = {}
+
     matcher_cache: dict = {}
     shutdown_event = threading.Event()
     original_sigterm = signal.getsignal(signal.SIGTERM)
@@ -355,52 +386,83 @@ def watch_all(
             debounce=5000,
             stop_event=shutdown_event,
         ):
-            _invalidate_gitignore_cache(changes, matcher_cache)
+            if on_commit:
+                # In on-commit mode, any change under .git/refs/heads/ means
+                # a commit happened. Find which project(s) and re-mine them.
+                triggered: dict = {}  # proj_path -> wing
+                for _change_type, path in changes:
+                    file_path = Path(path)
+                    for refs_dir, proj_path in git_to_project.items():
+                        try:
+                            file_path.relative_to(refs_dir)
+                            triggered[proj_path] = project_map[proj_path]
+                        except ValueError:
+                            continue
 
-            # Group changes by project
-            by_project: dict = {}  # proj_path -> list of (change_type, path)
-            for change_type, path in changes:
-                file_path = Path(path)
-                for proj_path in project_map:
-                    try:
-                        file_path.relative_to(proj_path)
-                    except ValueError:
-                        continue
-                    if _is_relevant_change(
-                        path,
-                        proj_path,
+                for proj_path, wing in triggered.items():
+                    print(f"  [commit in {wing}] re-mining...")
+                    kg = KnowledgeGraph()
+                    mine(
+                        project_dir=str(proj_path),
+                        palace_path=palace_path,
+                        wing_override=wing,
+                        agent=agent,
+                        limit=0,
+                        dry_run=False,
                         respect_gitignore=respect_gitignore,
-                        matcher_cache=matcher_cache,
-                    ):
-                        by_project.setdefault(proj_path, []).append((change_type, path))
-                    break
+                        incremental=True,
+                        kg=kg,
+                        skip_optimize=True,
+                    )
+                    cycles += 1
+                    event_count += 1
+            else:
+                # File-save mode: filter and group by project
+                _invalidate_gitignore_cache(changes, matcher_cache)
 
-            if not by_project:
-                continue
+                by_project: dict = {}
+                for change_type, path in changes:
+                    file_path = Path(path)
+                    for proj_path in project_map:
+                        try:
+                            file_path.relative_to(proj_path)
+                        except ValueError:
+                            continue
+                        if _is_relevant_change(
+                            path,
+                            proj_path,
+                            respect_gitignore=respect_gitignore,
+                            matcher_cache=matcher_cache,
+                        ):
+                            by_project.setdefault(proj_path, []).append((change_type, path))
+                        break
 
-            for proj_path, relevant in by_project.items():
-                wing = project_map[proj_path]
-                names = [Path(p).name for _, p in relevant]
-                preview = ", ".join(names[:3])
-                if len(relevant) > 3:
-                    preview += f" (+{len(relevant) - 3} more)"
-                print(f"  [{wing}: {len(relevant)} change(s): {preview}] re-mining...")
+                if not by_project:
+                    continue
 
-                kg = KnowledgeGraph()
-                mine(
-                    project_dir=str(proj_path),
-                    palace_path=palace_path,
-                    wing_override=wing,
-                    agent=agent,
-                    limit=0,
-                    dry_run=False,
-                    respect_gitignore=respect_gitignore,
-                    incremental=True,
-                    kg=kg,
-                    skip_optimize=True,
-                )
-                cycles += 1
-                event_count += len(relevant)
+                for proj_path, relevant in by_project.items():
+                    wing = project_map[proj_path]
+                    names = [Path(p).name for _, p in relevant]
+                    preview = ", ".join(names[:3])
+                    if len(relevant) > 3:
+                        preview += f" (+{len(relevant) - 3} more)"
+                    print(f"  [{wing}: {len(relevant)} change(s): {preview}] re-mining...")
+
+                    kg = KnowledgeGraph()
+                    mine(
+                        project_dir=str(proj_path),
+                        palace_path=palace_path,
+                        wing_override=wing,
+                        agent=agent,
+                        limit=0,
+                        dry_run=False,
+                        respect_gitignore=respect_gitignore,
+                        incremental=True,
+                        kg=kg,
+                        skip_optimize=True,
+                    )
+                    cycles += 1
+                    event_count += len(relevant)
 
             # Optimize once per watch batch (not per-project)
             _optimize_once(palace_path, open_store)
@@ -413,7 +475,7 @@ def watch_all(
     elapsed = time.monotonic() - start_time
     print(
         f"\n  Watch stopped after {elapsed:.0f}s — "
-        f"{cycles} re-mine cycle(s), {event_count} file event(s) "
+        f"{cycles} re-mine cycle(s), {event_count} event(s) "
         f"across {len(project_map)} project(s)."
     )
 
