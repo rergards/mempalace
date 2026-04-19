@@ -9,6 +9,7 @@ Install the optional extra before use:
     pip install 'mempalace[watch]'
 """
 
+import os
 import signal
 import sys
 import threading
@@ -209,13 +210,7 @@ def watch_and_mine(
             if not relevant:
                 continue
 
-            names = [Path(p).name for _, p in relevant]
-            preview = ", ".join(names[:3])
-            if len(relevant) > 3:
-                preview += f" (+{len(relevant) - 3} more)"
-            print(f"  [{len(relevant)} change(s): {preview}] re-mining...")
-
-            mine(
+            stats = _quiet_mine(
                 project_dir=str(project_path),
                 palace_path=palace_path,
                 wing_override=wing_override,
@@ -228,6 +223,19 @@ def watch_and_mine(
                 kg=kg,
                 skip_optimize=True,
             )
+            filed = stats.get("drawers_filed", 0)
+            if filed:
+                names = [Path(p).name for _, p in relevant]
+                preview = ", ".join(names[:3])
+                if len(relevant) > 3:
+                    preview += f" (+{len(relevant) - 3} more)"
+                secs = stats.get("elapsed_secs", 0)
+                print(
+                    f"  [{len(relevant)} change(s): {preview}] "
+                    f"{stats['files_processed']} file(s), "
+                    f"{filed} drawer(s) ({secs:.0f}s)",
+                    flush=True,
+                )
             cycles += 1
             event_count += len(relevant)
 
@@ -253,6 +261,23 @@ def _optimize_once(palace_path: str, open_store_fn) -> None:
         print(f" done ({time.time() - t0:.1f}s)", flush=True)
     except Exception as exc:
         print(f" skipped ({exc})", flush=True)
+
+
+def _quiet_mine(**kwargs) -> dict:
+    """Run mine() with stdout/stderr suppressed; return stats dict."""
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    old_out = os.dup(1)
+    old_err = os.dup(2)
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        return mine(**kwargs) or {}
+    finally:
+        os.dup2(old_out, 1)
+        os.dup2(old_err, 2)
+        os.close(devnull)
+        os.close(old_out)
+        os.close(old_err)
 
 
 def _resolve_git_watch_paths(project_map: dict) -> dict:
@@ -392,6 +417,8 @@ def watch_all(
             debounce=5000,
             stop_event=shutdown_event,
         ):
+            batch_filed = 0
+
             if on_commit:
                 # In on-commit mode, any change under .git/refs/heads/ means
                 # a commit happened. Find which project(s) and re-mine them.
@@ -406,9 +433,8 @@ def watch_all(
                             continue
 
                 for proj_path, wing in triggered.items():
-                    print(f"  [commit in {wing}] re-mining...", flush=True)
                     kg = KnowledgeGraph()
-                    mine(
+                    stats = _quiet_mine(
                         project_dir=str(proj_path),
                         palace_path=palace_path,
                         wing_override=wing,
@@ -420,6 +446,16 @@ def watch_all(
                         kg=kg,
                         skip_optimize=True,
                     )
+                    filed = stats.get("drawers_filed", 0)
+                    batch_filed += filed
+                    if filed:
+                        secs = stats.get("elapsed_secs", 0)
+                        print(
+                            f"  [commit in {wing}] "
+                            f"{stats['files_processed']} file(s), "
+                            f"{filed} drawer(s) ({secs:.0f}s)",
+                            flush=True,
+                        )
                     cycles += 1
                     event_count += 1
             else:
@@ -448,14 +484,8 @@ def watch_all(
 
                 for proj_path, relevant in by_project.items():
                     wing = project_map[proj_path]
-                    names = [Path(p).name for _, p in relevant]
-                    preview = ", ".join(names[:3])
-                    if len(relevant) > 3:
-                        preview += f" (+{len(relevant) - 3} more)"
-                    print(f"  [{wing}: {len(relevant)} change(s): {preview}] re-mining...")
-
                     kg = KnowledgeGraph()
-                    mine(
+                    stats = _quiet_mine(
                         project_dir=str(proj_path),
                         palace_path=palace_path,
                         wing_override=wing,
@@ -467,11 +497,22 @@ def watch_all(
                         kg=kg,
                         skip_optimize=True,
                     )
+                    filed = stats.get("drawers_filed", 0)
+                    batch_filed += filed
+                    if filed:
+                        secs = stats.get("elapsed_secs", 0)
+                        print(
+                            f"  [{wing}: {len(relevant)} change(s)] "
+                            f"{stats['files_processed']} file(s), "
+                            f"{filed} drawer(s) ({secs:.0f}s)",
+                            flush=True,
+                        )
                     cycles += 1
                     event_count += len(relevant)
 
-            # Optimize once per watch batch (not per-project)
-            _optimize_once(palace_path, open_store)
+            # Optimize only when something was actually filed
+            if batch_filed:
+                _optimize_once(palace_path, open_store)
 
     except KeyboardInterrupt:
         pass

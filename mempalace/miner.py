@@ -2881,6 +2881,13 @@ def mine(
     print('\n  Next: mempalace search "what you\'re looking for"')
     print(f"{'=' * 55}\n")
 
+    return {
+        "files_processed": len(files) - files_skipped,
+        "files_skipped": files_skipped,
+        "drawers_filed": total_drawers,
+        "elapsed_secs": elapsed,
+    }
+
 
 # =============================================================================
 # MULTI-PROJECT DETECTION
