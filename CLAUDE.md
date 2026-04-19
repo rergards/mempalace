@@ -2,7 +2,7 @@
 
 ## Stack
 
-- **Python** 3.9+ (supports 3.9–3.12)
+- **Python** 3.11+ (supports 3.11–3.14)
 - **Storage**: LanceDB (core, crash-safe vector DB — no server required)
 - **Embeddings**: sentence-transformers (local, no API key)
 - **Config**: PyYAML

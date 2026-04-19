@@ -3,7 +3,7 @@ name = "mempalace-code"
 version = "1.4.0"
 description = "Developer memory tool — mine codebases and conversations into a LanceDB-backed searchable palace. No API key required."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [
     {name = "Aleksandr Markov", email = "rergards@gmail.com"},
@@ -21,7 +21,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -71,7 +71,7 @@ packages = ["mempalace"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
@@ -81,7 +81,7 @@ ignore = ["E501"]
 quote-style = "double"
 
 [tool.pyright]
-pythonVersion = "3.9"
+pythonVersion = "3.11"
 include = ["mempalace", "tests"]
 typeCheckingMode = "basic"
 reportMissingImports = true
