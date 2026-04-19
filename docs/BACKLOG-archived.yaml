@@ -144,3 +144,7 @@ items:
       summary: Handle C# multi-line base-type declarations in type-relationship extraction
       resolution: '2026-04-19: 2026-04-19: Added _join_continuation_lines helper in miner.py; called in _csharp_type_rels after comment stripping so multi-line C# base-type declarations produce KG triples. 4 new tests covering AC-1 through AC-5; zero regressions.'
       archived_date: "2026-04-19"
+    - key: MINE-XAML-NAME-ATTR
+      summary: Track plain Name= attribute as well as x:Name for has_named_control triples
+      resolution: '2026-04-19: Updated parse_xaml_file() section 3 to collect both x:Name and plain Name= per element into a set before emitting has_named_control triples; added 2 regression tests (plain Name= and same-value dedup). All 189 tests pass.'
+      archived_date: "2026-04-19"
