@@ -152,3 +152,11 @@ items:
       summary: Extract function names from Kotlin generic functions with deeply nested receiver types
       resolution: '2026-04-19: Replaced [^>]+ with (?:[^<>]|<[^<>]*>)* in fun regex; added 2 tests for depth-2 generic nesting (AC-1, AC-2); all 176 symbol extract tests pass'
       archived_date: "2026-04-19"
+    - key: MINE-BIN-SKIP-DIRS
+      summary: bin/ in SKIP_DIRS silently excludes non-.NET script directories
+      resolution: '2026-04-19: Remove bin from global SKIP_DIRS; add _is_dotnet_project() helper; skip bin/ conditionally in scan_project() when .NET markers present. Hardened round-1: fixed weak .dll test fixture in test_bin_dir_skipped_when_sln_at_root.'
+      archived_date: "2026-04-19"
+    - key: CLARIFY-MINE-BIN-SKIP-DIRS
+      summary: Clarify scope for MINE-BIN-SKIP-DIRS before planning can proceed
+      resolution: '2026-04-19: Owner decision: implement per-project detection — skip bin/ only when .NET markers (.csproj, .sln, .fsproj, .vbproj) are present. Add non-.NET regression test.'
+      archived_date: "2026-04-19"

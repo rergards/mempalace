@@ -868,33 +868,6 @@ items:
       - [ ] extract_symbol('public int Count => _items.Count;\n', 'csharp') returns ('Count', 'property')
       - [ ] chunk_code() creates a boundary at expression-bodied property declarations
       - [ ] Existing tests unaffected
-  - key: MINE-BIN-SKIP-DIRS
-    summary: bin/ in SKIP_DIRS silently excludes non-.NET script directories
-    type: task
-    status: done
-    priority: low
-    size: S
-    section_id: immediate
-    labels: [miner]
-    description: |-
-      ## Problem
-      bin/ in SKIP_DIRS silently excludes non-.NET script directories. Added by MINE-DOTNET globally.
-
-      ## Decision
-      Implement per-project detection (Option A). Skip bin/ only when .NET project markers (.csproj, .sln, .fsproj, .vbproj) are present in the project root.
-
-      ## Scope
-      - Remove 'bin' from global SKIP_DIRS
-      - Add .NET-specific skip logic in scan_project() that checks for project markers
-      - Keep obj/ as global skip (only .NET uses obj/)
-
-      ## Acceptance criteria
-      - A project with bin/ scripts but no .NET markers has those files mined correctly
-      - A .NET project with bin/ still skips bin/ and obj/
-      - Non-.NET regression test added
-      - No existing tests regress
-    assignee: null
-    resolution: '2026-04-19: Remove bin from global SKIP_DIRS; add _is_dotnet_project() helper; skip bin/ conditionally in scan_project() when .NET markers present. Hardened round-1: fixed weak .dll test fixture in test_bin_dir_skipped_when_sln_at_root.'
   - key: BENCH-DOTNET-CLONE-REPO
     summary: Clone jasontaylordev/CleanArchitecture (pin to a stable tag, e.g. v8.0.x) and record the commit hash before running the benchmark
     type: task
@@ -1094,25 +1067,3 @@ items:
       ## Constraints
 
       Identified in PY-TYPE-KG hardening round-1 (F-2). Low priority -- multi-module imports are uncommon in modern Python.
-  - key: CLARIFY-MINE-BIN-SKIP-DIRS
-    summary: Clarify scope for MINE-BIN-SKIP-DIRS before planning can proceed
-    type: task
-    status: done
-    priority: highest
-    size: XS
-    section_id: immediate
-    assignee: owner
-    description: |-
-      Clarification required before MINE-BIN-SKIP-DIRS can be planned.
-
-      **Original task:** bin/ in SKIP_DIRS silently excludes non-.NET script directories
-
-      **Block reasons:**
-      - The task still leaves a product decision open: implement per-project `bin/` skipping or document the limitation only.
-      - Acceptance criteria do not specify the preferred behavior for non-.NET projects, so planning cannot be finalized without owner input.
-
-      **Questions requiring owner input:**
-      1. Should `bin/` be skipped only when a .NET project marker (`.csproj` or `.sln`) is present, or should we keep the global skip and document it instead? *(suggested: Implement per-project detection for .NET projects and add a non-.NET regression test.)*
-
-      **Acceptance criteria:** When questions are answered, remove `assignee: owner` from MINE-BIN-SKIP-DIRS and re-run autopilot.
-    resolution: '2026-04-19: Owner decision: implement per-project detection — skip bin/ only when .NET markers (.csproj, .sln, .fsproj, .vbproj) are present. Add non-.NET regression test.'
