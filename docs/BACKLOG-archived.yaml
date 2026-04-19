@@ -148,3 +148,7 @@ items:
       summary: Track plain Name= attribute as well as x:Name for has_named_control triples
       resolution: '2026-04-19: Updated parse_xaml_file() section 3 to collect both x:Name and plain Name= per element into a set before emitting has_named_control triples; added 2 regression tests (plain Name= and same-value dedup). All 189 tests pass.'
       archived_date: "2026-04-19"
+    - key: MINE-KOTLIN-GENERIC-RECEIVER-NESTED
+      summary: Extract function names from Kotlin generic functions with deeply nested receiver types
+      resolution: '2026-04-19: Replaced [^>]+ with (?:[^<>]|<[^<>]*>)* in fun regex; added 2 tests for depth-2 generic nesting (AC-1, AC-2); all 176 symbol extract tests pass'
+      archived_date: "2026-04-19"
