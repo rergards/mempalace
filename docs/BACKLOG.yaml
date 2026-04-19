@@ -894,7 +894,7 @@ items:
       - Non-.NET regression test added
       - No existing tests regress
     assignee: null
-    resolution: '2026-04-19: Remove bin from global SKIP_DIRS; add _is_dotnet_project() helper; skip bin/ conditionally in scan_project() when .NET markers present'
+    resolution: '2026-04-19: Remove bin from global SKIP_DIRS; add _is_dotnet_project() helper; skip bin/ conditionally in scan_project() when .NET markers present. Hardened round-1: fixed weak .dll test fixture in test_bin_dir_skipped_when_sln_at_root.'
   - key: BENCH-DOTNET-CLONE-REPO
     summary: Clone jasontaylordev/CleanArchitecture (pin to a stable tag, e.g. v8.0.x) and record the commit hash before running the benchmark
     type: task

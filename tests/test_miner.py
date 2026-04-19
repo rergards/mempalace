@@ -1632,7 +1632,9 @@ def test_bin_dir_skipped_when_sln_at_root():
 
         write_file(project_root / "Solution.sln", "\nMicrosoft Visual Studio Solution File\n" * 5)
         write_file(project_root / "src" / "App.cs", "public class App {}\n" * 20)
-        write_file(project_root / "bin" / "Release" / "output.dll", "binary\n" * 20)
+        # Use a readable extension (.sh) so the assertion is meaningful:
+        # if bin/ were traversed, runner.sh would appear in results.
+        write_file(project_root / "bin" / "Release" / "runner.sh", "#!/bin/bash\n" * 20)
 
         result = scanned_files(project_root, respect_gitignore=False)
         assert "src/App.cs" in result

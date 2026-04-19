@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-19 · MINE-BIN-SKIP-DIRS
+
+Remove `bin/` from global SKIP_DIRS; add `_is_dotnet_project()` helper to skip `bin/` only when `.csproj`/`.sln`/`.fsproj`/`.vbproj` markers are present in the project root.
+
 ## v1.3.0 — 2026-04-19
 
 First-class C#/.NET support — delivers [rergards/mempalace-code#1](https://github.com/rergards/mempalace-code/issues/1) in full.

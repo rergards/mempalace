@@ -164,7 +164,7 @@ def watch_and_mine(
         kg=kg,
     )
 
-    print("  Watching for changes... (Ctrl-C to stop)")
+    print("  Watching for changes... (Ctrl-C to stop)", flush=True)
 
     # Shared gitignore matcher cache — loaded lazily, keyed by directory Path.
     matcher_cache: dict = {}
@@ -351,7 +351,7 @@ def watch_all(
     # Single optimize after all initial mines
     _optimize_once(palace_path, open_store)
 
-    print("  Watching for changes... (Ctrl-C to stop)")
+    print("  Watching for changes... (Ctrl-C to stop)", flush=True)
 
     # Determine what to watch
     if on_commit:
@@ -380,9 +380,15 @@ def watch_all(
     event_count = 0
     start_time = time.monotonic()
 
+    # In on-commit mode we watch .git/refs/heads/ dirs — the default
+    # watchfiles filter ignores .git, so we disable it entirely.
+    # These dirs contain only tiny ref files, so no filtering is needed.
+    commit_filter = None if on_commit else watchfiles.DefaultFilter()
+
     try:
         for changes in watchfiles.watch(
             *watch_paths,
+            watch_filter=commit_filter,
             debounce=5000,
             stop_event=shutdown_event,
         ):
@@ -400,7 +406,7 @@ def watch_all(
                             continue
 
                 for proj_path, wing in triggered.items():
-                    print(f"  [commit in {wing}] re-mining...")
+                    print(f"  [commit in {wing}] re-mining...", flush=True)
                     kg = KnowledgeGraph()
                     mine(
                         project_dir=str(proj_path),
