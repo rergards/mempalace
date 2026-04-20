@@ -205,12 +205,7 @@ def test_filename_detection_takes_precedence_over_shebang():
 # =============================================================================
 
 _K8S_DEPLOYMENT = (
-    "apiVersion: apps/v1\n"
-    "kind: Deployment\n"
-    "metadata:\n"
-    "  name: nginx\n"
-    "spec:\n"
-    "  replicas: 1\n"
+    "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx\nspec:\n  replicas: 1\n"
 )
 
 _PLAIN_YAML = "name: my-app\nreplicaCount: 1\nimage:\n  repository: nginx\n  tag: latest\n"

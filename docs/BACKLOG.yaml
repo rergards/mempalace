@@ -588,7 +588,7 @@ items:
   - key: MINE-K8S
     summary: Add Kubernetes manifest smart parsing
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: coding_first
     labels: [feat, miner, infra]
@@ -607,6 +607,7 @@ items:
       - [ ] Works on real cluster manifests
       - [ ] Tests for: Deployment, Service, ConfigMap, multi-doc YAML
     size: S
+    resolution: '2026-04-21: Added K8s manifest smart parsing: content-based detection (apiVersion+kind), per-doc splitting on --- separators, Kind/name symbol extraction; kubernetes added to SUPPORTED_LANGUAGES and 6 resource kinds to VALID_SYMBOL_TYPES; 37 new tests all pass'
   - key: MINE-SCALA
     summary: Add Scala language support to code miner
     type: feature

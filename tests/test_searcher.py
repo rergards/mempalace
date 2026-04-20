@@ -385,7 +385,14 @@ class TestKubernetesLanguageSupport:
 
     def test_code_search_k8s_symbol_types_accepted(self, k8s_palace_path):
         """All K8s resource kinds pass symbol_type validation."""
-        for sym_type in ("deployment", "service", "configmap", "secret", "ingress", "customresourcedefinition"):
+        for sym_type in (
+            "deployment",
+            "service",
+            "configmap",
+            "secret",
+            "ingress",
+            "customresourcedefinition",
+        ):
             result = code_search(k8s_palace_path, "something", symbol_type=sym_type)
             assert "invalid symbol_type" not in result.get("error", "").lower(), (
                 f"symbol_type {sym_type!r} should be valid, got: {result.get('error')}"

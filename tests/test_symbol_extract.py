@@ -1676,7 +1676,9 @@ def test_k8s_service_with_name():
 
 
 def test_k8s_configmap_with_name():
-    content = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n  key: value\n"
+    content = (
+        "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n  key: value\n"
+    )
     assert extract_symbol(content, "kubernetes") == ("ConfigMap/app-config", "configmap")
 
 

@@ -2571,8 +2571,14 @@ def test_mine_k8s_roundtrip():
         assert len(metas) >= 1, "Expected at least one drawer for the K8s file"
 
         meta = metas[0]
-        assert meta["language"] == "kubernetes", f"Expected language='kubernetes', got {meta['language']!r}"
-        assert meta["symbol_type"] == "deployment", f"Expected symbol_type='deployment', got {meta['symbol_type']!r}"
-        assert meta["symbol_name"] == "Deployment/my-app", f"Expected symbol_name='Deployment/my-app', got {meta['symbol_name']!r}"
+        assert meta["language"] == "kubernetes", (
+            f"Expected language='kubernetes', got {meta['language']!r}"
+        )
+        assert meta["symbol_type"] == "deployment", (
+            f"Expected symbol_type='deployment', got {meta['symbol_type']!r}"
+        )
+        assert meta["symbol_name"] == "Deployment/my-app", (
+            f"Expected symbol_name='Deployment/my-app', got {meta['symbol_name']!r}"
+        )
     finally:
         shutil.rmtree(tmpdir)
