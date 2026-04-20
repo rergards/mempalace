@@ -35,6 +35,7 @@ import hashlib
 import uuid
 from collections import deque
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from .config import MempalaceConfig
@@ -415,8 +416,6 @@ def tool_mine(directory: str, wing: str = None, full: bool = False):
         On success: {success: True, files_processed, files_skipped, drawers_filed, elapsed_secs}
         On failure: {success: False, error: <message>}
     """
-    from pathlib import Path
-
     # Validate directory exists and is a directory
     try:
         dir_path = Path(directory).expanduser().resolve()

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-20 · MCP-MINE-TRIGGER
+
+Add `mempalace_mine` MCP tool so agents can trigger incremental or full project re-mining without CLI access, returning structured counts of files processed and drawers filed.
+
 ## v1.4.1 — 2026-04-20
 
 ### Changed

@@ -120,6 +120,7 @@ items:
 
       - [ ] Tests for: successful mine, invalid directory, full vs incremental
     resolution: '2026-04-20: Added mempalace_mine MCP tool: incremental/full re-mining from MCP with fd-level stdout suppression, preflight validation, and 8 new tests'
+    hardened: "2026-04-20 round-1: 1 fixed (pathlib import moved to module level), 1 dismissed (fd leak info)"
   # ── CLEANUP — De-emphasize Dialog-First Features ────────────
   - key: CLEAN-ONBOARDING
     summary: "Replace interactive onboarding with config-file-first setup"
