@@ -1657,7 +1657,11 @@ class TestFileContextTool:
         assert all(c["wing"] == "wing_a" for c in result["chunks"])
 
     def test_chunks_sorted_by_chunk_index(self, monkeypatch, config, palace_path, collection, kg):
-        """AC-4: chunks inserted in reverse order → response sorted ascending by chunk_index."""
+        """AC-4: chunks inserted in reverse order → response sorted ascending by chunk_index.
+
+        Also verifies content-index alignment: each chunk's symbol_name must match its
+        chunk_index, not just that the indices themselves are in order.
+        """
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
         _seed_file_context(collection, source_file="mempalace/miner.py", wing="mempalace")
         from mempalace.mcp_server import tool_file_context
@@ -1667,6 +1671,10 @@ class TestFileContextTool:
         indices = [c["chunk_index"] for c in result["chunks"]]
         assert indices == sorted(indices), f"chunks not sorted: {indices}"
         assert indices == [0, 1, 2]
+        # Verify content is aligned with index (not just indices sorted in isolation)
+        assert result["chunks"][0]["symbol_name"] == "first_function"
+        assert result["chunks"][1]["symbol_name"] == "second_function"
+        assert result["chunks"][2]["symbol_name"] == "third_function"
 
     def test_no_palace_returns_error(self, monkeypatch, kg):
         """AC-5: no palace (_get_store returns None) → standard error dict with 'error' and 'hint'."""
@@ -1695,3 +1703,91 @@ class TestFileContextTool:
         schema = tools["mempalace_file_context"]["inputSchema"]
         assert "source_file" in schema["properties"]
         assert "source_file" in schema.get("required", [])
+
+    def test_source_file_with_apostrophe_does_not_raise(
+        self, monkeypatch, config, palace_path, collection, kg
+    ):
+        """F-1: source_file containing a single quote is SQL-escaped by _where_to_sql; no error."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        # Seed a chunk with an apostrophe in its path
+        collection.add(
+            ids=["fc_quote_chunk0"],
+            documents=["def tricky(): pass"],
+            metadatas=[
+                {
+                    "wing": "myproject",
+                    "room": "backend",
+                    "source_file": "O'Brien/module.py",
+                    "symbol_name": "tricky",
+                    "symbol_type": "function",
+                    "language": "python",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        from mempalace.mcp_server import tool_file_context
+
+        # Must not raise; must find the chunk (not return error or empty)
+        result = tool_file_context(source_file="O'Brien/module.py")
+
+        assert "error" not in result
+        assert result["total"] == 1
+        assert result["chunks"][0]["symbol_name"] == "tricky"
+
+    def test_empty_source_file_returns_error(
+        self, monkeypatch, config, palace_path, collection, kg
+    ):
+        """F-2: source_file='' must return an error, not scan all un-sourced rows."""
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_file_context
+
+        result = tool_file_context(source_file="")
+
+        assert "error" in result
+
+    def test_storage_exception_returns_error_and_hint(self, monkeypatch, kg):
+        """F-1: col.get() raising an exception → {"error": ..., "hint": ...} (not just error)."""
+        from mempalace import mcp_server
+
+        class _FailingStore:
+            def get(self, *args, **kwargs):
+                raise RuntimeError("simulated storage failure")
+
+        monkeypatch.setattr(mcp_server, "_kg", kg)
+        monkeypatch.setattr(mcp_server, "_get_store", lambda create=False: _FailingStore())
+
+        from mempalace.mcp_server import tool_file_context
+
+        result = tool_file_context(source_file="any/file.py")
+
+        assert "error" in result
+        assert "hint" in result
+
+    def test_tool_call_dispatch(self, monkeypatch, config, palace_path, collection, kg):
+        """F-4: tools/call dispatch for mempalace_file_context returns structured result.
+
+        Exercises the handle_request → TOOLS lookup → handler path end-to-end,
+        catching any wiring bug in the TOOLS registry.
+        """
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        _seed_file_context(collection, source_file="dispatch/test.py", wing="myproject")
+        from mempalace.mcp_server import handle_request
+
+        resp = handle_request(
+            {
+                "method": "tools/call",
+                "id": 10,
+                "params": {
+                    "name": "mempalace_file_context",
+                    "arguments": {"source_file": "dispatch/test.py"},
+                },
+            }
+        )
+
+        assert resp["id"] == 10
+        assert "error" not in resp
+        data = json.loads(resp["result"]["content"][0]["text"])
+        assert data["total"] == 3
+        assert data["source_file"] == "dispatch/test.py"

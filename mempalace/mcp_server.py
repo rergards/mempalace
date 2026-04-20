@@ -951,6 +951,12 @@ def tool_diary_read(agent_name: str, last_n: int = 10):
 
 def tool_file_context(source_file: str, wing: str = None):
     """Return all indexed chunks for a source file, ordered by chunk_index."""
+    if not source_file:
+        return {
+            "error": "source_file must be a non-empty path",
+            "hint": "Provide an exact file path like 'mempalace/storage.py'",
+        }
+
     col = _get_store()
     if not col:
         return _no_palace()
@@ -968,7 +974,7 @@ def tool_file_context(source_file: str, wing: str = None):
             limit=10000,
         )
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "hint": _DEGRADED_HINT}
 
     if not results["ids"]:
         return {"source_file": source_file, "wing": wing, "total": 0, "chunks": []}
