@@ -6,6 +6,7 @@ Tests the library-facing search interface (not the CLI print variant).
 
 import pytest
 from mempalace.searcher import code_search, search_memories
+from mempalace.storage import open_store
 
 
 class TestSearchMemories:
@@ -194,4 +195,75 @@ class TestDotNetLanguages:
         for lang in ("csharp", "fsharp", "vbnet", "xaml", "dotnet-solution"):
             assert lang in result["supported_languages"], (
                 f".NET language {lang!r} missing from supported_languages hint"
+            )
+
+
+class TestSwiftLanguageSupport:
+    """AC: Swift language and new symbol types pass code_search validation."""
+
+    @pytest.fixture
+    def swift_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["swift_userservice"],
+            documents=["class UserService { func fetchUser() { } }"],
+            metadatas=[
+                {
+                    "wing": "myapp",
+                    "room": "backend",
+                    "source_file": "UserService.swift",
+                    "language": "swift",
+                    "symbol_name": "UserService",
+                    "symbol_type": "class",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_swift_language(self, swift_palace_path):
+        """code_search(language='swift') does not return an 'unsupported language' error."""
+        result = code_search(swift_palace_path, "user service", language="swift")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_swift_language_in_supported_hint(self, swift_palace_path):
+        """'swift' appears in the supported_languages hint on an invalid language query."""
+        result = code_search(swift_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "swift" in result["supported_languages"], (
+            "'swift' missing from supported_languages hint"
+        )
+
+    def test_code_search_protocol_symbol_type(self, swift_palace_path):
+        """code_search(symbol_type='protocol') does not return 'invalid symbol_type' error."""
+        result = code_search(swift_palace_path, "something", symbol_type="protocol")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'protocol' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_actor_symbol_type(self, swift_palace_path):
+        """code_search(symbol_type='actor') does not return 'invalid symbol_type' error."""
+        result = code_search(swift_palace_path, "something", symbol_type="actor")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'actor' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_extension_symbol_type(self, swift_palace_path):
+        """code_search(symbol_type='extension') does not return 'invalid symbol_type' error."""
+        result = code_search(swift_palace_path, "something", symbol_type="extension")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'extension' should be valid, got: {result.get('error')}"
+        )
+
+    def test_swift_new_symbol_types_in_error_hint(self, swift_palace_path):
+        """protocol/actor/extension appear in valid_symbol_types hint on invalid type query."""
+        result = code_search(swift_palace_path, "something", symbol_type="notarealtype")
+        assert "valid_symbol_types" in result
+        for sym in ("protocol", "actor", "extension"):
+            assert sym in result["valid_symbol_types"], (
+                f"Symbol type {sym!r} missing from valid_symbol_types hint"
             )

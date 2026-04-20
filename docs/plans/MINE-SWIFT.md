@@ -5,11 +5,19 @@ risk: low
 risk_note: "Follows established pattern — identical to how Kotlin, C#, Java were added. No existing code changes, only additions."
 files:
   - path: mempalace/miner.py
-    change: "Add .swift to EXTENSION_LANG_MAP, READABLE_EXTENSIONS; add SWIFT_BOUNDARY regex; add swift to get_boundary_pattern() mapping; add _SWIFT_EXTRACT pattern list; add swift to _LANG_EXTRACT_MAP; add swift to chunk_file() dispatch tuple"
+    change: "Add .swift to EXTENSION_LANG_MAP, READABLE_EXTENSIONS; add SWIFT_BOUNDARY regex; add swift to get_boundary_pattern() mapping; add _SWIFT_EXTRACT pattern list; add swift to _LANG_EXTRACT_MAP; add swift to chunk_file() dispatch tuple; extend comment_prefixes with '@' for swift in chunk_code() (same pattern as C# '[' support)"
+  - path: mempalace/searcher.py
+    change: "Add 'swift' to SUPPORTED_LANGUAGES; add 'protocol', 'actor', 'extension' to VALID_SYMBOL_TYPES"
+  - path: mempalace/mcp_server.py
+    change: "Add 'swift' to mempalace_code_search language description string; add 'protocol', 'actor', 'extension' to symbol_type description string"
   - path: tests/test_symbol_extract.py
     change: "Add Swift extract_symbol unit tests: class, struct, enum, protocol, actor, extension, func, async func, property wrapper, generics, access modifiers, no-match cases"
   - path: tests/test_miner.py
-    change: "Add test_process_file_swift_roundtrip — full mine-and-query cycle on a .swift file"
+    change: "Add test_mine_swift_roundtrip — full mine() cycle on a .swift file (proves file walker discovers .swift via READABLE_EXTENSIONS and stored metadata has language='swift')"
+  - path: tests/test_miner.py
+    change: "Add test_swift_attribute_attachment — verify @propertyWrapper/@MainActor lines are included in the declaration chunk, not left in previous chunk"
+  - path: tests/test_searcher.py
+    change: "Add test_code_search_swift_language — verify code_search(language='swift') does not raise validation error; add test_code_search_new_symbol_types — verify 'protocol', 'actor', 'extension' are accepted as symbol_type filters"
 acceptance:
   - id: AC-1
     when: "A .swift file containing `class UserService { ... }` is mined"
@@ -58,7 +66,7 @@ out_of_scope:
   4. `protocol` before `func` (protocols contain func signatures that shouldn't match first)
   5. `extension Type` — capture the type name, ignore `where` constraints
 
-- **Attribute lines (`@` prefix):** Swift uses `@propertyWrapper`, `@MainActor`, `@available`, etc. before declarations. The existing `comment_prefixes` lookback in `chunk_code()` already handles `//`, `/*`, `*` — Swift attributes start with `@`, so **no extension needed**: attributes appear on the line immediately before the declaration keyword, and the boundary regex anchors on the keyword line, so the lookback naturally captures the `@` line as a comment-adjacent prefix. The `_SWIFT_EXTRACT` patterns should also tolerate `@\w+\s+` prefixes inline for single-line annotations.
+- **Attribute lines (`@` prefix):** Swift uses `@propertyWrapper`, `@MainActor`, `@available`, etc. before declarations. The existing `comment_prefixes` lookback in `chunk_code()` does **not** include `@` — only `("//", "/*", "*", "*/", "#", '"""', "'''", "/**")` plus `[` for C#/F#. Swift `@`-prefixed lines would be left in the previous chunk without an explicit extension. **Fix:** add `("@",)` to `comment_prefixes` when `canonical == "swift"`, mirroring the C#/F# `[` pattern at miner.py:1543-1545. The `_SWIFT_EXTRACT` patterns should also tolerate `@\w+\s+` prefixes inline for single-line annotations.
 
 - **Boundary pattern:** Should include `class`, `struct`, `enum`, `protocol`, `actor`, `extension`, `func`, `typealias`. Exclude `var`/`let` properties (too noisy, same rationale as Kotlin excluding `val`/`var`).
 
@@ -69,3 +77,13 @@ out_of_scope:
 - **Generics handling:** Reuse the Kotlin pattern `(?:<(?:[^<>]|<[^<>]*>)*>\s+)?` for depth-2 generic nesting (`Container<T: Comparable<T>>`).
 
 - **No separate `indirect enum` type:** Swift's `indirect enum` is just an `enum` with a storage hint. The boundary/extract patterns match `enum` regardless of `indirect` prefix, which is correct.
+
+## Resolved Decisions
+
+- **`protocol`, `actor`, `extension` are first-class symbol types.** They are added to `VALID_SYMBOL_TYPES` in `searcher.py` and are filterable via `code_search()`. Rationale: `protocol` is not equivalent to `interface` (Swift allows default implementations and associated types); `actor` is a distinct concurrency primitive; `extension` is a Swift/Kotlin concept with no cross-language equivalent. Users searching for Swift code will expect these as natural filter values.
+
+- **Swift `@` attributes must be attached to declaration chunks.** The `chunk_code()` lookback prefix set is extended with `"@"` when `canonical == "swift"`. This ensures `@propertyWrapper`, `@MainActor`, `@available(...)`, etc. are stored with their declarations, not orphaned in the preceding chunk. This directly mirrors the C# `[Attribute]` handling pattern (miner.py:1543-1545).
+
+- **`searcher.py` and `mcp_server.py` are in scope.** Without adding `"swift"` to `SUPPORTED_LANGUAGES`, mined Swift drawers would be unsearchable via `code_search(language="swift")`. Without adding the new symbol types to `VALID_SYMBOL_TYPES`, type-filtered searches would reject valid Swift queries. The MCP description strings are updated to keep client hints aligned with backend validation.
+
+- **Integration test goes through `mine()`, not just `process_file()`.** This proves `.swift` is in `READABLE_EXTENSIONS` and the file walker discovers Swift files end-to-end.

@@ -39,6 +39,7 @@ EXTENSION_LANG_MAP = {
     ".fs": "fsharp",
     ".fsi": "fsharp",
     ".vb": "vbnet",
+    ".swift": "swift",
     ".csproj": "xml",
     ".fsproj": "xml",
     ".vbproj": "xml",
@@ -110,6 +111,7 @@ READABLE_EXTENSIONS = {
     ".fs",
     ".fsi",
     ".vb",
+    ".swift",
     ".csproj",
     ".fsproj",
     ".vbproj",
@@ -661,6 +663,20 @@ VBNET_BOUNDARY = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+# Swift structural boundaries.
+# Handles: class, struct, enum, protocol, actor, extension, func, typealias.
+# Excludes var/let properties (too noisy, same rationale as Kotlin).
+# Optional inline attribute prefix (e.g. `@propertyWrapper struct Clamped`) is
+# handled by the `(?:@\w+...)*` arm so single-line annotation+declaration lines
+# are correctly detected as boundaries.
+SWIFT_BOUNDARY = re.compile(
+    r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:public|private|fileprivate|internal|open|final|static|class|override|"
+    r"mutating|nonmutating|nonisolated|indirect|async)\s+)*"
+    r"(?:class|struct|enum|protocol|actor|extension|func|typealias)\s+",
+    re.MULTILINE,
+)
+
 # Markdown heading boundaries
 HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
@@ -700,6 +716,8 @@ def get_boundary_pattern(language: str):
         ".fsi": FSHARP_BOUNDARY,
         "vbnet": VBNET_BOUNDARY,
         ".vb": VBNET_BOUNDARY,
+        "swift": SWIFT_BOUNDARY,
+        ".swift": SWIFT_BOUNDARY,
         "terraform": HCL_BOUNDARY,
         ".tf": HCL_BOUNDARY,
         ".tfvars": HCL_BOUNDARY,
@@ -1078,6 +1096,95 @@ _VBNET_EXTRACT = [
     ),
 ]
 
+_SWIFT_EXTRACT = [
+    # extension — capture type name; `where` constraints and generics are ignored.
+    # Must precede class/struct to avoid matching `extension` inside class modifiers.
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|open|final)\s+)*"
+            r"extension\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "extension",
+    ),
+    # actor — first-class concurrency primitive (Swift 5.5+)
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|open|final)\s+)*"
+            r"actor\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "actor",
+    ),
+    # protocol — before class (both are nominal types)
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal)\s+)*"
+            r"protocol\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "protocol",
+    ),
+    # enum — before struct/class (avoids swallowing `indirect` prefix)
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|indirect)\s+)*"
+            r"enum\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "enum",
+    ),
+    # struct
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|final)\s+)*"
+            r"struct\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "struct",
+    ),
+    # class — covers `final class`, `open class`, bare `class`, etc.
+    # Negative lookahead prevents matching `class func` or `class var` where `class`
+    # acts as a declaration modifier rather than introducing a type declaration.
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|open|final)\s+)*"
+            r"class\s+(?!(?:func|var|let|struct|enum|protocol|actor|extension|typealias)\b)(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # func — optional modifiers including `class func`, `static func`, `async func`.
+    # Generic type params appear AFTER the name in Swift (`func foo<T>(...)`), so no
+    # pre-name generic arm is needed; `(\w+)` captures the name directly after `func `.
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal|open|final|static|class|override|"
+            r"mutating|nonmutating|nonisolated|async)\s+)*"
+            r"func\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "function",
+    ),
+    # typealias
+    (
+        re.compile(
+            r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+            r"(?:(?:public|private|fileprivate|internal)\s+)*"
+            r"typealias\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "typealias",
+    ),
+]
+
 _XAML_EXTRACT = [
     # Extract view name from root element's x:Class attribute (fully-qualified → short name).
     # Only the first chunk (root element) will match; subsequent chunks get ("", "").
@@ -1099,6 +1206,7 @@ _LANG_EXTRACT_MAP = {
     "csharp": _CSHARP_EXTRACT,
     "fsharp": _FSHARP_EXTRACT,
     "vbnet": _VBNET_EXTRACT,
+    "swift": _SWIFT_EXTRACT,
     "xaml": _XAML_EXTRACT,
 }
 
@@ -1151,6 +1259,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "csharp",
         "fsharp",
         "vbnet",
+        "swift",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1543,6 +1652,10 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
     if canonical in ("csharp", "fsharp"):
         # C# uses [Attribute], F# uses [<Attribute>] — both start with '['.
         comment_prefixes = comment_prefixes + ("[",)
+    if canonical == "swift":
+        # Swift uses @Attribute decorators (e.g. @propertyWrapper, @MainActor) before
+        # declarations. Extend the lookback so these lines attach to their declaration chunk.
+        comment_prefixes = comment_prefixes + ("@",)
 
     for i, line in enumerate(lines):
         stripped = line.strip()

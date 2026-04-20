@@ -171,6 +171,8 @@ SUPPORTED_LANGUAGES = {
     "vbnet",
     "xaml",
     "dotnet-solution",
+    # Apple / Swift
+    "swift",
     # web
     "html",
     "css",
@@ -211,6 +213,10 @@ VALID_SYMBOL_TYPES = {
     "type",
     "view",
     "exception",
+    # Swift-specific
+    "protocol",
+    "actor",
+    "extension",
 }
 
 

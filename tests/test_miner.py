@@ -1577,6 +1577,157 @@ def test_process_file_vbnet_roundtrip():
 
 
 # =============================================================================
+# Swift language — process_file() roundtrip + attribute attachment
+# =============================================================================
+
+
+def test_mine_swift_roundtrip():
+    """AC-1/AC-2: mine() on a .swift file discovers it via READABLE_EXTENSIONS and stores
+    drawers with language='swift', correct symbol_type, and symbol_name.
+
+    Uses two separate .swift files so that each file's chunk is large enough (> TARGET_MIN
+    = 400 chars) to survive adaptive_merge_split as a distinct drawer with correct metadata.
+    """
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        # UserService.swift — produces a class drawer (exceeds TARGET_MIN with padding)
+        class_content = (
+            "import Foundation\n\n"
+            "/// UserService manages user persistence and retrieval operations.\n"
+            "/// It provides a clean interface over the underlying database layer.\n"
+            "class UserService {\n"
+            "    private let database: Database\n"
+            "    private let cache: Cache\n"
+            "    private let logger: Logger\n\n"
+            "    init(database: Database, cache: Cache, logger: Logger) {\n"
+            "        self.database = database\n"
+            "        self.cache = cache\n"
+            "        self.logger = logger\n"
+            "    }\n\n"
+            "    func fetchUser(id: String) -> User? {\n"
+            "        if let cached = cache.get(id) { return cached }\n"
+            "        return database.find(id)\n"
+            "    }\n"
+            "}\n"
+        )
+
+        # Models.swift — produces a struct drawer
+        struct_content = (
+            "import Foundation\n\n"
+            "/// Point represents a 2D coordinate in Cartesian space.\n"
+            "/// Used throughout the geometry subsystem for position calculations.\n"
+            "struct Point {\n"
+            "    var x: Double\n"
+            "    var y: Double\n\n"
+            "    static let zero = Point(x: 0, y: 0)\n\n"
+            "    func distance(to other: Point) -> Double {\n"
+            "        let dx = x - other.x\n"
+            "        let dy = y - other.y\n"
+            "        return (dx * dx + dy * dy).squareRoot()\n"
+            "    }\n"
+            "}\n"
+        )
+
+        write_file(project_root / "UserService.swift", class_content)
+        write_file(project_root / "Models.swift", struct_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0, "Expected at least one drawer from .swift files"
+
+        # Every drawer must have language='swift'
+        for meta in metadatas:
+            assert meta["language"] == "swift", (
+                f"Expected language='swift', got {meta['language']!r}"
+            )
+
+        # Must have a class drawer for UserService (AC-1)
+        class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "class" and m.get("symbol_name") == "UserService"
+        ]
+        assert class_drawers, (
+            f"Expected symbol_type='class', symbol_name='UserService'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a struct drawer for Point (AC-2)
+        struct_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "struct" and m.get("symbol_name") == "Point"
+        ]
+        assert struct_drawers, (
+            f"Expected symbol_type='struct', symbol_name='Point'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_swift_attribute_attachment():
+    """@propertyWrapper/@MainActor lines immediately before a declaration are included
+    in the declaration chunk (not orphaned in the preceding chunk)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        swift_content = (
+            "import Foundation\n\n"
+            "@propertyWrapper\n"
+            "struct Clamped<Value: Comparable> {\n"
+            "    var wrappedValue: Value\n"
+            "    let range: ClosedRange<Value>\n"
+            "    init(wrappedValue: Value, _ range: ClosedRange<Value>) {\n"
+            "        self.range = range\n"
+            "        self.wrappedValue = min(max(wrappedValue, range.lowerBound), range.upperBound)\n"
+            "    }\n"
+            "}\n"
+        )
+        write_file(project_root / "Clamped.swift", swift_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas", "documents"], limit=100)
+        metadatas = result.get("metadatas", [])
+        documents = result.get("documents", [])
+        assert len(metadatas) > 0
+
+        # Find the chunk that contains the Clamped struct declaration
+        clamped_chunks = [
+            (meta, doc)
+            for meta, doc in zip(metadatas, documents)
+            if meta.get("symbol_name") == "Clamped"
+        ]
+        assert clamped_chunks, (
+            "Expected a drawer with symbol_name='Clamped'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # The @propertyWrapper line must be included in the same chunk as the struct declaration
+        clamped_meta, clamped_doc = clamped_chunks[0]
+        assert "@propertyWrapper" in clamped_doc, (
+            f"Expected '@propertyWrapper' to be in the Clamped chunk. "
+            f"Got chunk content: {clamped_doc!r}"
+        )
+        assert clamped_meta["symbol_type"] == "struct", (
+            f"Expected symbol_type='struct', got {clamped_meta['symbol_type']!r}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+# =============================================================================
 # SKIP_DIRS — .vs / bin / obj are skipped
 # =============================================================================
 

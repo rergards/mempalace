@@ -1193,3 +1193,249 @@ def test_java_chunk_code_class_with_two_methods():
     # Both methods must be present somewhere in the output
     assert "add" in full_text
     assert "subtract" in full_text
+
+
+# =============================================================================
+# Swift — extract_symbol tests
+# =============================================================================
+
+
+def test_swift_class():
+    """AC-1: bare class declaration."""
+    assert extract_symbol("class UserService {\n}\n", "swift") == ("UserService", "class")
+
+
+def test_swift_public_class():
+    """Access modifier must not prevent class extraction."""
+    assert extract_symbol("public class NetworkClient {\n}\n", "swift") == (
+        "NetworkClient",
+        "class",
+    )
+
+
+def test_swift_final_class():
+    """final modifier must not prevent class extraction."""
+    assert extract_symbol("final class AppDelegate {\n}\n", "swift") == ("AppDelegate", "class")
+
+
+def test_swift_struct():
+    """AC-2: struct declaration."""
+    assert extract_symbol("struct Point {\n    var x: Double\n    var y: Double\n}\n", "swift") == (
+        "Point",
+        "struct",
+    )
+
+
+def test_swift_enum():
+    """enum declaration."""
+    assert extract_symbol("enum Color {\n    case red, green, blue\n}\n", "swift") == (
+        "Color",
+        "enum",
+    )
+
+
+def test_swift_indirect_enum():
+    """indirect enum — `indirect` prefix must not break extraction."""
+    assert extract_symbol(
+        "indirect enum Tree {\n    case leaf(Int)\n    case branch(Tree, Tree)\n}\n", "swift"
+    ) == ("Tree", "enum")
+
+
+def test_swift_protocol():
+    """AC-3: protocol declaration."""
+    assert extract_symbol("protocol Codable {\n}\n", "swift") == ("Codable", "protocol")
+
+
+def test_swift_public_protocol():
+    """Access modifier before protocol."""
+    assert extract_symbol("public protocol Networking {\n    func fetch() async\n}\n", "swift") == (
+        "Networking",
+        "protocol",
+    )
+
+
+def test_swift_actor():
+    """AC-5: actor declaration."""
+    assert extract_symbol("actor DatabaseManager {\n}\n", "swift") == (
+        "DatabaseManager",
+        "actor",
+    )
+
+
+def test_swift_extension():
+    """AC-4: extension declaration — captures the extended type name."""
+    assert extract_symbol(
+        "extension Array where Element: Comparable {\n    func sorted() -> [Element] { [] }\n}\n",
+        "swift",
+    ) == ("Array", "extension")
+
+
+def test_swift_extension_no_constraint():
+    """extension without where clause."""
+    assert extract_symbol(
+        'extension String {\n    func reversed() -> String { "" }\n}\n', "swift"
+    ) == (
+        "String",
+        "extension",
+    )
+
+
+def test_swift_func():
+    """Basic function declaration."""
+    assert extract_symbol(
+        'func greet(name: String) -> String {\n    return "Hello, \\(name)"\n}\n', "swift"
+    ) == ("greet", "function")
+
+
+def test_swift_public_func():
+    """Access modifier before func."""
+    assert extract_symbol("public func fetchAll() -> [Item] {\n    return []\n}\n", "swift") == (
+        "fetchAll",
+        "function",
+    )
+
+
+def test_swift_async_func():
+    """AC-6: async func — `async` modifier must not break name extraction."""
+    assert extract_symbol(
+        "public async func fetchData() -> [Item] {\n    return []\n}\n", "swift"
+    ) == ("fetchData", "function")
+
+
+def test_swift_static_func():
+    """static func declaration."""
+    assert extract_symbol("static func create() -> Self {\n    return Self()\n}\n", "swift") == (
+        "create",
+        "function",
+    )
+
+
+def test_swift_class_func():
+    """`class func` is a class-level static method, NOT a class declaration."""
+    result = extract_symbol(
+        "class func defaultConfig() -> Config {\n    return Config()\n}\n", "swift"
+    )
+    # Must be extracted as a function named 'defaultConfig', not as a class named 'func'
+    assert result == ("defaultConfig", "function")
+
+
+def test_swift_override_func():
+    """override modifier before func."""
+    assert extract_symbol(
+        "override func viewDidLoad() {\n    super.viewDidLoad()\n}\n", "swift"
+    ) == ("viewDidLoad", "function")
+
+
+def test_swift_mutating_func():
+    """mutating func inside a struct."""
+    assert extract_symbol("mutating func reset() {\n    x = 0\n    y = 0\n}\n", "swift") == (
+        "reset",
+        "function",
+    )
+
+
+def test_swift_typealias():
+    """typealias declaration."""
+    assert extract_symbol("typealias StringArray = [String]\n", "swift") == (
+        "StringArray",
+        "typealias",
+    )
+
+
+def test_swift_generic_class():
+    """AC-8: generic class — type param must not pollute symbol_name."""
+    assert extract_symbol("class Container<T: Codable> {\n    var value: T?\n}\n", "swift") == (
+        "Container",
+        "class",
+    )
+
+
+def test_swift_generic_struct():
+    """Generic struct with depth-2 constraint."""
+    assert extract_symbol(
+        "struct Stack<Element: Comparable<Element>> {\n    var items: [Element] = []\n}\n", "swift"
+    ) == ("Stack", "struct")
+
+
+def test_swift_property_wrapper_struct():
+    """AC-9: @propertyWrapper on same line as struct — attribute must not break extraction."""
+    assert extract_symbol(
+        "@propertyWrapper struct Clamped<Value: Comparable> {\n    var wrappedValue: Value\n}\n",
+        "swift",
+    ) == ("Clamped", "struct")
+
+
+def test_swift_attribute_on_preceding_line():
+    """@MainActor on its own line, declaration on the next — multi-line chunk."""
+    content = (
+        "@MainActor\nclass AppViewModel: ObservableObject {\n    @Published var count = 0\n}\n"
+    )
+    assert extract_symbol(content, "swift") == ("AppViewModel", "class")
+
+
+def test_swift_property_not_extracted():
+    """AC-7: plain property declaration must return ('', '')."""
+    assert extract_symbol('let name: String = "test"\n', "swift") == ("", "")
+
+
+def test_swift_var_property_not_extracted():
+    """var property must return ('', '')."""
+    assert extract_symbol("var count: Int = 0\n", "swift") == ("", "")
+
+
+def test_swift_extension_precedes_class():
+    """extension must be matched before class so `extension Foo` is not returned as class."""
+    content = "extension Array where Element: Comparable {\n    func min() -> Element? { nil }\n}\n"
+    name, sym_type = extract_symbol(content, "swift")
+    assert sym_type == "extension"
+    assert name == "Array"
+
+
+def test_swift_protocol_precedes_func():
+    """protocol must match before func so a protocol body with func signatures doesn't misclassify."""
+    content = (
+        "protocol Repository {\n    func fetchAll() -> [Item]\n    func save(_ item: Item)\n}\n"
+    )
+    name, sym_type = extract_symbol(content, "swift")
+    assert sym_type == "protocol"
+    assert name == "Repository"
+
+
+def test_swift_unknown_content_returns_empty():
+    """Chunk with no recognizable Swift declaration returns ('', '')."""
+    assert extract_symbol("import Foundation\nimport UIKit\n", "swift") == ("", "")
+
+
+def test_swift_chunk_code_splits_at_func_boundaries():
+    """chunk_code on Swift source splits at func declarations."""
+    swift_src = (
+        "import Foundation\n\n"
+        "func greet(name: String) -> String {\n"
+        '    return "Hello, \\(name)!"\n'
+        "}\n\n"
+        "func farewell(name: String) -> String {\n"
+        '    return "Goodbye, \\(name)!"\n'
+        "}\n"
+    )
+    chunks = chunk_code(swift_src, "swift", "Greetings.swift")
+    full_text = "\n".join(c["content"] for c in chunks)
+    assert "greet" in full_text
+    assert "farewell" in full_text
+
+
+def test_swift_chunk_code_class_and_methods():
+    """chunk_code on Swift source with class and methods produces at least one chunk."""
+    swift_src = (
+        "class Calculator {\n"
+        "    func add(_ a: Int, _ b: Int) -> Int {\n"
+        "        return a + b\n"
+        "    }\n"
+        "    func subtract(_ a: Int, _ b: Int) -> Int {\n"
+        "        return a - b\n"
+        "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(swift_src, "swift", "Calculator.swift")
+    assert len(chunks) > 0
+    full_text = "\n".join(c["content"] for c in chunks)
+    assert "Calculator" in full_text

@@ -588,7 +588,7 @@ items:
   - key: MINE-SWIFT
     summary: Add Swift language support to code miner
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: coding_first
     labels: [feat, miner]
@@ -606,6 +606,7 @@ items:
       - [ ] Works on iOS/SwiftUI projects
       - [ ] Tests for: classes, structs, protocols, extensions, async functions
     size: M
+    resolution: '2026-04-20: Add Swift (.swift) language support: SWIFT_BOUNDARY regex, _SWIFT_EXTRACT patterns for class/struct/enum/protocol/actor/extension/func/typealias, chunk_file dispatch, comment_prefixes @ extension for attribute attachment; ''swift'' in SUPPORTED_LANGUAGES and VALID_SYMBOL_TYPES; 32 new tests (symbol extract, miner roundtrip, attribute attachment, searcher validation)'
   - key: MINE-PHP
     summary: Add PHP language support to code miner
     type: feature
