@@ -1398,7 +1398,7 @@ TOOLS = {
                     "type": "string",
                     "description": (
                         "Filter by language (e.g. python, go, typescript, rust, java, cpp, c, "
-                        "swift, csharp, fsharp, vbnet, xaml, dotnet-solution, "
+                        "swift, csharp, fsharp, vbnet, xaml, dotnet-solution, php, "
                         "sql, html, css, yaml, json, toml, terraform, hcl, dockerfile, make, "
                         "gotemplate, jinja2, conf, ini, markdown, text, csv)"
                     ),
@@ -1413,7 +1413,7 @@ TOOLS = {
                         "Filter by symbol type "
                         "(function, class, method, struct, interface, "
                         "record, enum, property, event, module, union, type, view, exception, "
-                        "typealias, protocol, actor, extension)"
+                        "typealias, protocol, actor, extension, trait, namespace)"
                     ),
                 },
                 "file_glob": {

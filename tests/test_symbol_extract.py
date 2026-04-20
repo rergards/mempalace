@@ -1462,7 +1462,7 @@ def test_swift_published_property_not_stolen_by_func_lookback():
         "// ViewModel manages application state\n"
         "class ViewModel {\n"
         "    @Published var count = 0\n"
-        "    @Published var name = \"\"\n"
+        '    @Published var name = ""\n'
         "    @Published var items: [String] = []\n"
         f"    func increment() {{\n{func_body}\n        count += 1\n    }}\n"
         "}\n"
@@ -1477,3 +1477,184 @@ def test_swift_published_property_not_stolen_by_func_lookback():
     assert "@Published" not in func_chunk["content"], (
         f"func increment chunk incorrectly contains @Published: {func_chunk['content'][:200]!r}"
     )
+
+
+# =============================================================================
+# PHP
+# =============================================================================
+
+
+def test_php_class():
+    assert extract_symbol("class UserService {\n}\n", "php") == ("UserService", "class")
+
+
+def test_php_abstract_class():
+    assert extract_symbol("abstract class BaseController {\n}\n", "php") == (
+        "BaseController",
+        "class",
+    )
+
+
+def test_php_final_class():
+    assert extract_symbol("final class OrderRepository {\n}\n", "php") == (
+        "OrderRepository",
+        "class",
+    )
+
+
+def test_php_interface():
+    assert extract_symbol(
+        "interface Cacheable {\n    public function get(string $key);\n}\n", "php"
+    ) == (
+        "Cacheable",
+        "interface",
+    )
+
+
+def test_php_trait():
+    assert extract_symbol(
+        "trait Loggable {\n    public function log(string $msg): void {}\n}\n", "php"
+    ) == (
+        "Loggable",
+        "trait",
+    )
+
+
+def test_php_namespace():
+    """A namespace-only chunk extracts the namespace (no class/interface/trait/enum to win)."""
+    assert extract_symbol("namespace App\\Services;\n", "php") == (
+        "App\\Services",
+        "namespace",
+    )
+
+
+def test_php_namespace_qualified():
+    assert extract_symbol("namespace App\\Http\\Controllers;\n", "php") == (
+        "App\\Http\\Controllers",
+        "namespace",
+    )
+
+
+def test_php_namespace_loses_to_class_in_merged_chunk():
+    """When a namespace and class are in the same chunk, class takes priority (namespace is last)."""
+    content = "namespace App\\Services;\n\nclass UserService {\n}\n"
+    assert extract_symbol(content, "php") == ("UserService", "class")
+
+
+def test_php_enum():
+    assert extract_symbol("enum Status: string {\n    case Active = 'active';\n}\n", "php") == (
+        "Status",
+        "enum",
+    )
+
+
+def test_php_enum_no_backing_type():
+    assert extract_symbol("enum Direction {\n    case North;\n    case South;\n}\n", "php") == (
+        "Direction",
+        "enum",
+    )
+
+
+def test_php_function():
+    assert extract_symbol(
+        "function processOrder(Order $order): Result {\n    return new Result();\n}\n", "php"
+    ) == ("processOrder", "function")
+
+
+def test_php_public_method():
+    assert extract_symbol(
+        "public function findById(int $id): ?User {\n    return $this->repo->find($id);\n}\n", "php"
+    ) == ("findById", "function")
+
+
+def test_php_static_method():
+    assert extract_symbol(
+        "public static function create(array $data): self {\n    return new self($data);\n}\n",
+        "php",
+    ) == ("create", "function")
+
+
+def test_php_readonly_class():
+    """PHP 8.2 readonly class modifier is handled."""
+    assert extract_symbol("readonly class ValueObject {\n}\n", "php") == ("ValueObject", "class")
+
+
+def test_php_typed_property_no_match():
+    """Typed properties are NOT extracted as top-level symbols (AC-8 variant)."""
+    assert extract_symbol("public string $name;\n", "php") == ("", "")
+
+
+def test_php_variable_assignment_no_match():
+    """Variable assignments are not extracted as symbols (AC-8)."""
+    assert extract_symbol("$name = 'test';\n", "php") == ("", "")
+
+
+def test_php_interface_wins_over_class():
+    """interface keyword is matched before class when both appear — interface takes priority."""
+    content = "interface Repository {\n    public function findAll(): array;\n}\n"
+    name, sym_type = extract_symbol(content, "php")
+    assert sym_type == "interface"
+    assert name == "Repository"
+
+
+def test_php_trait_wins_over_class():
+    """trait keyword is matched before class — trait takes priority."""
+    content = "trait HasTimestamps {\n    public function touch(): void {}\n}\n"
+    name, sym_type = extract_symbol(content, "php")
+    assert sym_type == "trait"
+    assert name == "HasTimestamps"
+
+
+def test_php_non_code_language_returns_empty():
+    """extract_symbol on a non-PHP language with PHP-like content returns ('', '')."""
+    content = "class Foo {}\n"
+    assert extract_symbol(content, "unknown") == ("", "")
+
+
+# =============================================================================
+# PHP — chunk_code
+# =============================================================================
+
+
+def test_php_chunk_namespace_and_class():
+    """chunk_code on PHP source with namespace + class produces chunks for both."""
+    php_src = (
+        "<?php\n"
+        "namespace App\\Services;\n\n"
+        "class UserService {\n"
+        "    private array $users = [];\n\n"
+        "    public function findById(int $id): ?array {\n"
+        "        return $this->users[$id] ?? null;\n"
+        "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(php_src, "php", "UserService.php")
+    assert len(chunks) > 0
+    full_text = "\n".join(c["content"] for c in chunks)
+    assert "UserService" in full_text
+
+
+def test_php_chunk_multiple_classes():
+    """chunk_code separates multiple class declarations into distinct chunks."""
+    php_src = (
+        "<?php\n\n"
+        "class Foo {\n"
+        "    public function doSomething(): void {\n"
+        "        // implementation that is long enough to exceed MIN_CHUNK threshold\n"
+        "        // to ensure adaptive_merge_split produces separate chunks here\n"
+        "        $result = array_map(fn($x) => $x * 2, range(1, 100));\n"
+        "    }\n"
+        "}\n\n"
+        "class Bar {\n"
+        "    public function doOther(): void {\n"
+        "        // implementation that is long enough to exceed MIN_CHUNK threshold\n"
+        "        // to ensure adaptive_merge_split produces separate chunks here\n"
+        "        $result = array_filter(range(1, 100), fn($x) => $x % 2 === 0);\n"
+        "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(php_src, "php", "Example.php")
+    assert len(chunks) > 0
+    full_text = "\n".join(c["content"] for c in chunks)
+    assert "Foo" in full_text
+    assert "Bar" in full_text

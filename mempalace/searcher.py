@@ -173,6 +173,8 @@ SUPPORTED_LANGUAGES = {
     "dotnet-solution",
     # Apple / Swift
     "swift",
+    # PHP
+    "php",
     # web
     "html",
     "css",
@@ -219,6 +221,9 @@ VALID_SYMBOL_TYPES = {
     "protocol",
     "actor",
     "extension",
+    # PHP-specific
+    "trait",
+    "namespace",
 }
 
 

@@ -60,6 +60,7 @@ EXTENSION_LANG_MAP = {
     ".h": "c",
     ".cpp": "cpp",
     ".hpp": "cpp",
+    ".php": "php",
     # devops / infrastructure
     ".tf": "terraform",
     ".tfvars": "terraform",
@@ -128,6 +129,7 @@ READABLE_EXTENSIONS = {
     ".h",
     ".cpp",
     ".hpp",
+    ".php",
     # devops / infrastructure
     ".tf",
     ".tfvars",
@@ -691,6 +693,18 @@ HCL_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# PHP structural boundaries — classes, interfaces, traits, enums, namespaces, functions.
+# Handles: abstract/final/readonly class modifiers (PHP 8.2 readonly class),
+# PHP 8.1 enums with optional backing type, and access/static modifiers on methods.
+PHP_BOUNDARY = re.compile(
+    r"^(?:"
+    r"(?:(?:abstract|final|readonly)\s+)*(?:class|interface|trait|enum)\s+\w+"
+    r"|namespace\s+[\w\\]+"
+    r"|(?:(?:public|private|protected|static|abstract|final)\s+)*function\s+\w+"
+    r")",
+    re.MULTILINE,
+)
+
 
 def get_boundary_pattern(language: str):
     """Return the appropriate structural boundary regex for a language string or file extension."""
@@ -728,6 +742,8 @@ def get_boundary_pattern(language: str):
         ".tfvars": HCL_BOUNDARY,
         "hcl": HCL_BOUNDARY,
         ".hcl": HCL_BOUNDARY,
+        "php": PHP_BOUNDARY,
+        ".php": PHP_BOUNDARY,
     }
     return mapping.get(language)
 
@@ -1196,6 +1212,59 @@ _XAML_EXTRACT = [
     (re.compile(r'x:Class="(?:[\w.]+\.)?(\w+)"'), "view"),
 ]
 
+# PHP extraction patterns.
+# Order matters: interface → trait → enum → class → function → namespace (last).
+# namespace uses [\w\\]+ to capture qualified names like App\Http\Controllers.
+# abstract/final/readonly are valid class/interface/trait/enum modifiers.
+# namespace is last so that when a small namespace chunk merges with a class chunk,
+# the class/interface/trait/enum takes priority as the primary symbol.
+# A pure namespace-only chunk still extracts as 'namespace' because no other pattern matches.
+_PHP_EXTRACT = [
+    # interface — before class (both are type declarations; interface is more specific)
+    (
+        re.compile(
+            r"^(?:(?:abstract|final|readonly)\s+)*interface\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "interface",
+    ),
+    # trait — before class
+    (
+        re.compile(
+            r"^(?:(?:abstract|final|readonly)\s+)*trait\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "trait",
+    ),
+    # enum (PHP 8.1+) — optional backing type (`: string`, `: int`) is ignored
+    (
+        re.compile(
+            r"^(?:(?:abstract|final|readonly)\s+)*enum\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "enum",
+    ),
+    # class — covers abstract class, final class, readonly class (PHP 8.2+)
+    (
+        re.compile(
+            r"^(?:(?:abstract|final|readonly)\s+)*class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # function — standalone functions and methods (access/static modifiers optional)
+    (
+        re.compile(
+            r"^(?:(?:public|private|protected|static|abstract|final)\s+)*function\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "function",
+    ),
+    # namespace — last; only extracted when no type declaration is present in the chunk.
+    # Uses [\w\\]+ to capture fully-qualified names like App\Http\Controllers.
+    (re.compile(r"^namespace\s+([\w\\]+)", re.MULTILINE), "namespace"),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -1213,6 +1282,7 @@ _LANG_EXTRACT_MAP = {
     "vbnet": _VBNET_EXTRACT,
     "swift": _SWIFT_EXTRACT,
     "xaml": _XAML_EXTRACT,
+    "php": _PHP_EXTRACT,
 }
 
 
@@ -1265,6 +1335,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "fsharp",
         "vbnet",
         "swift",
+        "php",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1661,6 +1732,10 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
         # Swift uses @Attribute decorators (e.g. @propertyWrapper, @MainActor) before
         # declarations. Extend the lookback so these lines attach to their declaration chunk.
         comment_prefixes = comment_prefixes + ("@",)
+    if canonical == "php":
+        # PHP 8.1+ uses #[Attribute] syntax immediately before declarations.
+        # Extend the lookback so attribute lines attach to their declaration chunk.
+        comment_prefixes = comment_prefixes + ("#[",)
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -1692,7 +1767,11 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
                     # the enclosing type body, not to the following func.
                     # Only pure attribute-only lines (e.g. `@MainActor`,
                     # `@objc`, `@available(iOS 14, *)`) should attach.
-                    if canonical == "swift" and prev.startswith("@") and not _SWIFT_PURE_ATTR.match(prev):
+                    if (
+                        canonical == "swift"
+                        and prev.startswith("@")
+                        and not _SWIFT_PURE_ATTR.match(prev)
+                    ):
                         break
                     comment_start = j
                     j -= 1

@@ -278,3 +278,65 @@ class TestSwiftLanguageSupport:
             assert sym in result["valid_symbol_types"], (
                 f"Symbol type {sym!r} missing from valid_symbol_types hint"
             )
+
+
+class TestPhpLanguageSupport:
+    """AC: PHP language and new symbol types (trait, namespace) pass code_search validation."""
+
+    @pytest.fixture
+    def php_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["php_userservice"],
+            documents=["class UserService { public function findById(int $id): ?array {} }"],
+            metadatas=[
+                {
+                    "wing": "myapp",
+                    "room": "backend",
+                    "source_file": "UserService.php",
+                    "language": "php",
+                    "symbol_name": "UserService",
+                    "symbol_type": "class",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_php_language(self, php_palace_path):
+        """code_search(language='php') does not return an 'unsupported language' error."""
+        result = code_search(php_palace_path, "user service", language="php")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_php_language_in_supported_hint(self, php_palace_path):
+        """'php' appears in the supported_languages hint on an invalid language query."""
+        result = code_search(php_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "php" in result["supported_languages"], "'php' missing from supported_languages hint"
+
+    def test_code_search_trait_symbol_type(self, php_palace_path):
+        """code_search(symbol_type='trait') does not return 'invalid symbol_type' error."""
+        result = code_search(php_palace_path, "something", symbol_type="trait")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'trait' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_namespace_symbol_type(self, php_palace_path):
+        """code_search(symbol_type='namespace') does not return 'invalid symbol_type' error."""
+        result = code_search(php_palace_path, "something", symbol_type="namespace")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'namespace' should be valid, got: {result.get('error')}"
+        )
+
+    def test_php_new_symbol_types_in_error_hint(self, php_palace_path):
+        """trait/namespace appear in valid_symbol_types hint on an invalid type query."""
+        result = code_search(php_palace_path, "something", symbol_type="notarealtype")
+        assert "valid_symbol_types" in result
+        for sym in ("trait", "namespace"):
+            assert sym in result["valid_symbol_types"], (
+                f"Symbol type {sym!r} missing from valid_symbol_types hint"
+            )

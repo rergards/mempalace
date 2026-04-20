@@ -5,17 +5,21 @@ risk: low
 risk_note: "Follows established pattern — identical to how Swift, Kotlin, C#, Java were added. No existing code changes, only additions."
 files:
   - path: mempalace/miner.py
-    change: "Add .php to EXTENSION_LANG_MAP and READABLE_EXTENSIONS; add PHP_BOUNDARY regex; add php to get_boundary_pattern() mapping; add _PHP_EXTRACT pattern list; add php to _LANG_EXTRACT_MAP; add php to chunk_file() dispatch tuple"
+    change: "Add .php to EXTENSION_LANG_MAP and READABLE_EXTENSIONS; add PHP_BOUNDARY regex; add php to get_boundary_pattern() mapping; add _PHP_EXTRACT pattern list; add php to _LANG_EXTRACT_MAP; add php to chunk_file() dispatch tuple; extend comment_prefixes with '#[' when canonical == 'php' so attribute lines attach to their declaration chunk"
   - path: mempalace/searcher.py
     change: "Add 'php' to SUPPORTED_LANGUAGES; add 'trait' and 'namespace' to VALID_SYMBOL_TYPES"
   - path: mempalace/mcp_server.py
     change: "Add 'php' to mempalace_code_search language description string; add 'trait', 'namespace' to symbol_type description string"
   - path: tests/test_symbol_extract.py
-    change: "Add PHP extract_symbol unit tests: class, abstract class, interface, trait, enum (PHP 8.1), function, namespace, typed method with attributes, access modifiers, no-match cases"
+    change: "Add PHP extract_symbol unit tests: class, abstract class, interface, trait, enum (PHP 8.1), function, namespace, typed method with attributes, access modifiers, typed properties (no-match — properties are not extracted as symbols), no-match cases"
   - path: tests/test_miner.py
-    change: "Add test_mine_php_roundtrip — full mine() cycle on .php files (proves file walker discovers .php via READABLE_EXTENSIONS and stored metadata has language='php', correct symbol_type/symbol_name)"
+    change: "Add test_mine_php_roundtrip — full mine() cycle on .php files (proves file walker discovers .php via READABLE_EXTENSIONS and stored metadata has language='php', correct symbol_type/symbol_name); add test_php_attribute_attachment — #[Route('/api')] immediately above a class/function declaration must stay in the same chunk (follows test_swift_attribute_attachment precedent)"
+  - path: tests/test_chunking.py
+    change: "Add test_php_chunk_attribute_attached — #[Attribute] lines immediately preceding a declaration stay in the same chunk (follows test_csharp_chunk_attribute_attached precedent)"
+  - path: tests/test_lang_detect.py
+    change: "Add ('.php', 'php') to the extension-based detection parametrize list"
   - path: tests/test_searcher.py
-    change: "Add test_code_search_php_language — verify code_search(language='php') does not raise validation error; add test_code_search_trait_namespace_symbol_types — verify 'trait' and 'namespace' are accepted"
+    change: "Add test_code_search_php_language — verify code_search(language='php') does not raise validation error; add test_code_search_trait_namespace_symbol_types — verify 'trait' and 'namespace' are accepted; add error-hint assertions that 'php' appears in supported_languages hint and 'trait'/'namespace' appear in valid_symbol_types hint"
 acceptance:
   - id: AC-1
     when: "A .php file containing `class UserService { ... }` is mined"
@@ -73,7 +77,7 @@ out_of_scope:
   |^(?:(?:public|private|protected|static|abstract|final)\s+)*function\s+\w+
   ```
 
-- **PHP 8.1+ attributes (`#[...]`):** PHP uses `#[Attribute]` syntax (not `@` like Java/Swift). Extend `comment_prefixes` with `"#["` when `canonical == "php"` so attribute lines attach to their declaration chunk. Standard `//` and `/*` comments are already covered.
+- **PHP 8.1+ attributes (`#[...]`):** PHP uses `#[Attribute]` syntax (not `@` like Java/Swift). Extend `comment_prefixes` with `"#["` when `canonical == "php"` so attribute lines attach to their declaration chunk (same mechanism used for C# `[Attribute]` and Swift `@Attribute`). Standard `//` and `/*` comments are already covered. Verified by `test_php_attribute_attachment` in `test_miner.py` and `test_php_chunk_attribute_attached` in `test_chunking.py`.
 
 - **Namespace extraction:** PHP namespaces use backslash separators (`App\Http\Controllers`). The extract pattern capture group should be `([\w\\]+)` rather than `(\w+)` to capture the full qualified namespace.
 
@@ -82,3 +86,5 @@ out_of_scope:
 - **READABLE_EXTENSIONS:** Add `.php` to the set so the file walker picks up PHP files.
 
 - **No `comment_prefixes` for PHP docblocks:** PHP uses `/** ... */` for docblocks, which is already covered by existing prefixes (`"/**"`, `"/*"`, `"*"`, `"*/"`). Only `#[` needs special handling.
+
+- **Typed properties are not extracted as symbols:** PHP typed properties (`public string $name;`, `protected readonly int $id;`) are handled by including them in their containing class/trait chunk, but they are not individually extracted as top-level symbols. This is consistent with how other languages treat fields/properties (they live in the class chunk). A dedicated no-match test in `test_symbol_extract.py` confirms this behavior.

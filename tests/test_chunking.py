@@ -2035,3 +2035,73 @@ def test_vbnet_chunk_file_routing():
     chunks = chunk_file(VBNET_MODULE, ".vb", "Utils.vb", language="vbnet")
     combined = "\n".join(c["content"] for c in chunks)
     assert "Utils" in combined
+
+
+# =============================================================================
+# PHP chunking
+# =============================================================================
+
+# Filler text to pad chunks above TARGET_MIN so adaptive_merge_split keeps them separate.
+_PHP_FILLER = (
+    "    // Provides processing logic for the operation described above.\n"
+    "    // This padding ensures the chunk exceeds the TARGET_MIN threshold.\n"
+    "    // Additional detail to make sure the chunk is long enough to survive.\n"
+    "    // More padding to reach the minimum chunk size for separate drawer storage.\n"
+)
+
+
+def test_php_chunk_attribute_attached():
+    """#[Attribute] lines immediately preceding a declaration stay in the same chunk (AC-9)."""
+    code = (
+        "<?php\n\n"
+        "class ApiController {\n" + _PHP_FILLER + "    #[Route('/api/users', methods: ['GET'])]\n"
+        "    public function listUsers(): array {\n"
+        "        return [];\n" + _PHP_FILLER + "    }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "php", "ApiController.php")
+    # The #[Route(...)] attribute must appear in the same chunk as listUsers()
+    list_users_chunk = next((c for c in chunks if "listUsers" in c["content"]), None)
+    assert list_users_chunk is not None, "No chunk found containing listUsers()"
+    assert "#[Route" in list_users_chunk["content"], (
+        "#[Route] attribute not attached to listUsers chunk"
+    )
+
+
+def test_php_chunk_class_boundary():
+    """chunk_code splits PHP source at class declarations."""
+    code = (
+        "<?php\n\n"
+        "class Foo {\n"
+        + _PHP_FILLER
+        + "    public function run(): void {}\n"
+        + _PHP_FILLER
+        + "}\n\n"
+        "class Bar {\n"
+        + _PHP_FILLER
+        + "    public function execute(): void {}\n"
+        + _PHP_FILLER
+        + "}\n"
+    )
+    chunks = chunk_code(code, "php", "Multi.php")
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Foo" in combined
+    assert "Bar" in combined
+
+
+def test_php_chunk_file_routing():
+    """chunk_file() routes .php files through chunk_code() (not adaptive fallback)."""
+    from mempalace.miner import chunk_file
+
+    code = (
+        "<?php\n\n"
+        "class Router {\n"
+        + _PHP_FILLER
+        + "    public function dispatch(string $path): void {}\n"
+        + _PHP_FILLER
+        + "}\n"
+    )
+    chunks = chunk_file(code, ".php", "Router.php", language="php")
+    assert len(chunks) > 0
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Router" in combined

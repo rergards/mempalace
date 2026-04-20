@@ -43,6 +43,7 @@ from mempalace.miner import detect_language
         (".fs", "fsharp"),
         (".fsi", "fsharp"),
         (".vb", "vbnet"),
+        (".php", "php"),
         (".csproj", "xml"),
         (".fsproj", "xml"),
         (".vbproj", "xml"),

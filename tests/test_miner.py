@@ -1728,6 +1728,162 @@ def test_swift_attribute_attachment():
 
 
 # =============================================================================
+# PHP language — mine() roundtrip + attribute attachment
+# =============================================================================
+
+
+def test_mine_php_roundtrip():
+    """AC-1 through AC-6: mine() on .php files discovers them via READABLE_EXTENSIONS and
+    stores drawers with language='php', correct symbol_type, and symbol_name.
+
+    Uses two separate .php files so that each file's chunk is large enough (> TARGET_MIN
+    = 400 chars) to survive adaptive_merge_split as a distinct drawer with correct metadata.
+    """
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        # UserService.php — class with a method (exceeds TARGET_MIN with padding)
+        class_content = (
+            "<?php\n\n"
+            "namespace App\\Services;\n\n"
+            "/**\n"
+            " * UserService manages user persistence and retrieval.\n"
+            " * Provides a clean interface over the underlying data layer.\n"
+            " * Used by controllers throughout the application.\n"
+            " */\n"
+            "class UserService {\n"
+            "    private array $users = [];\n"
+            "    private int $count = 0;\n"
+            "    private string $source = 'database';\n\n"
+            "    public function findById(int $id): ?array {\n"
+            "        return $this->users[$id] ?? null;\n"
+            "    }\n\n"
+            "    public function save(array $user): void {\n"
+            "        $this->users[$user['id']] = $user;\n"
+            "        $this->count++;\n"
+            "    }\n"
+            "}\n"
+        )
+
+        # Cacheable.php — interface (exceeds TARGET_MIN with padding)
+        interface_content = (
+            "<?php\n\n"
+            "namespace App\\Contracts;\n\n"
+            "/**\n"
+            " * Cacheable defines the contract for cacheable entities.\n"
+            " * Implement this interface to enable transparent caching.\n"
+            " * Useful for expensive-to-compute or frequently-accessed data.\n"
+            " */\n"
+            "interface Cacheable {\n"
+            "    public function getCacheKey(): string;\n"
+            "    public function getCacheTtl(): int;\n"
+            "    public function isCacheable(): bool;\n"
+            "    public function invalidateCache(): void;\n"
+            "}\n"
+        )
+
+        write_file(project_root / "UserService.php", class_content)
+        write_file(project_root / "Cacheable.php", interface_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0
+
+        # All drawers must have language='php'
+        for meta in metadatas:
+            assert meta["language"] == "php", f"Expected language='php', got {meta['language']!r}"
+
+        # Must have a class drawer for UserService (AC-1)
+        class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "class" and m.get("symbol_name") == "UserService"
+        ]
+        assert class_drawers, (
+            f"Expected symbol_type='class', symbol_name='UserService'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have an interface drawer for Cacheable (AC-2)
+        interface_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "interface" and m.get("symbol_name") == "Cacheable"
+        ]
+        assert interface_drawers, (
+            f"Expected symbol_type='interface', symbol_name='Cacheable'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_php_attribute_attachment():
+    """#[Route('/api')] immediately before a class/function declaration is included
+    in the declaration chunk (not orphaned in the preceding chunk) — AC-9."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        php_content = (
+            "<?php\n\n"
+            "namespace App\\Http\\Controllers;\n\n"
+            "#[Route('/api/users')]\n"
+            "class UserController {\n"
+            "    private array $users = [];\n"
+            "    private int $count = 0;\n"
+            "    private string $source = 'database';\n"
+            "    private bool $initialized = false;\n\n"
+            "    #[Route('/api/users', methods: ['GET'])]\n"
+            "    public function index(): array {\n"
+            "        // Returns all users from the repository\n"
+            "        $result = array_map(fn($u) => $u['name'], $this->users);\n"
+            "        return $result;\n"
+            "    }\n"
+            "}\n"
+        )
+        write_file(project_root / "UserController.php", php_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas", "documents"], limit=100)
+        metadatas = result.get("metadatas", [])
+        documents = result.get("documents", [])
+        assert len(metadatas) > 0
+
+        # Find the chunk that contains the UserController class declaration
+        controller_chunks = [
+            (meta, doc)
+            for meta, doc in zip(metadatas, documents)
+            if meta.get("symbol_name") == "UserController"
+        ]
+        assert controller_chunks, (
+            "Expected a drawer with symbol_name='UserController'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # The #[Route('/api/users')] attribute must be in the same chunk as UserController
+        controller_meta, controller_doc = controller_chunks[0]
+        assert "#[Route" in controller_doc, (
+            f"Expected '#[Route' to be in the UserController chunk. "
+            f"Got chunk content: {controller_doc!r}"
+        )
+        assert controller_meta["symbol_type"] == "class", (
+            f"Expected symbol_type='class', got {controller_meta['symbol_type']!r}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+# =============================================================================
 # SKIP_DIRS — .vs / bin / obj are skipped
 # =============================================================================
 

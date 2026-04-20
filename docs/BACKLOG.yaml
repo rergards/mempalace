@@ -588,7 +588,7 @@ items:
   - key: MINE-PHP
     summary: Add PHP language support to code miner
     type: feature
-    status: open
+    status: done
     priority: high
     section_id: coding_first
     labels: [feat, miner]
@@ -606,6 +606,7 @@ items:
       - [ ] Works on Laravel/WordPress projects
       - [ ] Tests for: classes, interfaces, traits, namespaces, PHP 8.1 enums
     size: M
+    resolution: '2026-04-20: Add PHP language support: classes, interfaces, traits, enums, functions, namespaces; #[Attribute] attachment; PHP 8.1+ enums; full test coverage (32 new tests)'
   - key: MINE-K8S
     summary: Add Kubernetes manifest smart parsing
     type: feature
