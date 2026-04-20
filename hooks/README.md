@@ -44,22 +44,13 @@ chmod +x hooks/mempal_save_hook.sh hooks/mempal_precompact_hook.sh
 
 ## Install — Codex CLI (OpenAI)
 
-Add to `.codex/hooks.json`:
-
-```json
-{
-  "Stop": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
-    "timeout": 30
-  }],
-  "PreCompact": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
-    "timeout": 30
-  }]
-}
-```
+> **Note:** Codex CLI does not currently support `Stop` or `PreCompact` hook events.
+> These hooks require Claude Code's hook system, which sends JSON with `session_id`,
+> `stop_hook_active`, and `transcript_path` on stdin. If the hook log at
+> `~/.mempalace/hook_state/hook.log` is empty, the hooks are not being triggered.
+>
+> For Codex, use the MCP tools directly instead -- the agent can call
+> `mempalace_diary_write` and `mempalace_add_drawer` at the end of each session.
 
 ## Configuration
 

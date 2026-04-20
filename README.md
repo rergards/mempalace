@@ -40,7 +40,13 @@ No cloud. No API keys. No subscription. Nothing leaves your machine.
 ## Quick Start
 
 ```bash
-pip install mempalace-code
+uv tool install mempalace-code        # recommended (fast, Rust-based)
+# or
+pipx install mempalace-code           # alternative
+# or
+pip install mempalace-code            # into current environment
+# or
+uvx --from mempalace-code mempalace --help  # try without installing
 ```
 
 Then ask your AI to read [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) — it will handle setup, MCP wiring, prompt injection, and verification automatically.

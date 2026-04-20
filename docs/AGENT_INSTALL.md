@@ -29,8 +29,8 @@ Parse `major.minor` from stdout (e.g. `Python 3.11.4` → `3.11`).
 
 **Pass →** `major >= 3` and `minor >= 9`. Record Python binary as `PYTHON=python3`. Continue to Step 1.2.
 
-**Fail →** Python is absent or version < 3.9. **ASK HUMAN:** "Python 3.9 or later is required but was not found (or is too old). Please install Python 3.9+ and re-run this script. Reply `ready` when done."
-Wait for `ready`. Re-run Step 1.1. If still failing after one retry, halt and report: "Cannot proceed — Python 3.9+ is required."
+**Fail →** Python is absent or version < 3.11. **ASK HUMAN:** "Python 3.11 or later is required but was not found (or is too old). Please install Python 3.11+ and re-run this script. Reply `ready` when done."
+Wait for `ready`. Re-run Step 1.1. If still failing after one retry, halt and report: "Cannot proceed — Python 3.11+ is required."
 
 ---
 
@@ -109,10 +109,10 @@ Ask all five questions before acting. Record answers; they parameterize Sections
 
 **Condition:** `ALREADY_INSTALLED=false`
 
-**ASK HUMAN:** "I can install mempalace at the user level (recommended: `pipx`, isolated from other packages) or as a project dependency in the current virtual environment (`uv`/`pip`). Reply `user` for pipx or `project` for the current venv."
+**ASK HUMAN:** "I can install mempalace at the user level (recommended: `uv tool install` or `pipx`, isolated from other packages) or as a project dependency in the current virtual environment (`pip`). Reply `user` for isolated install or `project` for the current venv."
 
 **Parse response:**
-- `user` → Set `INSTALL_METHOD=user`. (If `HAS_PIPX=false`, note pipx must be installed first — see Step 3.1 fallback.)
+- `user` → Set `INSTALL_METHOD=user`. Prefer `uv tool install` if `HAS_UV=true`, else fall back to `pipx`.
 - `project` → Set `INSTALL_METHOD=project`.
 - Anything else → Repeat the question once. If still unclear, default to `user` and inform the human.
 
@@ -189,7 +189,7 @@ curl -fsSL https://raw.githubusercontent.com/rergards/mempalace-code/main/script
 
 **Pass →** Script exits 0 and prints `Done. mempalace <version> is ready.` Skip to Section 4.
 
-**Fail →** Script exits non-zero. Read the error output. Common causes: no Python 3.9+, no `venv` module (`apt install python3-venv`). Fix and re-run, or fall through to manual Steps 3.1–3.3.
+**Fail →** Script exits non-zero. Read the error output. Common causes: no Python 3.11+, no `venv` module (`apt install python3-venv`). Fix and re-run, or fall through to manual Steps 3.1–3.3.
 
 ---
 
@@ -215,7 +215,7 @@ If that succeeds, re-run `pipx install mempalace-code`. If pipx install fails, f
 
 ---
 
-### Step 3.2: Install via uv (INSTALL_METHOD=project or pipx unavailable, HAS_UV=true)
+### Step 3.2: Install via uv (INSTALL_METHOD=user and HAS_UV=true, or pipx unavailable)
 
 **Check:**
 ```bash
@@ -224,7 +224,7 @@ command -v uv
 
 **Pass →** Run:
 ```bash
-uv pip install mempalace-code
+uv tool install mempalace-code
 ```
 Exit code 0 = success. Continue to Step 3.4.
 
