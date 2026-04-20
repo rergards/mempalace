@@ -180,10 +180,11 @@ SUPPORTED_LANGUAGES = {
     "css",
     # data / query
     "sql",
-    # config
+    # config / infrastructure manifests
     "yaml",
     "json",
     "toml",
+    "kubernetes",
     # devops / infrastructure
     "terraform",
     "hcl",
@@ -224,6 +225,13 @@ VALID_SYMBOL_TYPES = {
     # PHP-specific
     "trait",
     "namespace",
+    # Kubernetes resource kinds
+    "deployment",
+    "service",
+    "configmap",
+    "secret",
+    "ingress",
+    "customresourcedefinition",
 }
 
 

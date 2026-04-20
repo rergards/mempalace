@@ -198,3 +198,47 @@ def test_filename_detection_takes_precedence_over_shebang():
     filepath = Path("Dockerfile")
     content = "#!/bin/sh\nFROM ubuntu:22.04\n"
     assert detect_language(filepath, content) == "dockerfile"
+
+
+# =============================================================================
+# Kubernetes — content-based detection
+# =============================================================================
+
+_K8S_DEPLOYMENT = (
+    "apiVersion: apps/v1\n"
+    "kind: Deployment\n"
+    "metadata:\n"
+    "  name: nginx\n"
+    "spec:\n"
+    "  replicas: 1\n"
+)
+
+_PLAIN_YAML = "name: my-app\nreplicaCount: 1\nimage:\n  repository: nginx\n  tag: latest\n"
+
+
+def test_k8s_yaml_content_returns_kubernetes():
+    """A .yaml file with apiVersion+kind is detected as 'kubernetes'."""
+    assert detect_language(Path("deploy.yaml"), _K8S_DEPLOYMENT) == "kubernetes"
+
+
+def test_k8s_yml_extension_also_detected():
+    """A .yml file with apiVersion+kind is also detected as 'kubernetes'."""
+    assert detect_language(Path("deploy.yml"), _K8S_DEPLOYMENT) == "kubernetes"
+
+
+def test_plain_yaml_without_k8s_fields_stays_yaml():
+    """A .yaml file without apiVersion+kind stays 'yaml' (Helm values, etc.)."""
+    assert detect_language(Path("values.yaml"), _PLAIN_YAML) == "yaml"
+
+
+def test_k8s_detection_requires_both_fields():
+    """Only apiVersion without kind (or vice versa) does not trigger K8s detection."""
+    only_api = "apiVersion: v1\ndata:\n  key: value\n"
+    only_kind = "kind: Deployment\nspec: {}\n"
+    assert detect_language(Path("partial.yaml"), only_api) == "yaml"
+    assert detect_language(Path("partial.yaml"), only_kind) == "yaml"
+
+
+def test_k8s_detection_non_yaml_extension_unaffected():
+    """A .json file is never detected as kubernetes regardless of content."""
+    assert detect_language(Path("manifest.json"), _K8S_DEPLOYMENT) == "json"

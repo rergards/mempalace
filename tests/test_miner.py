@@ -10,6 +10,7 @@ import yaml
 
 from mempalace.miner import (
     _build_csproj_room_map,
+    _chunk_k8s_manifest,
     _detect_batch_size,
     _detect_sln_wing,
     add_drawers_batch,
@@ -2444,3 +2445,134 @@ class TestMineWithDotnetStructure:
         store = open_store(str(palace_path), create=False)
         wing_room_counts = store.count_by_pair("wing", "room")
         assert "my_static_wing" in wing_room_counts
+
+
+# =============================================================================
+# Kubernetes manifest chunking
+# =============================================================================
+
+_K8S_SINGLE_DOC = """\
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      - name: my-app
+        image: nginx:latest
+"""
+
+_K8S_THREE_DOCS = """\
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: default
+  labels:
+    app: my-app
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+  namespace: default
+  labels:
+    app: my-app
+spec:
+  type: ClusterIP
+  selector:
+    app: my-app
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+  labels:
+    app: my-app
+data:
+  LOG_LEVEL: info
+  DATABASE_URL: postgres://localhost:5432/mydb
+"""
+
+
+def test_chunk_k8s_single_doc_produces_one_chunk():
+    chunks = _chunk_k8s_manifest(_K8S_SINGLE_DOC, "deploy.yaml")
+    assert len(chunks) == 1
+    assert "Deployment" in chunks[0]["content"]
+    assert chunks[0]["chunk_index"] == 0
+
+
+def test_chunk_k8s_three_docs_produces_three_chunks():
+    chunks = _chunk_k8s_manifest(_K8S_THREE_DOCS, "manifests.yaml")
+    assert len(chunks) == 3
+    contents = [c["content"] for c in chunks]
+    assert any("Deployment" in c for c in contents)
+    assert any("Service" in c for c in contents)
+    assert any("ConfigMap" in c for c in contents)
+
+
+def test_chunk_k8s_empty_separator_skipped():
+    # Two real docs interleaved with an empty --- separator
+    content = _K8S_SINGLE_DOC + "\n---\n\n---\n" + _K8S_SINGLE_DOC
+    chunks = _chunk_k8s_manifest(content, "manifests.yaml")
+    assert len(chunks) == 2
+
+
+def test_chunk_k8s_chunk_index_sequential():
+    chunks = _chunk_k8s_manifest(_K8S_THREE_DOCS, "manifests.yaml")
+    indices = [c["chunk_index"] for c in chunks]
+    assert indices == list(range(len(chunks)))
+
+
+# =============================================================================
+# Kubernetes roundtrip — mine() AC-1
+# =============================================================================
+
+
+def test_mine_k8s_roundtrip():
+    """mine() on a Deployment YAML produces language='kubernetes', symbol_type='deployment', symbol_name='Deployment/my-app'."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        k8s_file = project_root / "deploy.yaml"
+        write_file(k8s_file, _K8S_SINGLE_DOC)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(
+            where={"source_file": str(k8s_file)},
+            include=["documents", "metadatas"],
+            limit=10,
+        )
+        metas = result["metadatas"]
+        assert len(metas) >= 1, "Expected at least one drawer for the K8s file"
+
+        meta = metas[0]
+        assert meta["language"] == "kubernetes", f"Expected language='kubernetes', got {meta['language']!r}"
+        assert meta["symbol_type"] == "deployment", f"Expected symbol_type='deployment', got {meta['symbol_type']!r}"
+        assert meta["symbol_name"] == "Deployment/my-app", f"Expected symbol_name='Deployment/my-app', got {meta['symbol_name']!r}"
+    finally:
+        shutil.rmtree(tmpdir)

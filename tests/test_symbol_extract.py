@@ -1658,3 +1658,51 @@ def test_php_chunk_multiple_classes():
     full_text = "\n".join(c["content"] for c in chunks)
     assert "Foo" in full_text
     assert "Bar" in full_text
+
+
+# =============================================================================
+# Kubernetes — extract_symbol tests
+# =============================================================================
+
+
+def test_k8s_deployment_with_name():
+    content = "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: my-app\nspec: {}\n"
+    assert extract_symbol(content, "kubernetes") == ("Deployment/my-app", "deployment")
+
+
+def test_k8s_service_with_name():
+    content = "apiVersion: v1\nkind: Service\nmetadata:\n  name: redis-svc\nspec: {}\n"
+    assert extract_symbol(content, "kubernetes") == ("Service/redis-svc", "service")
+
+
+def test_k8s_configmap_with_name():
+    content = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n  key: value\n"
+    assert extract_symbol(content, "kubernetes") == ("ConfigMap/app-config", "configmap")
+
+
+def test_k8s_resource_missing_name():
+    content = "apiVersion: apps/v1\nkind: Deployment\n"
+    assert extract_symbol(content, "kubernetes") == ("Deployment", "deployment")
+
+
+def test_k8s_crd_kind():
+    content = (
+        "apiVersion: apiextensions.k8s.io/v1\n"
+        "kind: CustomResourceDefinition\n"
+        "metadata:\n"
+        "  name: foos.example.com\n"
+    )
+    assert extract_symbol(content, "kubernetes") == (
+        "CustomResourceDefinition/foos.example.com",
+        "customresourcedefinition",
+    )
+
+
+def test_k8s_no_kind_returns_empty():
+    content = "apiVersion: v1\ndata:\n  key: value\n"
+    assert extract_symbol(content, "kubernetes") == ("", "")
+
+
+def test_k8s_non_k8s_yaml_chunk_returns_empty_for_plain_yaml():
+    content = "name: my-values\nreplicaCount: 1\nimage:\n  repository: nginx\n"
+    assert extract_symbol(content, "yaml") == ("", "")

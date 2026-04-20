@@ -754,6 +754,20 @@ def get_boundary_pattern(language: str):
 # =============================================================================
 
 
+_K8S_DETECT_RE = re.compile(
+    r"^apiVersion:\s.+\n(?:.*\n)*?^kind:\s\w|^kind:\s\w.*\n(?:.*\n)*?^apiVersion:\s",
+    re.MULTILINE,
+)
+
+
+def _is_k8s_manifest(content: str) -> bool:
+    """Return True if content looks like a Kubernetes manifest (has both apiVersion: and kind: lines)."""
+    return bool(
+        re.search(r"^apiVersion:\s", content, re.MULTILINE)
+        and re.search(r"^kind:\s", content, re.MULTILINE)
+    )
+
+
 def detect_language(filepath: Path, content: str = "") -> str:
     """
     Detect the programming language for a file.
@@ -762,34 +776,39 @@ def detect_language(filepath: Path, content: str = "") -> str:
     1. File extension lookup via EXTENSION_LANG_MAP.
     2. Filename lookup via FILENAME_LANG_MAP (for extensionless files like Dockerfile, Makefile).
     3. Shebang inspection on the first line (for extensionless files).
-    4. Returns "unknown" if neither matches.
+    4. Content-based K8s detection: YAML files with apiVersion+kind become 'kubernetes'.
+    5. Returns "unknown" if neither matches.
     """
     ext = filepath.suffix.lower()
+    lang = None
     if ext in EXTENSION_LANG_MAP:
-        return EXTENSION_LANG_MAP[ext]
+        lang = EXTENSION_LANG_MAP[ext]
+    elif filepath.name in FILENAME_LANG_MAP:
+        lang = FILENAME_LANG_MAP[filepath.name]
+    else:
+        # Shebang fallback — only for files with no recognized extension
+        first_line = content.split("\n")[0] if content else ""
+        if first_line.startswith("#!"):
+            parts = first_line[2:].strip().split()
+            if parts:
+                basename = parts[0].split("/")[-1]
+                if basename == "env" and len(parts) > 1:
+                    interp = parts[1].split("/")[-1]
+                else:
+                    interp = basename
+                for pattern, interp_lang in SHEBANG_PATTERNS:
+                    if pattern.fullmatch(interp):
+                        lang = interp_lang
+                        break
 
-    # Filename-based detection for known extensionless files
-    if filepath.name in FILENAME_LANG_MAP:
-        return FILENAME_LANG_MAP[filepath.name]
+    if lang is None:
+        return "unknown"
 
-    # Shebang fallback — only for files with no recognized extension
-    first_line = content.split("\n")[0] if content else ""
-    if first_line.startswith("#!"):
-        # Strip "#!" and split by whitespace
-        parts = first_line[2:].strip().split()
-        if parts:
-            # #!/usr/bin/env python3 [-flags...] → env is parts[0], interpreter is parts[1]
-            # #!/usr/bin/python3 [-flags...]     → interpreter basename is parts[0]
-            basename = parts[0].split("/")[-1]
-            if basename == "env" and len(parts) > 1:
-                interp = parts[1].split("/")[-1]
-            else:
-                interp = basename
-            for pattern, lang in SHEBANG_PATTERNS:
-                if pattern.fullmatch(interp):
-                    return lang
+    # Content-based K8s override: YAML files that are K8s manifests
+    if lang == "yaml" and content and _is_k8s_manifest(content):
+        return "kubernetes"
 
-    return "unknown"
+    return lang
 
 
 # =============================================================================
@@ -1287,6 +1306,18 @@ _LANG_EXTRACT_MAP = {
 }
 
 
+def _extract_k8s_symbol(content: str) -> tuple:
+    """Extract kind and metadata.name from a single K8s manifest document."""
+    kind_m = re.search(r"^kind:\s*(\w+)", content, re.MULTILINE)
+    if not kind_m:
+        return ("", "")
+    kind = kind_m.group(1)
+    name_m = re.search(r"^\s{2}name:\s*(\S+)", content, re.MULTILINE)
+    if name_m:
+        return (f"{kind}/{name_m.group(1)}", kind.lower())
+    return (kind, kind.lower())
+
+
 def extract_symbol(content: str, language: str) -> tuple:
     """
     Extract the primary symbol defined in a code chunk.
@@ -1294,6 +1325,9 @@ def extract_symbol(content: str, language: str) -> tuple:
     Non-code languages (markdown, text, json, yaml, unknown, etc.) return ("", "").
     TS/JS import-only chunks return ("", "import").
     """
+    if language == "kubernetes":
+        return _extract_k8s_symbol(content)
+
     patterns = _LANG_EXTRACT_MAP.get(language)
     if patterns is None:
         return ("", "")
@@ -1315,6 +1349,19 @@ def extract_symbol(content: str, language: str) -> tuple:
 # =============================================================================
 # CHUNKING — strategies
 # =============================================================================
+
+
+def _chunk_k8s_manifest(content: str, source_file: str) -> list:
+    """Split a K8s YAML file on --- document separators, one chunk per resource."""
+    raw_docs = re.split(r"(?:^|\n)---\s*(?:\n|$)", content)
+    all_chunks = []
+    for doc in raw_docs:
+        doc = doc.strip()
+        if len(doc) < MIN_CHUNK:
+            continue
+        all_chunks.extend(adaptive_merge_split([doc], source_file))
+    # Re-index chunk_index across all documents
+    return [{"content": c["content"], "chunk_index": i} for i, c in enumerate(all_chunks)]
 
 
 def chunk_file(content: str, ext: str, source_file: str, language: str = None) -> list:
@@ -1343,6 +1390,8 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         return chunk_code(content, language, source_file)
     elif language in ("markdown", "text"):
         return chunk_prose(content, source_file)
+    elif language == "kubernetes":
+        return _chunk_k8s_manifest(content, source_file)
     else:
         return chunk_adaptive_lines(content, source_file)
 

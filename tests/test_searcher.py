@@ -340,3 +340,59 @@ class TestPhpLanguageSupport:
             assert sym in result["valid_symbol_types"], (
                 f"Symbol type {sym!r} missing from valid_symbol_types hint"
             )
+
+
+class TestKubernetesLanguageSupport:
+    """AC-8, AC-9: kubernetes language and K8s resource kinds pass code_search validation."""
+
+    @pytest.fixture
+    def k8s_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["k8s_deployment_nginx"],
+            documents=[
+                "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx\nspec:\n  replicas: 1\n"
+            ],
+            metadatas=[
+                {
+                    "wing": "infra",
+                    "room": "general",
+                    "source_file": "deploy.yaml",
+                    "language": "kubernetes",
+                    "symbol_name": "Deployment/nginx",
+                    "symbol_type": "deployment",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_kubernetes_language(self, k8s_palace_path):
+        """AC-8: code_search(language='kubernetes') does not return an 'unsupported language' error."""
+        result = code_search(k8s_palace_path, "nginx", language="kubernetes")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+        assert len(result["results"]) > 0
+
+    def test_code_search_deployment_symbol_type(self, k8s_palace_path):
+        """AC-9: code_search(symbol_type='deployment') does not return 'invalid symbol_type' error."""
+        result = code_search(k8s_palace_path, "nginx", symbol_type="deployment")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_code_search_k8s_symbol_types_accepted(self, k8s_palace_path):
+        """All K8s resource kinds pass symbol_type validation."""
+        for sym_type in ("deployment", "service", "configmap", "secret", "ingress", "customresourcedefinition"):
+            result = code_search(k8s_palace_path, "something", symbol_type=sym_type)
+            assert "invalid symbol_type" not in result.get("error", "").lower(), (
+                f"symbol_type {sym_type!r} should be valid, got: {result.get('error')}"
+            )
+
+    def test_kubernetes_in_supported_languages_hint(self, k8s_palace_path):
+        """'kubernetes' appears in the supported_languages hint on invalid language query."""
+        result = code_search(k8s_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "kubernetes" in result["supported_languages"]
