@@ -585,29 +585,6 @@ items:
 
       - Tests must use tempfile.mkdtemp() + shutil.rmtree() pattern (no pytest fixtures)
       - No palace/embedding needed — pure scan_project() call tests
-  - key: MINE-SWIFT
-    summary: Add Swift language support to code miner
-    type: feature
-    status: done
-    priority: high
-    section_id: coding_first
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      Swift projects (iOS, macOS) cannot be mined.
-
-      ## Scope
-      - .swift files
-      - Extract: classes, structs, enums, protocols, functions, properties, extensions
-      - Handle: generics, closures, property wrappers, actors, async/await
-
-      ## Acceptance Criteria
-      - [ ] Symbol extraction for Swift constructs
-      - [ ] Works on iOS/SwiftUI projects
-      - [ ] Tests for: classes, structs, protocols, extensions, async functions
-    size: M
-    resolution: '2026-04-20: Add Swift (.swift) language support: SWIFT_BOUNDARY regex, _SWIFT_EXTRACT patterns for class/struct/enum/protocol/actor/extension/func/typealias, chunk_file dispatch, comment_prefixes @ extension for attribute attachment; ''swift'' in SUPPORTED_LANGUAGES and VALID_SYMBOL_TYPES; 32 new tests (symbol extract, miner roundtrip, attribute attachment, searcher validation)'
-    hardening: 'round-1 2026-04-20: F-1 fixed (typealias not in VALID_SYMBOL_TYPES); F-2 backlogged as MINE-SWIFT-DISTRIBUTED (distributed actor); F-3 fixed (@Published regression test rewrote to chunk_code-level); F-4 fixed (Calculator test weak assertions); F-5 dismissed (nested-paren attr edge case); F-6 dismissed (init not in scope). 1041 tests pass.'
   - key: MINE-PHP
     summary: Add PHP language support to code miner
     type: feature

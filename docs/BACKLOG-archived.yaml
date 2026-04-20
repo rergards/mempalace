@@ -169,3 +169,7 @@ items:
       summary: 'MCP tool: mempalace_mine — trigger re-mining from MCP'
       resolution: '2026-04-20: Added mempalace_mine MCP tool: incremental/full re-mining from MCP with fd-level stdout suppression, preflight validation, and 8 new tests'
       archived_date: "2026-04-20"
+    - key: MINE-SWIFT
+      summary: Add Swift language support to code miner
+      resolution: '2026-04-20: Add Swift (.swift) language support: SWIFT_BOUNDARY regex, _SWIFT_EXTRACT patterns for class/struct/enum/protocol/actor/extension/func/typealias, chunk_file dispatch, comment_prefixes @ extension for attribute attachment; ''swift'' in SUPPORTED_LANGUAGES and VALID_SYMBOL_TYPES; 32 new tests (symbol extract, miner roundtrip, attribute attachment, searcher validation)'
+      archived_date: "2026-04-20"
