@@ -608,6 +608,7 @@ items:
       - [ ] Tests for: Deployment, Service, ConfigMap, multi-doc YAML
     size: S
     resolution: '2026-04-21: Added K8s manifest smart parsing: content-based detection (apiVersion+kind), per-doc splitting on --- separators, Kind/name symbol extraction; kubernetes added to SUPPORTED_LANGUAGES and 6 resource kinds to VALID_SYMBOL_TYPES; 37 new tests all pass'
+    hardening: 'round-1 2026-04-21: 3 findings (1 fixed, 2 backlogged). Fixed dead _K8S_DETECT_RE. Backlogged: MINE-K8S-LARGE-DOC (large-doc symbol loss), MINE-K8S-YAML-SEPARATOR (false splits on embedded ---).'
   - key: MINE-SCALA
     summary: Add Scala language support to code miner
     type: feature
@@ -1060,3 +1061,41 @@ items:
       - `extract_symbol('distributed actor X {}', 'swift')` returns `('X', 'actor')`
       - Regular `actor` declarations continue to work unchanged
       - SWIFT_BOUNDARY detects `distributed actor Foo {` as a boundary
+  - key: MINE-K8S-LARGE-DOC
+    summary: 'K8s large-doc symbol propagation: sub-chunks past first lose kind/name metadata'
+    type: feature
+    status: open
+    priority: low
+    size: S
+    section_id: coding_first
+    labels: [feat, miner, infra]
+    description: |-
+      ## Problem
+      When a K8s manifest doc exceeds HARD_MAX (4000 chars), adaptive_merge_split splits it. Sub-chunks past the first lack kind: and metadata.name:, so _extract_k8s_symbol returns ('', '') — empty symbol_type and symbol_name in the index.
+
+      ## Scope
+      - _chunk_k8s_manifest in miner.py: extract kind+name from first sub-chunk and apply to all sub-chunks of the same doc
+      - Add a test with a large K8s doc (>4000 chars) verifying all sub-chunks have correct symbol metadata
+
+      ## Acceptance Criteria
+      - [ ] Large K8s doc (>4000 chars) produces multiple chunks all with correct symbol_type and symbol_name
+      - [ ] Existing K8s tests continue to pass unchanged
+  - key: MINE-K8S-YAML-SEPARATOR
+    summary: K8s chunker false splits on '---' inside YAML block scalar values
+    type: bug
+    status: open
+    priority: low
+    size: S
+    section_id: coding_first
+    labels: [fix, miner, infra]
+    description: |-
+      ## Problem
+      _chunk_k8s_manifest splits on the regex (?:^|\n)---\s*(?:\n|$) which matches any --- at a line boundary, including --- inside YAML block scalars (|, >) in ConfigMap/Secret data fields. A ConfigMap with an embedded config file containing --- would be incorrectly split.
+
+      ## Scope
+      - _chunk_k8s_manifest in miner.py: guard against splitting inside YAML block scalar values
+      - Add a test with a ConfigMap whose data contains an embedded --- separator
+
+      ## Acceptance Criteria
+      - [ ] ConfigMap with data containing embedded --- is stored as a single chunk
+      - [ ] Multi-document YAML files with real --- separators continue to produce one chunk per document

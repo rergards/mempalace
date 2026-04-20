@@ -754,12 +754,6 @@ def get_boundary_pattern(language: str):
 # =============================================================================
 
 
-_K8S_DETECT_RE = re.compile(
-    r"^apiVersion:\s.+\n(?:.*\n)*?^kind:\s\w|^kind:\s\w.*\n(?:.*\n)*?^apiVersion:\s",
-    re.MULTILINE,
-)
-
-
 def _is_k8s_manifest(content: str) -> bool:
     """Return True if content looks like a Kubernetes manifest (has both apiVersion: and kind: lines)."""
     return bool(

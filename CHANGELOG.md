@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-21 · MINE-K8S
+
+Add Kubernetes manifest support to the code miner — extracts Deployments, Services, ConfigMaps, Secrets, Ingresses, and CRDs from `.yaml`/`.yml` files, indexed by kind, namespace, name, and labels.
+
 ## 2026-04-20 · MINE-PHP
 
 Add PHP language support to the code miner — extracts classes, interfaces, traits, enums (PHP 8.1+), functions, methods, and namespaces from `.php` files, with support for Laravel, WordPress, and Symfony projects.
