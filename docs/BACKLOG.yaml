@@ -51,9 +51,39 @@ items:
     size: S
     section_id: mcp_developer_tools
     labels: [mcp, search, coding]
-    description: >
-      Given a source_file path, return all chunks in order (by chunk_index). Useful when an agent needs full file context from the palace without reading the actual file (e.g., file was deleted/renamed but palace has it).
+    description: >-
+      ## Problem
 
+
+      Agents often need to see all chunks stored for a specific file — e.g., to understand a deleted/renamed file, review what was indexed, or get ordered context without reading the actual file from disk.
+
+
+      ## Scope
+
+
+      - New MCP tool: `mempalace_file_context`
+
+      - Parameters: `source_file` (required), `wing` (optional filter)
+
+      - Returns all chunks for that file, ordered by `chunk_index`
+
+      - Include metadata: symbol_name, symbol_type, line range if available
+
+
+      ## Acceptance Criteria
+
+
+      - [ ] Tool registered in mcp_server.py with proper schema
+
+      - [ ] Returns chunks ordered by chunk_index
+
+      - [ ] Returns empty list (not error) when file not found in palace
+
+      - [ ] Wing filter narrows results when provided
+
+      - [ ] Works for both code-mined and conversation-mined files
+
+      - [ ] Tests for: found file, missing file, wing filter, ordering
     resolution: null
   - key: MCP-MINE-TRIGGER
     summary: "MCP tool: mempalace_mine — trigger re-mining from MCP"
@@ -121,9 +151,37 @@ items:
     size: S
     section_id: cleanup
     labels: [cleanup, mining]
-    description: >
-      spellcheck.py corrects user messages before filing. Makes sense for conversation text, not for code (CamelCase, snake_case, technical terms). Disable by default when mining code files. Keep enabled for conversation mining mode.
+    description: >-
+      ## Problem
 
+
+      spellcheck.py corrects user messages before filing. Makes sense for conversation text, but for code mining it mangles CamelCase, snake_case, and technical terms (e.g., 'kubectl' → 'cubectl').
+
+
+      ## Scope
+
+
+      - Add a config flag (e.g. `spellcheck_enabled: false` in mempalace.yaml or MempalaceConfig)
+
+      - Default to disabled when mining code files (`--mode code`, or default mode)
+
+      - Keep enabled for conversation mining (`--mode convos`)
+
+      - Respect explicit override: `--spellcheck` / `--no-spellcheck` CLI flags
+
+
+      ## Acceptance Criteria
+
+
+      - [ ] Code mining does not run spellcheck by default
+
+      - [ ] Conversation mining still runs spellcheck by default
+
+      - [ ] CLI flag `--no-spellcheck` / `--spellcheck` overrides the default
+
+      - [ ] Config file option works
+
+      - [ ] Tests for: code mine skips spellcheck, convo mine runs it, flag override
     resolution: null
   - key: CLEAN-ENTITY-DETECT
     summary: "Make entity detection opt-in, not default"
@@ -133,9 +191,39 @@ items:
     size: S
     section_id: cleanup
     labels: [cleanup, mining]
-    description: >
-      entity_detector.py auto-detects people and projects from content using heuristics (verb patterns, pronouns, dialogue markers). Useful for conversations, noisy for code. Make opt-in via config flag. Default mining should not run entity detection.
+    description: >-
+      ## Problem
 
+
+      entity_detector.py auto-detects people and projects from content using heuristics (verb patterns, pronouns, dialogue markers). Useful for conversations, but for code mining it produces noisy false positives (variable names, function names mistaken for people/projects). Slows down `mempalace init` for no benefit on code repos.
+
+
+      ## Scope
+
+
+      - Make entity detection opt-in via config flag (e.g. `entity_detection: false` default)
+
+      - `mempalace init` should NOT run entity detection unless `--detect-entities` is passed
+
+      - `mempalace init --yes` (used by AGENT_INSTALL) should skip entity detection by default
+
+      - Conversation mining (`--mode convos`) can keep entity detection on by default
+
+
+      ## Acceptance Criteria
+
+
+      - [ ] `mempalace init <dir>` no longer runs entity detection by default
+
+      - [ ] `mempalace init <dir> --detect-entities` runs it explicitly
+
+      - [ ] Conversation mining still runs entity detection by default
+
+      - [ ] Config file option (`entity_detection: true/false`) respected
+
+      - [ ] `--yes` flag still works without entity detection
+
+      - [ ] Tests for: init skips detection, flag enables it, convos mode runs it
     resolution: null
   - key: QUAL-CODE-BENCH
     summary: "Code mining benchmark — measure retrieval quality on real repos"
