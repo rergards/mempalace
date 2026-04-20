@@ -173,3 +173,7 @@ items:
       summary: Add Swift language support to code miner
       resolution: '2026-04-20: Add Swift (.swift) language support: SWIFT_BOUNDARY regex, _SWIFT_EXTRACT patterns for class/struct/enum/protocol/actor/extension/func/typealias, chunk_file dispatch, comment_prefixes @ extension for attribute attachment; ''swift'' in SUPPORTED_LANGUAGES and VALID_SYMBOL_TYPES; 32 new tests (symbol extract, miner roundtrip, attribute attachment, searcher validation)'
       archived_date: "2026-04-20"
+    - key: MINE-PHP
+      summary: Add PHP language support to code miner
+      resolution: '2026-04-20: Add PHP language support: classes, interfaces, traits, enums, functions, namespaces; #[Attribute] attachment; PHP 8.1+ enums; full test coverage (32 new tests)'
+      archived_date: "2026-04-20"
