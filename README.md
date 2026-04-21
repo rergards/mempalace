@@ -281,7 +281,7 @@ claude mcp add mempalace -- python -m mempalace.mcp_server
 
 </details>
 
-The AI learns the memory protocol automatically from the `mempalace_status` response. No manual configuration.
+MCP tools are discoverable by any MCP-capable client automatically. To teach the AI *when* and *how* to use them, paste the usage rules from [`docs/LLM_USAGE_RULES.md`](docs/LLM_USAGE_RULES.md) into your agent's instructions (CLAUDE.md, AGENTS.md, `.cursorrules`, etc.) — otherwise the tools are available but the assistant will not know the protocol.
 
 ---
 

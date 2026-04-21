@@ -580,69 +580,111 @@ If the target file already contains `mempalace` (case-insensitive), **ASK HUMAN:
 
 ### Step 7.3: Append usage rules
 
-Append the following block to the target file. Do not modify any existing content.
+Append the block below to the target file. Do not modify any existing content. The block is the canonical usage rules from [`docs/LLM_USAGE_RULES.md`](LLM_USAGE_RULES.md) — keep the two in sync (single source of truth is `LLM_USAGE_RULES.md`; this copy is embedded so the agent runbook stays self-contained).
 
 ````markdown
 
 # mempalace-code — Usage Rules
 
-mempalace-code is a semantic AI memory system available via MCP tools. It stores verbatim content in a local vector database — no cloud, no API keys.
+mempalace-code is a local semantic memory system exposed over MCP. Content is stored verbatim in a vector database; no cloud, no API keys, no summarisation.
 
-## Core Concepts
+## Mental model
 
-- **Wings** — a project or knowledge domain (e.g. `myapp`, `people`, `decisions`)
-- **Rooms** — topics within a wing (e.g. `backend`, `architecture`, `debugging`)
-- **Drawers** — verbatim content stored in a room. Never summarized, never compressed.
-- **Knowledge Graph** — temporal entity-relationship triples for facts that change over time
+- **Wing** — a project or knowledge domain. One per repo, plus cross-project wings like `people`, `decisions`.
+- **Room** — a topic within a wing (`backend`, `debugging`, `meetings`). Organisational; searches ignore rooms unless you scope explicitly.
+- **Drawer** — verbatim content stored in a room. Persistent, shared across agents, retrieved by meaning.
+- **Knowledge Graph (KG)** — entity-relationship triples with validity windows. For facts that evolve (versions, roles, statuses, deadlines).
+- **Diary** — agent-scoped first-person session log. Read on next session to restore continuity; not team-authoritative.
 
-## When to Search (`mempalace_search`)
+## Routing: which tool, when?
 
-Search mempalace **before** reading files, grepping code, or planning work when the task involves:
-- A new feature request — search the feature name and adjacent domain
-- A bug investigation — search the symptom and component
-- Questions about past decisions, people, project history, or timelines
-- Any topic that may have been discussed in a previous session
+| Task                                                | Primary tool                         |
+|-----------------------------------------------------|--------------------------------------|
+| "Have we discussed X before?" / past decisions      | `mempalace_search`                   |
+| "What is the current value of X?" (temporal fact)   | `mempalace_kg_query`                 |
+| "How did X change over time?"                       | `mempalace_kg_timeline`              |
+| Find a function/class/symbol/file                   | `mempalace_code_search`              |
+| All indexed chunks for a specific file              | `mempalace_file_context`             |
+| Explain how a subsystem works                       | `mempalace_explain_subsystem`        |
+| Classify dependencies as core / platform / glue     | `mempalace_extract_reusable`         |
+| Inheritance chain (ancestors + descendants)         | `mempalace_show_type_dependencies`   |
+| Project-level dependency graph (.NET)               | `mempalace_show_project_graph`       |
+| Walk related rooms from a starting room             | `mempalace_traverse`                 |
+| Find rooms that bridge two wings                    | `mempalace_find_tunnels`             |
+| Save a decision, root cause, or discussion          | `mempalace_add_drawer`               |
+| Save/update a temporal fact                         | `mempalace_kg_invalidate` + `mempalace_kg_add` |
+| End-of-session continuity note (self-scoped)        | `mempalace_diary_write`              |
+| Resume prior session continuity                     | `mempalace_diary_read`               |
+| Verify palace is alive before relying on it         | `mempalace_status`                   |
 
-Try 2–3 phrasings if the first query returns nothing. For entity-specific facts, also use `mempalace_kg_query`.
+Default to `mempalace_search` only when no more specific tool applies.
 
-Skip searching only for pure mechanical operations (running tests, formatting) where there is nothing to look up.
+## Search rules
 
-## When to Write (`mempalace_add_drawer`)
+Call `mempalace_search` **before substantial repo exploration** (reading many files, broad grepping, planning) when prior context could plausibly exist — new feature requests, bug investigations, questions about past decisions, people, timelines, or project history.
+
+- Try 2–3 reformulations on low-confidence or empty results before giving up.
+- Scope with `wing=<project_slug>` for project-local topics; omit for cross-cutting ones.
+- On persistent miss, proceed with host tools and consider writing a drawer after the task so the next agent finds it.
+- For entity-specific facts, also call `mempalace_kg_query`.
+
+Skip search for pure mechanical operations (run tests, format files, rename within one file).
+
+## Knowledge Graph rules
+
+Use the KG for facts that **change over time** or need **exact-match lookup** — version numbers, stack choices, ownership, statuses, deadlines.
+
+Update protocol: `mempalace_kg_query` → `mempalace_kg_invalidate` (old triple, today's date) → `mempalace_kg_add` (new triple, validity window). Never leave two live triples for the same `(subject, predicate)`.
+
+Bad for KG: code patterns, debugging notes, prose — those belong in a drawer.
+
+## Drawer rules
 
 Write a drawer after:
-- A significant decision or architectural discussion — store the reasoning verbatim
-- Debugging a hard problem — store the root cause analysis
-- Learning context about people, timelines, or project goals
-- Session wrap-up — summarize what was accomplished and key decisions
+- A significant decision or architectural discussion — include reasoning and rejected alternatives.
+- Debugging a hard problem — capture the root cause, not the symptom.
+- Durable context about people, timelines, or project goals.
+- Significant session wrap-up others might need.
 
-**Do not write** routine code changes (git log has this), information already in project files, or duplicate content (the tool checks automatically at 0.9 similarity).
+**Before filing substantial new prose, call `mempalace_check_duplicate`** and merge rather than overwrite if a near-duplicate exists.
 
-**Content rules:**
-- Store **verbatim** — do not summarize or compress
-- Include context: who decided, why, what alternatives were rejected
-- One topic per drawer
+Content rules: store verbatim; one topic per drawer; keep it ≤ ~60 lines; reference file paths and issue/PR IDs rather than pasting large blobs.
 
-## Wing/Room Conventions
+## Wing & room conventions
 
-| Wing | Use for |
-|------|---------|
-| `<project_slug>` | Project-specific knowledge |
-| `people` | Facts about collaborators and stakeholders |
-| `decisions` | Cross-project architectural or process decisions |
+| Wing              | Use for                                              |
+|-------------------|------------------------------------------------------|
+| `<project_slug>`  | Project-specific knowledge. One wing per repo.       |
+| `people`          | Facts about collaborators and stakeholders.          |
+| `decisions`       | Cross-project architectural or process decisions.    |
 
-Use `mempalace_list_rooms` to check existing rooms before creating new ones.
+Call `mempalace_list_wings` / `mempalace_list_rooms` before inventing new names. Reuse existing rooms (`backend`, `frontend`, `architecture`, `debugging`, `meetings`, `infrastructure`, `general`) unless a genuinely new topic warrants a new one.
 
-## Knowledge Graph (`mempalace_kg_*`)
+## Diary rules
 
-Use for facts that **change over time**: version numbers, team roles, project status, tech stack choices.
+`mempalace_diary_write` creates an agent-scoped first-person session record.
 
-- Always `mempalace_kg_invalidate` the old fact before adding a replacement
-- Good: "myapp uses Postgres", "deploy freeze starts 2026-03-05"
-- Bad: code patterns, debugging notes (use drawers instead)
+- Pass `agent_name` = the value of `MEMPALACE_AGENT_NAME` from the environment. Do not guess, do not hardcode another agent's identity.
+- Write once at end of a meaningful session — not per message.
+- Content: what was attempted, what shipped, what remains, where you left off.
+- Read with `mempalace_diary_read` at session start when continuity matters.
 
-## Agent Diary (`mempalace_diary_write`)
+Diary ≠ drawer. Diary is for the same agent's next run; drawer is for the team.
 
-Write at end of significant sessions to maintain continuity across conversations. Use `agent_name` matching your assistant identity (e.g. `"claude-code"`).
+## Never
+
+- Never fabricate a tool call or invent tool names. If the tool is not in your MCP tool list, it is not available — fall back to host tools.
+- Never store secrets, tokens, credentials, private keys, or PII (home addresses, phone numbers, government IDs) in drawers or the KG. Collaborator context (name, role, team, preferences, working relationships) in the `people` wing is fine — that is the wing's purpose.
+- Never summarise or compress drawer content; store verbatim.
+- Never create a new wing when an existing one fits.
+- Never leave two live KG triples for the same `(subject, predicate)`.
+- Never call `mempalace_delete_drawer` or `mempalace_delete_wing` except to correct content that is *wrong*. Evolved facts get a new drawer / a KG invalidate-and-add, not a delete.
+- Never treat diary entries as team-authoritative memory. They are agent-scoped context, not a source of truth.
+- Never infer absence from a search miss. "Not found" means "not indexed or not phrased to match," not "does not exist."
+
+## Corrections (no update tool)
+
+To correct *wrong* content: `mempalace_search` the drawer → `mempalace_delete_drawer` with its ID → `mempalace_add_drawer` with the fix. For *evolved* facts, add a new drawer instead and let history stand; track current state in the KG.
 ````
 
 **Pass →** Content appended. Inform human: "Added mempalace usage rules to `<target file>`. Your AI assistant will now use mempalace proactively."
