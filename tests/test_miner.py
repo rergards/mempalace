@@ -2582,3 +2582,190 @@ def test_mine_k8s_roundtrip():
         )
     finally:
         shutil.rmtree(tmpdir)
+
+
+# =============================================================================
+# Scala language — mine() roundtrip + .sc script roundtrip
+# =============================================================================
+
+
+def test_mine_scala_roundtrip():
+    """AC-1/AC-2/AC-5: mine() on .scala files discovers them via READABLE_EXTENSIONS and
+    stores drawers with language='scala', correct symbol_type, and symbol_name.
+
+    Each Scala construct lives in its own file so that the chunk survives
+    adaptive_merge_split as a distinct drawer with the expected metadata.
+    """
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        # UserService.scala — class (AC-1)
+        class_content = (
+            "package com.example\n\n"
+            "import scala.concurrent.Future\n\n"
+            "/** UserService manages user persistence and retrieval operations.\n"
+            " *  It provides a clean interface over the underlying database layer.\n"
+            " *  The implementation is async-first and returns Future-wrapped results.\n"
+            " *  Callers should always close the service after use to release connections.\n"
+            " */\n"
+            "class UserService(db: Database, cache: Cache) {\n"
+            "  private val logger = Logger(getClass)\n\n"
+            "  def fetchUser(id: Long): Future[Option[User]] = {\n"
+            "    cache.get(id).map(Future.successful).getOrElse(db.find(id))\n"
+            "  }\n\n"
+            "  def saveUser(user: User): Future[Unit] = {\n"
+            "    db.save(user).map(_ => cache.invalidate(user.id))\n"
+            "  }\n\n"
+            "  def deleteUser(id: Long): Future[Boolean] = {\n"
+            "    db.delete(id).map { ok => if (ok) cache.invalidate(id); ok }\n"
+            "  }\n"
+            "}\n"
+        )
+
+        # Point.scala — case class (AC-2)
+        case_class_content = (
+            "package com.example\n\n"
+            "/** Point represents a 2D coordinate with value-based equality semantics.\n"
+            " *  Provides utility methods for computing Euclidean distance and translation.\n"
+            " *  Used throughout the geometry subsystem for position calculations.\n"
+            " *  All operations are pure and return new Point instances without mutation.\n"
+            " */\n"
+            "case class Point(x: Double, y: Double) {\n"
+            "  def distance(other: Point): Double = {\n"
+            "    val dx = x - other.x\n"
+            "    val dy = y - other.y\n"
+            "    math.sqrt(dx * dx + dy * dy)\n"
+            "  }\n"
+            "  def translate(dx: Double, dy: Double): Point = Point(x + dx, y + dy)\n"
+            "  def scale(factor: Double): Point = Point(x * factor, y * factor)\n"
+            "  def negate: Point = Point(-x, -y)\n"
+            "}\n"
+        )
+
+        # Readable.scala — trait (AC-5)
+        trait_content = (
+            "package com.example\n\n"
+            "/** Readable is the core abstraction for all data sources that can be consumed\n"
+            " *  as a stream of bytes. Implementations include FileReader and SocketReader.\n"
+            " *  All methods are synchronous and block until data is available or timeout.\n"
+            " *  Resource acquisition is caller-managed; close() must always be invoked.\n"
+            " */\n"
+            "trait Readable {\n"
+            "  def read(): Array[Byte]\n"
+            "  def readLine(): String\n"
+            "  def readAll(): Array[Byte]\n"
+            "  def close(): Unit\n"
+            "  def isAvailable(): Boolean\n"
+            "  def availableBytes(): Int\n"
+            "}\n"
+        )
+
+        write_file(project_root / "UserService.scala", class_content)
+        write_file(project_root / "Point.scala", case_class_content)
+        write_file(project_root / "Readable.scala", trait_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0, "Expected at least one drawer from .scala files"
+
+        # Every drawer must have language='scala'
+        for meta in metadatas:
+            assert meta["language"] == "scala", (
+                f"Expected language='scala', got {meta['language']!r}"
+            )
+
+        # Must have a class drawer for UserService (AC-1)
+        class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "class" and m.get("symbol_name") == "UserService"
+        ]
+        assert class_drawers, (
+            f"Expected symbol_type='class', symbol_name='UserService'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a case_class drawer for Point (AC-2)
+        case_class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "case_class" and m.get("symbol_name") == "Point"
+        ]
+        assert case_class_drawers, (
+            f"Expected symbol_type='case_class', symbol_name='Point'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a trait drawer for Readable (AC-5)
+        trait_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "trait" and m.get("symbol_name") == "Readable"
+        ]
+        assert trait_drawers, (
+            f"Expected symbol_type='trait', symbol_name='Readable'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_mine_scala_script_roundtrip():
+    """AC-12: mine() on a .sc script file discovers it via READABLE_EXTENSIONS,
+    detect_language returns 'scala', and the resulting drawer has
+    language='scala', symbol_type='function', symbol_name='greet'.
+    """
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        script_content = (
+            "// Ammonite / Scala CLI script\n\n"
+            "/** greet produces a personalised greeting string for the given name.\n"
+            " *  It is the primary entry point for this demonstration script.\n"
+            " *  The implementation is intentionally verbose to exceed MIN_CHUNK.\n"
+            " */\n"
+            "def greet(name: String): String = {\n"
+            '  val prefix = "Hello"\n'
+            '  val suffix = "!"\n'
+            '  val punctuation = "How are you?"\n'
+            '  val full = s"$prefix, $name$suffix $punctuation"\n'
+            "  full\n"
+            "}\n"
+        )
+
+        write_file(project_root / "script.sc", script_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=100)
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0, "Expected at least one drawer from script.sc"
+
+        # language must be 'scala' (not 'unknown')
+        for meta in metadatas:
+            assert meta["language"] == "scala", (
+                f"Expected language='scala' for .sc file, got {meta['language']!r}"
+            )
+
+        # Must have a function drawer for greet
+        greet_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "function" and m.get("symbol_name") == "greet"
+        ]
+        assert greet_drawers, (
+            f"Expected symbol_type='function', symbol_name='greet'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)

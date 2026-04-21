@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-21 · MINE-SCALA
+
+Add Scala language support to the code miner — extracts classes, case classes, objects, traits, enums, and functions from `.scala`/`.sc` files, with support for implicits, type aliases, generics, and access modifiers.
+
 ## 2026-04-21 · MINE-K8S
 
 Add Kubernetes manifest support to the code miner — extracts Deployments, Services, ConfigMaps, Secrets, Ingresses, and CRDs from `.yaml`/`.yml` files, indexed by kind, namespace, name, and labels.

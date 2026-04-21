@@ -403,3 +403,75 @@ class TestKubernetesLanguageSupport:
         result = code_search(k8s_palace_path, "something", language="notareallangnnn")
         assert "supported_languages" in result
         assert "kubernetes" in result["supported_languages"]
+
+
+class TestScalaLanguageSupport:
+    """AC-13/AC-14: Scala language and new symbol types (object, case_class, case_object)
+    pass code_search validation."""
+
+    @pytest.fixture
+    def scala_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["scala_userservice"],
+            documents=["class UserService(db: Database) { def findById(id: Long) = ??? }"],
+            metadatas=[
+                {
+                    "wing": "myapp",
+                    "room": "backend",
+                    "source_file": "UserService.scala",
+                    "language": "scala",
+                    "symbol_name": "UserService",
+                    "symbol_type": "class",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_scala_language(self, scala_palace_path):
+        """AC-13: code_search(language='scala') does not return an 'unsupported language' error."""
+        result = code_search(scala_palace_path, "user service", language="scala")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_scala_language_in_supported_hint(self, scala_palace_path):
+        """'scala' appears in the supported_languages hint on an invalid language query."""
+        result = code_search(scala_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "scala" in result["supported_languages"], (
+            "'scala' missing from supported_languages hint"
+        )
+
+    def test_code_search_object_symbol_type(self, scala_palace_path):
+        """AC-14: code_search(symbol_type='object') does not return 'invalid symbol_type' error."""
+        result = code_search(scala_palace_path, "something", symbol_type="object")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'object' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_case_class_symbol_type(self, scala_palace_path):
+        """AC-14: code_search(symbol_type='case_class') does not return 'invalid symbol_type' error."""
+        result = code_search(scala_palace_path, "something", symbol_type="case_class")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'case_class' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_case_object_symbol_type(self, scala_palace_path):
+        """AC-14: code_search(symbol_type='case_object') does not return 'invalid symbol_type' error."""
+        result = code_search(scala_palace_path, "something", symbol_type="case_object")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'case_object' should be valid, got: {result.get('error')}"
+        )
+
+    def test_scala_new_symbol_types_in_error_hint(self, scala_palace_path):
+        """object/case_class/case_object appear in valid_symbol_types hint on invalid type query."""
+        result = code_search(scala_palace_path, "something", symbol_type="notarealtype")
+        assert "valid_symbol_types" in result
+        for sym in ("object", "case_class", "case_object"):
+            assert sym in result["valid_symbol_types"], (
+                f"Symbol type {sym!r} missing from valid_symbol_types hint"
+            )

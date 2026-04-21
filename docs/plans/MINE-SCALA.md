@@ -11,15 +11,17 @@ files:
   - path: mempalace/mcp_server.py
     change: "Add 'scala' to the mempalace_code_search language description string; add 'object', 'case_class', 'case_object' to the symbol_type description string"
   - path: tests/test_symbol_extract.py
-    change: "Add Scala extract_symbol unit tests: class, case class, object, case object, trait, Scala 3 enum, def (with/without access modifiers), type alias, generics, access modifiers (private[scope]), sealed/abstract/final prefix chains, implicit/given declarations, no-match property line"
+    change: "Add Scala extract_symbol unit tests: class, case class, object, case object, trait, Scala 3 enum, def (with/without access modifiers), type alias, generics, access modifiers (private[scope]), sealed/abstract/final prefix chains, implicit declarations (implicit def → function, implicit class → class), no-match for property lines (val/var), no-match for `given` declarations (intentionally not a boundary)"
   - path: tests/test_miner.py
     change: "Add test_mine_scala_roundtrip — full mine() cycle on a .scala file proving the walker discovers .scala via READABLE_EXTENSIONS and stored drawers have language='scala'"
   - path: tests/test_miner.py
-    change: "Add test_scala_annotation_attachment — verify @tailrec / @main / @deprecated lines attach to the following declaration chunk (not orphaned in the preceding chunk)"
+    change: "Add test_mine_scala_script_roundtrip — full mine() cycle on a script.sc file containing a top-level `def greet() = ...`, asserting detect_language returns 'scala' and the resulting drawer has language='scala', symbol_type='function', symbol_name='greet' (closes AC-12)"
+  - path: tests/test_chunking.py
+    change: "Add test_chunk_code_scala_annotation_attachment — direct chunk_code(..., 'scala', ...) test verifying @tailrec / @main / @deprecated lines attach to the following declaration chunk (not orphaned in the preceding chunk), mirroring existing PHP/C# chunk_code annotation coverage"
   - path: tests/test_lang_detect.py
     change: "Add .scala and .sc to the extension parametrize list in test_extension_detection"
   - path: tests/test_searcher.py
-    change: "Add test_code_search_scala_language — verify code_search(language='scala') does not raise validation error; add test_code_search_new_symbol_types_scala — verify 'object', 'case_class', 'case_object' are accepted as symbol_type filters"
+    change: "Add test_code_search_scala_language — verify code_search(language='scala') does not raise validation error; add test_code_search_scala_invalid_language_hint — verify that when code_search is called with an invalid language, the error response's supported_languages list includes 'scala' (mirrors existing searcher hint assertions for prior language additions); add test_code_search_new_symbol_types_scala — verify 'object', 'case_class', 'case_object' are accepted as symbol_type filters"
 acceptance:
   - id: AC-1
     when: "A .scala file containing `class UserService { ... }` is mined"
@@ -63,10 +65,15 @@ acceptance:
   - id: AC-14
     when: "code_search is called with symbol_type='case_class' (or 'object', or 'case_object')"
     then: "Does not return a validation error (symbol_types are in VALID_SYMBOL_TYPES)"
+  - id: AC-15
+    when: "extract_symbol is called on a Scala 3 `given intOrdering: Ordering[Int] = ...` chunk"
+    then: "Returns ('', '') — `given` declarations are intentionally NOT a boundary or symbol (documented exclusion; see Resolved Decisions)"
 out_of_scope:
   - "Tree-sitter AST parsing for Scala (no tree_sitter_scala grammar is installed in the ecosystem); regex tier only, matching Kotlin/Swift/PHP"
   - "SBT build files (.sbt) — not in the task scope (`.scala, .sc` only)"
-  - "Implicit conversion semantics, given/using instance resolution, or pattern-match exhaustiveness — these are analysis concerns, not extraction"
+  - "Scala 3 `extension` methods — deferred. Not treated as a first-class boundary in this task; extension method bodies will be mined as ordinary `def` chunks inside the surrounding class/object context (or, if top-level, fall into a preamble chunk). A follow-up task can revisit extension-as-symbol once user demand is clear."
+  - "Scala 3 `given` / `using` declarations — `given` is intentionally NOT a boundary (same rationale as `val`/`var` — noisy; see Resolved Decisions). Included here explicitly for unambiguity."
+  - "Implicit conversion semantics or pattern-match exhaustiveness — these are analysis concerns, not extraction. (Note: `implicit def` and `implicit class` ARE extracted as `function`/`class` respectively; only the *semantics* are out of scope.)"
   - "Cross-file symbol resolution (companion objects sharing namespace with classes) — each chunk is extracted independently"
   - "Macro annotations and metaprogramming — treated as ordinary annotation syntax"
 ---
@@ -78,8 +85,9 @@ out_of_scope:
 - **Extensions:** `.scala` (standard) and `.sc` (Ammonite/worksheet scripts, Scala CLI). Both map to language `"scala"`. Script files use the same syntax.
 
 - **Scala 2 vs Scala 3:** regex patterns must cover both:
-  - Scala 3 additions: `enum`, `given`, `extension` (keyword), `opaque type`, `inline`, `open` class
-  - Scala 2 implicits: `implicit def`, `implicit class`, `implicit val` — `implicit` is an access-style modifier
+  - Scala 3 additions that ARE boundaries: `enum`, `opaque type`, `inline` (as modifier on `def`), `open` (as modifier on `class`)
+  - Scala 3 additions that are NOT boundaries in this task: `given` (see Resolved Decisions), `extension` (deferred — see `out_of_scope`)
+  - Scala 2 implicits: `implicit def`, `implicit class`, `implicit val` — `implicit` is an access-style modifier. `implicit def` and `implicit class` are boundaries; `implicit val` is not (follows the `val` exclusion).
 
 - **Access / declaration modifiers:** `private`, `protected`, `private[scope]`, `protected[scope]`, `final`, `sealed`, `abstract`, `override`, `implicit`, `lazy`, `inline`, `opaque`, `open`. Boundary/extract patterns tolerate arbitrary prefix chains. `private[scope]` bracket-qualifier is matched with `(?:\[[\w.]+\])?`.
 
@@ -112,7 +120,9 @@ out_of_scope:
 
 - **Package declarations (`package foo.bar`)** are NOT boundaries. They are expected at file top and will naturally land in the preamble chunk. No special handling.
 
-- **Integration test goes through `mine()`, not just `process_file()`** — proves `.scala`/`.sc` are in `READABLE_EXTENSIONS` and the file walker picks them up end-to-end.
+- **Integration test goes through `mine()`, not just `process_file()`** — proves `.scala`/`.sc` are in `READABLE_EXTENSIONS` and the file walker picks them up end-to-end. Both extensions get their own roundtrip test (`test_mine_scala_roundtrip` for `.scala`, `test_mine_scala_script_roundtrip` for `.sc`) so AC-12 (`.sc` routing) is verified end-to-end, not just via `detect_language` unit coverage.
+
+- **Direct `chunk_code` coverage for annotations.** In addition to the full-mine annotation test, a focused `chunk_code(..., "scala", ...)` test lives in `tests/test_chunking.py` next to the existing PHP/C# chunk-boundary tests. This catches `@tailrec`/`@main` attachment regressions earlier than the integration layer (shorter signal, no palace/embedding machinery).
 
 ## Resolved Decisions
 
@@ -124,6 +134,8 @@ out_of_scope:
 
 - **Implicits are not a separate symbol type.** `implicit def foo` emits `function` with name `foo`; `implicit class Wrapper` emits `class` with name `Wrapper`; `implicit val x` is not a boundary (like other `val`s). Creating an `implicit` symbol type would overlap every real declaration kind.
 
-- **`given` (Scala 3) is not a boundary.** `given Ordering[Int] = ...` is conceptually similar to `implicit val` — skipping keeps chunk noise low. Can be revisited if users request it (open a follow-up task).
+- **`given` (Scala 3) is not a boundary.** `given Ordering[Int] = ...` is conceptually similar to `implicit val` — skipping keeps chunk noise low. Can be revisited if users request it (open a follow-up task). Verified by AC-15: a `given` declaration passed to `extract_symbol` must return `('', '')`.
+
+- **Scala 3 `extension` methods are deferred.** The `extension` keyword (e.g. `extension (s: String) def shout: String = ...`) has distinctive semantics that don't map cleanly to any existing symbol_type, and no clear user signal exists for how it should appear in search results. Rather than guessing a representation now, this task treats `extension` blocks as non-boundaries — the inner `def` will still be chunked as a `function` when present. A follow-up task can add a first-class `extension` symbol_type once the need is concrete. See `out_of_scope` for the explicit deferral.
 
 - **`searcher.py` and `mcp_server.py` are in scope.** Without updating `SUPPORTED_LANGUAGES` / `VALID_SYMBOL_TYPES`, `code_search(language="scala", symbol_type="case_class")` would reject valid Scala queries. MCP description strings are updated to keep client hints aligned with backend validation.

@@ -1708,3 +1708,150 @@ def test_k8s_no_kind_returns_empty():
 def test_k8s_non_k8s_yaml_chunk_returns_empty_for_plain_yaml():
     content = "name: my-values\nreplicaCount: 1\nimage:\n  repository: nginx\n"
     assert extract_symbol(content, "yaml") == ("", "")
+
+
+# =============================================================================
+# Scala symbol extraction
+# =============================================================================
+
+
+def test_scala_class():
+    assert extract_symbol("class UserService {\n}\n", "scala") == ("UserService", "class")
+
+
+def test_scala_case_class():
+    assert extract_symbol("case class Point(x: Int, y: Int)\n", "scala") == ("Point", "case_class")
+
+
+def test_scala_case_class_not_plain_class():
+    # case class must not be classified as plain class (ordering test)
+    name, sym_type = extract_symbol("case class Event(id: Long)\n", "scala")
+    assert name == "Event"
+    assert sym_type == "case_class"
+
+
+def test_scala_object():
+    assert extract_symbol("object Logger {\n}\n", "scala") == ("Logger", "object")
+
+
+def test_scala_case_object():
+    assert extract_symbol("case object Empty\n", "scala") == ("Empty", "case_object")
+
+
+def test_scala_case_object_not_plain_object():
+    name, sym_type = extract_symbol("case object None\n", "scala")
+    assert name == "None"
+    assert sym_type == "case_object"
+
+
+def test_scala_trait():
+    assert extract_symbol("trait Readable {\n  def read(): String\n}\n", "scala") == (
+        "Readable",
+        "trait",
+    )
+
+
+def test_scala_enum():
+    assert extract_symbol("enum Color {\n  case Red, Green, Blue\n}\n", "scala") == (
+        "Color",
+        "enum",
+    )
+
+
+def test_scala_def():
+    assert extract_symbol("def fetchUser(id: Long): Future[User] = ???\n", "scala") == (
+        "fetchUser",
+        "function",
+    )
+
+
+def test_scala_type_alias():
+    assert extract_symbol("type Result[A] = Either[Throwable, A]\n", "scala") == (
+        "Result",
+        "type",
+    )
+
+
+def test_scala_val_not_extracted():
+    # val properties must not be extracted as symbols (AC-9)
+    assert extract_symbol('val name: String = "test"\n', "scala") == ("", "")
+
+
+def test_scala_var_not_extracted():
+    assert extract_symbol("var counter: Int = 0\n", "scala") == ("", "")
+
+
+def test_scala_given_not_extracted():
+    # given declarations (Scala 3) are intentionally excluded (AC-15)
+    assert extract_symbol("given intOrdering: Ordering[Int] = Ordering.Int\n", "scala") == ("", "")
+
+
+def test_scala_sealed_abstract_class():
+    # Prefix modifier chain must not break extraction (AC-10)
+    assert extract_symbol("sealed abstract class Tree[A]\n", "scala") == ("Tree", "class")
+
+
+def test_scala_final_sealed_trait():
+    assert extract_symbol("sealed trait State\n", "scala") == ("State", "trait")
+
+
+def test_scala_private_class():
+    assert extract_symbol("private class Internal {\n}\n", "scala") == ("Internal", "class")
+
+
+def test_scala_private_scoped_class():
+    # private[pkg] qualifier must be handled
+    assert extract_symbol("private[util] class Helper {\n}\n", "scala") == ("Helper", "class")
+
+
+def test_scala_implicit_def():
+    # implicit def extracts as function (not a separate symbol_type per design)
+    assert extract_symbol("implicit def intToString(n: Int): String = n.toString\n", "scala") == (
+        "intToString",
+        "function",
+    )
+
+
+def test_scala_implicit_class():
+    # implicit class extracts as class (AC: implicits not a separate symbol type)
+    assert extract_symbol("implicit class RichInt(val n: Int) {\n}\n", "scala") == (
+        "RichInt",
+        "class",
+    )
+
+
+def test_scala_annotation_prefixed_def():
+    content = "@tailrec\nprivate def loop(n: Int): Int = ???\n"
+    assert extract_symbol(content, "scala") == ("loop", "function")
+
+
+def test_scala_annotation_prefixed_class():
+    content = "@SerialVersionUID(1L)\nclass Serializable {\n}\n"
+    assert extract_symbol(content, "scala") == ("Serializable", "class")
+
+
+def test_scala_open_class():
+    # Scala 3 open modifier
+    assert extract_symbol("open class Base {\n}\n", "scala") == ("Base", "class")
+
+
+def test_scala_inline_def():
+    # Scala 3 inline modifier
+    assert extract_symbol("inline def identity[A](a: A): A = a\n", "scala") == (
+        "identity",
+        "function",
+    )
+
+
+def test_scala_opaque_type():
+    # Scala 3 opaque type alias
+    assert extract_symbol("opaque type Seconds = Int\n", "scala") == ("Seconds", "type")
+
+
+def test_scala_type_param_in_method_not_matched():
+    # `type T` inside method signature must not be extracted as type alias
+    # (no trailing `=` means it's a type parameter, not an alias)
+    assert extract_symbol("def process[T: Ordering](items: Seq[T]): Seq[T] = ???\n", "scala") == (
+        "process",
+        "function",
+    )

@@ -1397,7 +1397,7 @@ TOOLS = {
                 "language": {
                     "type": "string",
                     "description": (
-                        "Filter by language (e.g. python, go, typescript, rust, java, cpp, c, "
+                        "Filter by language (e.g. python, go, typescript, rust, java, scala, cpp, c, "
                         "swift, csharp, fsharp, vbnet, xaml, dotnet-solution, php, "
                         "sql, html, css, yaml, json, toml, terraform, hcl, dockerfile, make, "
                         "gotemplate, jinja2, conf, ini, markdown, text, csv, kubernetes)"
@@ -1414,6 +1414,7 @@ TOOLS = {
                         "(function, class, method, struct, interface, "
                         "record, enum, property, event, module, union, type, view, exception, "
                         "typealias, protocol, actor, extension, trait, namespace, "
+                        "object, case_class, case_object, "
                         "deployment, service, configmap, secret, ingress, customresourcedefinition)"
                     ),
                 },

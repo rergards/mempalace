@@ -175,6 +175,8 @@ SUPPORTED_LANGUAGES = {
     "swift",
     # PHP
     "php",
+    # JVM
+    "scala",
     # web
     "html",
     "css",
@@ -225,6 +227,10 @@ VALID_SYMBOL_TYPES = {
     # PHP-specific
     "trait",
     "namespace",
+    # Scala-specific
+    "object",
+    "case_class",
+    "case_object",
     # Kubernetes resource kinds
     "deployment",
     "service",

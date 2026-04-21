@@ -61,6 +61,8 @@ EXTENSION_LANG_MAP = {
     ".cpp": "cpp",
     ".hpp": "cpp",
     ".php": "php",
+    ".scala": "scala",
+    ".sc": "scala",
     # devops / infrastructure
     ".tf": "terraform",
     ".tfvars": "terraform",
@@ -130,6 +132,8 @@ READABLE_EXTENSIONS = {
     ".cpp",
     ".hpp",
     ".php",
+    ".scala",
+    ".sc",
     # devops / infrastructure
     ".tf",
     ".tfvars",
@@ -706,6 +710,20 @@ PHP_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# Scala structural boundaries (.scala and .sc files).
+# Handles: class, case class, object, case object, trait, enum (Scala 3), def, type alias.
+# Modifier chain tolerates: private[pkg], protected[pkg], sealed, abstract, final, override,
+# implicit, lazy, inline (Scala 3), opaque (Scala 3), open (Scala 3).
+# Annotations (@tailrec, @main, etc.) before the modifier chain are also covered.
+# val/var/given are intentionally excluded (too noisy as top-level boundaries).
+SCALA_BOUNDARY = re.compile(
+    r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:private|protected|final|sealed|abstract|override|implicit|lazy|inline|opaque|open|case)"
+    r"(?:\[[\w.]+\])?\s+)*"
+    r"(?:case\s+class|case\s+object|class|object|trait|enum|def|type)\s+\w+",
+    re.MULTILINE,
+)
+
 
 def get_boundary_pattern(language: str):
     """Return the appropriate structural boundary regex for a language string or file extension."""
@@ -745,6 +763,9 @@ def get_boundary_pattern(language: str):
         ".hcl": HCL_BOUNDARY,
         "php": PHP_BOUNDARY,
         ".php": PHP_BOUNDARY,
+        "scala": SCALA_BOUNDARY,
+        ".scala": SCALA_BOUNDARY,
+        ".sc": SCALA_BOUNDARY,
     }
     return mapping.get(language)
 
@@ -1279,6 +1300,83 @@ _PHP_EXTRACT = [
     (re.compile(r"^namespace\s+([\w\\]+)", re.MULTILINE), "namespace"),
 ]
 
+# Scala extraction patterns (.scala and .sc files).
+# Order is strict: case_class before class, case_object before object (plan §Pattern ordering).
+# type alias requires a following `=` so type params in generic signatures are never matched.
+_SCALA_MODIFIERS = (
+    r"(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:private|protected|final|sealed|abstract|override|implicit|lazy|inline|opaque|open)"
+    r"(?:\[[\w.]+\])?\s+)*"
+)
+
+_SCALA_EXTRACT = [
+    # case class — before class (most specific; avoids class swallowing the case form)
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"case\s+class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "case_class",
+    ),
+    # case object — before object
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"case\s+object\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "case_object",
+    ),
+    # trait
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"trait\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "trait",
+    ),
+    # object — standalone singleton object declarations
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"object\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "object",
+    ),
+    # class — covers implicit class, sealed abstract class, open class, etc.
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # enum (Scala 3)
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"enum\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "enum",
+    ),
+    # def — covers implicit def, override def, inline def, etc.
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"def\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "function",
+    ),
+    # type alias — the `[^=\n]*=` suffix handles type params of arbitrary nesting depth while
+    # requiring an `=` so that abstract type members (type T <: Bound) are not matched.
+    (
+        re.compile(
+            r"^" + _SCALA_MODIFIERS + r"type\s+(\w+)[^=\n]*=",
+            re.MULTILINE,
+        ),
+        "type",
+    ),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -1297,6 +1395,7 @@ _LANG_EXTRACT_MAP = {
     "swift": _SWIFT_EXTRACT,
     "xaml": _XAML_EXTRACT,
     "php": _PHP_EXTRACT,
+    "scala": _SCALA_EXTRACT,
 }
 
 
@@ -1378,6 +1477,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "vbnet",
         "swift",
         "php",
+        "scala",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1780,6 +1880,10 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
         # PHP 8.1+ uses #[Attribute] syntax immediately before declarations.
         # Extend the lookback so attribute lines attach to their declaration chunk.
         comment_prefixes = comment_prefixes + ("#[",)
+    if canonical == "scala":
+        # Scala uses @Annotation decorators (e.g. @tailrec, @main, @deprecated) before
+        # declarations. Extend the lookback so these lines attach to their declaration chunk.
+        comment_prefixes = comment_prefixes + ("@",)
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -1806,13 +1910,13 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
             while j >= 0:
                 prev = lines[j].strip()
                 if prev.startswith(comment_prefixes):
-                    # Swift: reject mixed @Attribute+declaration lines
+                    # Swift/Scala: reject mixed @Attribute+declaration lines
                     # (e.g. `@Published var count = 0`) — they belong to
                     # the enclosing type body, not to the following func.
                     # Only pure attribute-only lines (e.g. `@MainActor`,
                     # `@objc`, `@available(iOS 14, *)`) should attach.
                     if (
-                        canonical == "swift"
+                        canonical in ("swift", "scala")
                         and prev.startswith("@")
                         and not _SWIFT_PURE_ATTR.match(prev)
                     ):

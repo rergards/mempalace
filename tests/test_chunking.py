@@ -2105,3 +2105,76 @@ def test_php_chunk_file_routing():
     assert len(chunks) > 0
     combined = "\n".join(c["content"] for c in chunks)
     assert "Router" in combined
+
+
+# =============================================================================
+# Scala — annotation attachment and file routing
+# =============================================================================
+
+_SCALA_FILLER = "    // padding line to ensure chunk size stays above MIN_CHUNK threshold\n" * 6
+
+# Larger filler used for tests that need to prevent adaptive_merge_split from combining
+# two adjacent chunks (each must exceed TARGET_MAX / 2 = 1250 chars to stay separate).
+_SCALA_BIG_FILLER = (
+    "    // padding line to ensure chunk size stays above merge threshold value\n" * 20
+)
+
+
+def test_chunk_code_scala_annotation_attachment():
+    """@tailrec / @main / @deprecated lines immediately before a declaration must attach
+    to the declaration chunk (not be orphaned in the preceding chunk) — mirrors the existing
+    Swift/PHP annotation-attachment coverage in test_chunking.py."""
+    code = (
+        "object Main {\n" + _SCALA_FILLER + "\n"
+        "  @tailrec\n"
+        "  private def loop(n: Int, acc: Int): Int = {\n"
+        + _SCALA_FILLER
+        + "    if (n <= 0) acc else loop(n - 1, acc + n)\n"
+        "  }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "scala", "Main.scala")
+    loop_chunk = next((c for c in chunks if "loop" in c["content"]), None)
+    assert loop_chunk is not None, "No chunk found containing loop()"
+    assert "@tailrec" in loop_chunk["content"], "@tailrec annotation not attached to loop chunk"
+
+
+def test_chunk_code_scala_annotation_on_val_not_swallowed():
+    """An annotation on a val (e.g. @volatile var counter = 0) must NOT be greedily
+    pulled into the following function chunk.  Each chunk uses _SCALA_BIG_FILLER to
+    exceed TARGET_MAX / 2 (1250 chars) so adaptive_merge_split does not re-combine them."""
+    code = (
+        "class Config {\n" + _SCALA_BIG_FILLER + "\n"
+        "  @volatile var counter: Int = 0\n"
+        "\n"
+        "  def increment(): Unit = {\n" + _SCALA_BIG_FILLER + "    counter += 1\n"
+        "  }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "scala", "Config.scala")
+    increment_chunk = next((c for c in chunks if "increment" in c["content"]), None)
+    assert increment_chunk is not None, "No chunk found containing increment()"
+    assert "@volatile" not in increment_chunk["content"], (
+        "@volatile var annotation must not be pulled into the increment() chunk"
+    )
+
+
+def test_chunk_file_scala_routing():
+    """chunk_file() routes .scala files through chunk_code() (not adaptive fallback)."""
+    code = (
+        "package com.example\n\n"
+        "class Service {\n" + _SCALA_FILLER + "  def process(): Unit = {}\n" + _SCALA_FILLER + "}\n"
+    )
+    chunks = chunk_file(code, ".scala", "Service.scala", language="scala")
+    assert len(chunks) > 0
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Service" in combined
+
+
+def test_chunk_file_sc_routing():
+    """chunk_file() routes .sc (Ammonite script) files through chunk_code() too."""
+    code = "def greet(name: String): String = {\n" + _SCALA_FILLER + '  s"Hello, $name!"\n}\n'
+    chunks = chunk_file(code, ".sc", "script.sc", language="scala")
+    assert len(chunks) > 0
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "greet" in combined
