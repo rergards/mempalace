@@ -708,6 +708,29 @@ class TestCodeSearchTool:
         assert schema.get("required") == ["query"]
         assert props["n_results"]["type"] == "integer"
 
+    def test_code_search_dart_in_language_description(self):
+        """The mempalace_code_search language description must mention 'dart'."""
+        from mempalace.mcp_server import handle_request
+
+        resp = handle_request({"method": "tools/list", "id": 100, "params": {}})
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        lang_desc = tools["mempalace_code_search"]["inputSchema"]["properties"]["language"][
+            "description"
+        ]
+        assert "dart" in lang_desc, f"'dart' not found in language description: {lang_desc!r}"
+
+    def test_code_search_dart_symbol_types_in_description(self):
+        """The mempalace_code_search symbol_type description must mention mixin, extension_type, constructor."""
+        from mempalace.mcp_server import handle_request
+
+        resp = handle_request({"method": "tools/list", "id": 101, "params": {}})
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        sym_desc = tools["mempalace_code_search"]["inputSchema"]["properties"]["symbol_type"][
+            "description"
+        ]
+        for sym in ("mixin", "extension_type", "constructor"):
+            assert sym in sym_desc, f"'{sym}' not found in symbol_type description: {sym_desc!r}"
+
 
 class TestAggregationRegression:
     """Regression tests ensuring all wings/rooms are visible regardless of palace size."""

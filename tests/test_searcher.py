@@ -475,3 +475,76 @@ class TestScalaLanguageSupport:
             assert sym in result["valid_symbol_types"], (
                 f"Symbol type {sym!r} missing from valid_symbol_types hint"
             )
+
+
+class TestCodeSearchDart:
+    """Tests for Dart language and new Dart-specific symbol types in code_search."""
+
+    @pytest.fixture
+    def dart_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["dart_userservice"],
+            documents=[
+                "class UserService { Future<User?> fetchUser(int id) async { return null; } }"
+            ],
+            metadatas=[
+                {
+                    "wing": "myapp",
+                    "room": "backend",
+                    "source_file": "user_service.dart",
+                    "language": "dart",
+                    "symbol_name": "UserService",
+                    "symbol_type": "class",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_dart_language(self, dart_palace_path):
+        """AC-12: code_search(language='dart') does not return an 'unsupported language' error."""
+        result = code_search(dart_palace_path, "user service", language="dart")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_dart_language_in_supported_hint(self, dart_palace_path):
+        """'dart' appears in the supported_languages hint on an invalid language query."""
+        result = code_search(dart_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "dart" in result["supported_languages"], (
+            "'dart' missing from supported_languages hint"
+        )
+
+    def test_code_search_mixin_symbol_type(self, dart_palace_path):
+        """AC-13: code_search(symbol_type='mixin') does not return 'invalid symbol_type' error."""
+        result = code_search(dart_palace_path, "something", symbol_type="mixin")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'mixin' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_extension_type_symbol_type(self, dart_palace_path):
+        """AC-13: code_search(symbol_type='extension_type') does not return 'invalid symbol_type' error."""
+        result = code_search(dart_palace_path, "something", symbol_type="extension_type")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'extension_type' should be valid, got: {result.get('error')}"
+        )
+
+    def test_code_search_constructor_symbol_type(self, dart_palace_path):
+        """AC-13: code_search(symbol_type='constructor') does not return 'invalid symbol_type' error."""
+        result = code_search(dart_palace_path, "something", symbol_type="constructor")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'constructor' should be valid, got: {result.get('error')}"
+        )
+
+    def test_dart_new_symbol_types_in_error_hint(self, dart_palace_path):
+        """mixin/extension_type/constructor appear in valid_symbol_types hint on invalid type query."""
+        result = code_search(dart_palace_path, "something", symbol_type="notarealtype")
+        assert "valid_symbol_types" in result
+        for sym in ("mixin", "extension_type", "constructor"):
+            assert sym in result["valid_symbol_types"], (
+                f"Symbol type {sym!r} missing from valid_symbol_types hint"
+            )

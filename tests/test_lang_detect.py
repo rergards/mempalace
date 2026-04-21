@@ -51,6 +51,7 @@ from mempalace.miner import detect_language
         (".xaml", "xaml"),
         (".scala", "scala"),
         (".sc", "scala"),
+        (".dart", "dart"),
     ],
 )
 def test_extension_detection(ext, expected):

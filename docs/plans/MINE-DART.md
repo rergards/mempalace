@@ -5,13 +5,13 @@ risk: low
 risk_note: "Additive change only, follows the Scala/Swift/PHP regex-tier template. No tree-sitter grammar required; no edits to existing language code paths."
 files:
   - path: mempalace/miner.py
-    change: "Add .dart to EXTENSION_LANG_MAP (→ 'dart') and READABLE_EXTENSIONS; add DART_BOUNDARY regex; register 'dart'/.dart in get_boundary_pattern(); add _DART_EXTRACT pattern list (mixin, extension_type, extension, enum, typedef, sealed/final/base/interface class, class, factory constructor, top-level function); add 'dart' to _LANG_EXTRACT_MAP; add 'dart' to the chunk_file() code-language tuple; extend comment_prefixes with '@' for 'dart' in chunk_code() (Dart annotations: @override, @deprecated, @pragma) and reuse the _SWIFT_PURE_ATTR guard so `@override void foo()` single-line annotation+decl is handled like Swift/Scala"
+    change: "Add .dart to EXTENSION_LANG_MAP (→ 'dart') and READABLE_EXTENSIONS; add DART_BOUNDARY regex (arms: mixin, extension_type, extension, enum, typedef, sealed/final/base/interface/mixin class, class, factory constructor, typed top-level function — NO named-constructor arm, see Resolved Decisions); register 'dart'/.dart in get_boundary_pattern(); add _DART_EXTRACT pattern list matching the same arms (mixin, extension_type, extension, enum, typedef, class with modifier prefixes, factory constructor, typed top-level function); add 'dart' to _LANG_EXTRACT_MAP; add 'dart' to the chunk_file() code-language tuple; extend comment_prefixes with '@' for 'dart' in chunk_code() (Dart annotations: @override, @deprecated, @pragma) and reuse the _SWIFT_PURE_ATTR guard so `@override void foo()` single-line annotation+decl is handled like Swift/Scala"
   - path: mempalace/searcher.py
     change: "Add 'dart' to SUPPORTED_LANGUAGES; add 'mixin', 'extension_type', 'constructor' to VALID_SYMBOL_TYPES (class, extension, enum, typedef/type, function already exist)"
   - path: mempalace/mcp_server.py
     change: "Add 'dart' to the mempalace_code_search language description string; add 'mixin', 'extension_type', 'constructor' to the symbol_type description string"
   - path: tests/test_symbol_extract.py
-    change: "Add Dart extract_symbol unit tests: class, abstract class, sealed class (Dart 3), final/base/interface class (Dart 3 class modifiers), mixin, mixin class, extension (named), extension type (Dart 3.3+), enum (plain), enhanced enum with methods, typedef (function type alias), top-level function (sync, async, expression-body `=>`, generic `<T>`), factory constructor (bare and named `factory Foo.fromJson`), named constructor inside class body (`Foo.named()`), no-match for bare `var x = 1` / `final y = 2` property lines, no-match for annotation-only lines (@override alone)"
+    change: "Add Dart extract_symbol unit tests: class, abstract class, sealed class (Dart 3), final/base/interface class (Dart 3 class modifiers), mixin, mixin class, extension (named), extension type (Dart 3.3+), enum (plain), enhanced enum with methods, typedef (function type alias), typed top-level function (sync, async, expression-body `=>`, generic `<T>`), factory constructor (bare `factory Foo(...)` and named `factory Foo.fromJson`), no-match for bare `var x = 1` / `final y = 2` property lines, no-match for annotation-only lines (@override alone), no-match for return-type-omitted top-level functions (`greet(name) {}`) and for named constructors inside class bodies (`Foo.named()`) — both deliberately unsupported in the regex tier"
   - path: tests/test_miner.py
     change: "Add test_mine_dart_roundtrip — full mine() cycle on a Flutter-style project with multiple .dart files (widget class extending StatelessWidget, mixin, extension, enum, factory constructor, async function). Verify walker discovers .dart via READABLE_EXTENSIONS and stored drawers have language='dart' with expected symbol_name/symbol_type values (covers AC-1, AC-2, AC-3, AC-4, AC-8, AC-9)"
   - path: tests/test_chunking.py
@@ -20,6 +20,8 @@ files:
     change: "Add `.dart` to the extension parametrize list in test_extension_detection mapping to 'dart'"
   - path: tests/test_searcher.py
     change: "Add test_code_search_dart_language — code_search(language='dart') does not raise validation error; add test_code_search_dart_invalid_language_hint — when code_search is called with an invalid language, the error response's supported_languages list includes 'dart'; add test_code_search_new_symbol_types_dart — 'mixin', 'extension_type', 'constructor' accepted as symbol_type filters"
+  - path: tests/test_mcp_server.py
+    change: "Extend test_code_search_in_tools_list (or add a sibling test) to assert the mempalace_code_search tool schema's language description contains 'dart' and its symbol_type description contains 'mixin', 'extension_type', and 'constructor' — verifies MCP client hints stay in sync with searcher's SUPPORTED_LANGUAGES / VALID_SYMBOL_TYPES"
 acceptance:
   - id: AC-1
     when: "A .dart file containing `class UserService { ... }` is mined"
@@ -47,7 +49,7 @@ acceptance:
     then: "Drawer has symbol_type='function', symbol_name='fetchUser' (async keyword preserved in content, not broken as boundary)"
   - id: AC-9
     when: "A .dart file containing a class with `factory User.fromJson(Map<String, dynamic> json) { ... }` is mined"
-    then: "A drawer exists with symbol_type='constructor' and symbol_name containing 'fromJson' (bare or qualified as 'User.fromJson')"
+    then: "A drawer exists with symbol_type='constructor' and symbol_name containing 'fromJson' (bare or qualified as 'User.fromJson'). Non-factory named constructors (`User.named()`) are NOT extracted as standalone drawers — see out_of_scope."
   - id: AC-10
     when: "extract_symbol is called on `  var count = 0;` (a field inside a class body, indented)"
     then: "Returns ('', '') — field/variable declarations are not extracted as symbols"
@@ -69,7 +71,8 @@ out_of_scope:
   - "Part files (`part of`) / library aliases / deferred imports — no special handling; they land in preamble chunks"
   - "Getter/setter-only boundaries (`String get name => ...`, `set name(String v) { ... }`) — too ambiguous with getters used as expression-body properties; defer until user demand"
   - "Operator overloads (`operator +`) — rare; not a primary search target"
-  - "Regular (non-factory) constructors inside class bodies unless they appear via the named-constructor pattern `ClassName.named()` — the default unnamed constructor `ClassName()` is indistinguishable from a method call without AST and is intentionally NOT extracted"
+  - "Non-factory constructors (default `ClassName()` and named `ClassName.named()`) inside class bodies — indistinguishable from method calls without AST/class-name tracking. Only `factory` constructors are extracted as standalone `constructor` drawers; plain named constructors remain part of the enclosing class chunk"
+  - "Top-level functions without an explicit return type (`greet(name) {}`, `fetchUser(id) async {}`) — the regex requires a leading return-type token to avoid matching expression statements. Intentional trade-off; Dart style guides recommend explicit return types anyway"
   - "Dart build-runner generated files (`.g.dart`, `.freezed.dart`) are mined as regular .dart; no content-aware filtering"
   - "`pubspec.yaml` / `analysis_options.yaml` — already handled by the existing yaml chunker; nothing new here"
 ---
@@ -101,9 +104,9 @@ out_of_scope:
   ```
   The identifier-capture group deliberately requires a type token first to avoid matching expression statements like `someVar(x)` or `print(foo);`. This is the Kotlin/Java approach adapted — `fun`/`public` anchors are absent in Dart, so we must infer via return type. A rare false positive on `MyFunc something(args)` at top level is acceptable (it IS a function declaration if it compiles).
 
-- **Method extraction inside class bodies is deferred.** Dart methods lack a leading keyword (no `fun`/`def`/`func`), so reliably distinguishing a method declaration from a method call without AST is hard. Decision: only top-level functions and `factory`/named constructors are boundaries inside code. Methods inside classes are part of the surrounding class chunk (same behavior as bare Java methods under regex tier when no access modifier is present, in the absence of explicit modifiers).
+- **Method extraction inside class bodies is deferred.** Dart methods lack a leading keyword (no `fun`/`def`/`func`), so reliably distinguishing a method declaration from a method call without AST is hard. Decision: only typed top-level functions and `factory` constructors are boundaries inside code. Methods and non-factory constructors inside classes are part of the surrounding class chunk (same behavior as bare Java methods under regex tier when no access modifier is present).
 
-- **Named constructors (`ClassName.named()`)** inside a class body ARE extractable when `extract_symbol` receives a chunk beginning with that line. Pattern: `^\s*(?:const\s+)?(\w+)\.(\w+)\s*\(` where the first `\w+` equals a known class name — since we can't know the class at this layer, we capture the qualified name `ClassName.named` as the symbol_name and emit `symbol_type='constructor'`. If ambiguous (method call `foo.bar()`), we require the line to NOT end with a `;` and to be followed by `{` or `=>` or a parameter list initializer (`:`), which a statement would not be. Keep the pattern conservative; accept that some named constructors may not extract cleanly (they still land in the class chunk — not lost).
+- **Named constructors (`ClassName.named()`) are NOT boundary- or extract-eligible in the regex tier.** Distinguishing a named-constructor declaration from an in-body method call like `foo.bar()` requires class-name tracking (pushes into AST territory). They remain part of the enclosing class chunk — discoverable via class-level search, just not as standalone `constructor` drawers. Only `factory` (which has a unique anchor keyword) qualifies for standalone constructor extraction in this tier.
 
 - **Factory constructors** use `factory` as the unique anchor: `^\s*(?:const\s+)?factory\s+(\w+)(?:\.\w+)?`. Captures `ClassName` or `ClassName.named` — emit `symbol_type='constructor'`.
 
@@ -151,7 +154,9 @@ out_of_scope:
 
 - **`typedef` emits `symbol_type='type'`.** Consistent with Scala `type` alias and Swift `typealias` — callers searching `symbol_type=type` across languages get consistent results. No new value needed.
 
-- **Default (unnamed) constructors are NOT extracted.** A bare `MyClass() : x = 0 {}` inside the class body is indistinguishable from a method call without context. Including it would require class-name tracking, which pushes into AST territory. Named/factory constructors are sufficient for the task's acceptance criteria.
+- **Only `factory` constructors are extracted as standalone `constructor` drawers.** Both default `MyClass() {}` and named `MyClass.named() {}` are indistinguishable from method calls without class-name tracking, which pushes into AST territory. `factory` has a unique leading keyword so it is unambiguous. Named/default constructors remain inside the enclosing class chunk and are still discoverable via class-level search — they are NOT lost, just not promoted to their own drawer. This also means the `mempalace/miner.py` `_DART_EXTRACT` list and the boundary regex contain NO named-constructor arm.
+
+- **Top-level functions must declare an explicit return type.** The regex requires a return-type token preceding the identifier to avoid matching expression statements like `print(foo);` or `someVar(x)`. Style-guide-compliant Dart always declares return types; untyped top-level functions (`greet(name) {}`, `fetchUser(id) async {}`) are explicitly listed in `out_of_scope`. Implementers should NOT widen the regex to accept bare-identifier function declarations without revisiting this plan.
 
 - **Getter/setter boundaries are deferred.** `String get name => _name;` and `set name(String v) { _name = v; }` are valid top-level or class-member boundaries in theory, but the `get`/`set` keywords collide with method invocations in statement position. Defer until concrete user demand — mentioned explicitly in `out_of_scope` so the decision is discoverable.
 

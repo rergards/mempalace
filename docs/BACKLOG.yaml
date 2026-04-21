@@ -588,10 +588,11 @@ items:
   - key: MINE-DART
     summary: Add Dart language support to code miner
     type: feature
-    status: open
+    status: done
     priority: medium
     section_id: coding_first
     labels: [feat, miner]
+    hardening: round-1-complete
     description: |-
       ## Problem
       Dart/Flutter projects cannot be mined.
@@ -602,10 +603,11 @@ items:
       - Handle: named constructors, factory constructors, async/await
 
       ## Acceptance Criteria
-      - [ ] Symbol extraction for Dart constructs
-      - [ ] Works on Flutter projects
-      - [ ] Tests for: classes, mixins, extensions, factory constructors
+      - [x] Symbol extraction for Dart constructs
+      - [x] Works on Flutter projects
+      - [x] Tests for: classes, mixins, extensions, factory constructors
     size: M
+    resolution: '2026-04-21: Add Dart language support: regex-based symbol extraction for classes, mixins, extensions, extension types, enums, typedefs, factory constructors, and typed top-level functions; 42 new tests pass across all 6 test modules'
   - key: MINE-RUBY-SMART
     summary: Add smart symbol extraction for Ruby
     type: feature

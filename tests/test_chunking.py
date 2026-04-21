@@ -2178,3 +2178,129 @@ def test_chunk_file_sc_routing():
     assert len(chunks) > 0
     combined = "\n".join(c["content"] for c in chunks)
     assert "greet" in combined
+
+
+# =============================================================================
+# Dart — annotation attachment and file routing
+# =============================================================================
+
+_DART_FILLER = "  // padding line to ensure chunk size stays above MIN_CHUNK threshold\n" * 6
+
+# Larger filler to prevent adaptive_merge_split from combining two adjacent chunks
+_DART_BIG_FILLER = "  // padding line to ensure chunk size stays above merge threshold value\n" * 20
+
+
+def test_chunk_code_dart_annotation_attachment():
+    """@override / @deprecated / @pragma lines immediately before a declaration must attach
+    to the declaration chunk — mirrors Swift/Scala annotation-attachment coverage."""
+    code = (
+        "class MyWidget extends StatefulWidget {\n" + _DART_FILLER + "\n"
+        "  @override\n"
+        "  void dispose() {\n" + _DART_FILLER + "    super.dispose();\n"
+        "  }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "dart", "my_widget.dart")
+    dispose_chunk = next((c for c in chunks if "dispose" in c["content"]), None)
+    assert dispose_chunk is not None, "No chunk found containing dispose()"
+    assert "@override" in dispose_chunk["content"], (
+        "@override annotation not attached to dispose chunk"
+    )
+
+
+def test_chunk_code_dart_annotation_on_field_not_swallowed():
+    """An annotation on a field (e.g. @deprecated var x = 0) must NOT be greedily
+    pulled into the following function chunk."""
+    code = (
+        "class Config {\n" + _DART_BIG_FILLER + "\n"
+        "  @deprecated\n"
+        "  var legacyField = 0;\n"
+        "\n"
+        "  void increment() {\n" + _DART_BIG_FILLER + "    legacyField++;\n"
+        "  }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "dart", "config.dart")
+    increment_chunk = next((c for c in chunks if "increment" in c["content"]), None)
+    assert increment_chunk is not None, "No chunk found containing increment()"
+    assert "@deprecated" not in increment_chunk["content"], (
+        "@deprecated field annotation must not be pulled into the increment() chunk"
+    )
+
+
+def test_chunk_code_dart_async_function():
+    """Future<User> fetchUser() async { ... } must become its own chunk; async keyword
+    after ) must not prevent boundary detection (AC-8)."""
+    code = (
+        "import 'package:http/http.dart' as http;\n\n"
+        + _DART_FILLER
+        + "Future<User?> fetchUser(int id) async {\n"
+        + _DART_FILLER
+        + "  final resp = await http.get(Uri.parse('/users/$id'));\n"
+        "  return User.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "dart", "fetch_user.dart")
+    fetch_chunk = next((c for c in chunks if "fetchUser" in c["content"]), None)
+    assert fetch_chunk is not None, "No chunk found containing fetchUser()"
+    assert "async" in fetch_chunk["content"]
+
+
+def test_chunk_file_dart_routing():
+    """chunk_file() routes .dart files through chunk_code() not adaptive fallback."""
+    code = (
+        "import 'dart:core';\n\n"
+        "class Service {\n" + _DART_FILLER + "  void process() {}\n" + _DART_FILLER + "}\n"
+    )
+    chunks = chunk_file(code, ".dart", "service.dart", language="dart")
+    assert len(chunks) > 0
+    combined = "\n".join(c["content"] for c in chunks)
+    assert "Service" in combined
+
+
+def test_chunk_code_dart_generic_factory_boundary():
+    """factory ClassName<T>.named(...) must be a separate structural boundary (MINE-DART F-1/F-6).
+
+    DART_BOUNDARY's factory arm must put generic params BEFORE the named-constructor suffix so
+    both `factory Cache<K,V>(...)` and `factory Repository<T>.fromConfig(...)` are detected.
+    The factory must become its own chunk, not be merged into the class body chunk.
+    """
+    code = (
+        "class Repository<T> {\n" + _DART_BIG_FILLER + "\n"
+        "  factory Repository<T>.fromConfig(Config config) {\n"
+        + _DART_BIG_FILLER
+        + "    return Repository._internal(config);\n"
+        "  }\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "dart", "repository.dart")
+    factory_chunk = next((c for c in chunks if "fromConfig" in c["content"]), None)
+    assert factory_chunk is not None, (
+        "No chunk found containing the generic factory constructor 'Repository<T>.fromConfig'"
+    )
+    # The factory must be a SEPARATE chunk — 'class Repository<T>' must not appear at the
+    # start of the same chunk (which would mean factory was folded into the class body chunk).
+    assert not factory_chunk["content"].lstrip().startswith("class"), (
+        "factory constructor was merged into the class body chunk instead of its own chunk"
+    )
+
+
+def test_chunk_code_dart_nullable_return_type():
+    """String? / User? / int? return types must produce their own chunk (MINE-DART F-3).
+
+    Before the fix, nullable-typed top-level functions were silently omitted from
+    boundary detection because the return-type pattern lacked `\\??` after the type token.
+    """
+    code = (
+        "import 'dart:core';\n\n"
+        + _DART_FILLER
+        + "String? getDeviceId() {\n"
+        + _DART_FILLER
+        + "  return null;\n"
+        "}\n"
+    )
+    chunks = chunk_code(code, "dart", "device.dart")
+    nullable_chunk = next((c for c in chunks if "getDeviceId" in c["content"]), None)
+    assert nullable_chunk is not None, (
+        "No chunk found for 'String? getDeviceId()' — nullable return type not detected as boundary"
+    )

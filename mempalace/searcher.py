@@ -177,6 +177,8 @@ SUPPORTED_LANGUAGES = {
     "php",
     # JVM
     "scala",
+    # Dart / Flutter
+    "dart",
     # web
     "html",
     "css",
@@ -231,6 +233,10 @@ VALID_SYMBOL_TYPES = {
     "object",
     "case_class",
     "case_object",
+    # Dart-specific
+    "mixin",
+    "extension_type",
+    "constructor",
     # Kubernetes resource kinds
     "deployment",
     "service",

@@ -2769,3 +2769,268 @@ def test_mine_scala_script_roundtrip():
         )
     finally:
         shutil.rmtree(tmpdir)
+
+
+def test_mine_dart_roundtrip():
+    """AC-1/AC-2/AC-3/AC-4/AC-8/AC-9: mine() on .dart files discovers them via READABLE_EXTENSIONS
+    and stores drawers with language='dart', correct symbol_type, and symbol_name.
+
+    Each Dart construct lives in its own file to ensure the chunk survives
+    adaptive_merge_split as a distinct drawer with the expected metadata.
+    """
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+
+        # UserService.dart — class (AC-1)
+        class_content = (
+            "import 'package:myapp/db.dart';\n\n"
+            "/// UserService manages user persistence and retrieval.\n"
+            "/// It wraps the database layer with caching semantics.\n"
+            "/// All async methods return Futures and must be awaited.\n"
+            "/// Call dispose() when the service is no longer needed.\n"
+            "class UserService {\n"
+            "  final Database _db;\n"
+            "  final Cache _cache;\n\n"
+            "  UserService(this._db, this._cache);\n\n"
+            "  Future<User?> fetchUser(int id) async {\n"
+            "    return _cache.get(id) ?? await _db.findById(id);\n"
+            "  }\n\n"
+            "  Future<void> saveUser(User user) async {\n"
+            "    await _db.save(user);\n"
+            "    _cache.invalidate(user.id);\n"
+            "  }\n"
+            "}\n"
+        )
+
+        # serializable.dart — mixin (AC-2)
+        mixin_content = (
+            "/// Serializable provides JSON conversion capabilities to any class.\n"
+            "/// Mix this into data classes to get automatic toJson/fromJson support.\n"
+            "/// Implementing classes must override the fields() method.\n"
+            "/// Nested objects are recursively serialized.\n"
+            "mixin Serializable {\n"
+            "  Map<String, dynamic> toJson();\n"
+            "  String toJsonString() => jsonEncode(toJson());\n"
+            "}\n"
+        )
+
+        # string_x.dart — extension (AC-3)
+        extension_content = (
+            "/// StringX adds convenience methods to the built-in String type.\n"
+            "/// These helpers simplify common whitespace and case operations.\n"
+            "/// All methods are pure and return new strings without mutation.\n"
+            "/// Use isBlank to check for empty-or-whitespace strings safely.\n"
+            "extension StringX on String {\n"
+            "  bool get isBlank => trim().isEmpty;\n"
+            "  String capitalize() => isEmpty ? this : this[0].toUpperCase() + substring(1);\n"
+            "}\n"
+        )
+
+        # color.dart — enum (AC-4)
+        enum_content = (
+            "/// Color represents the set of supported theme colors in the app.\n"
+            "/// Each variant maps to a specific HEX code in the design system.\n"
+            "/// The toHex() getter returns the canonical HEX string representation.\n"
+            "/// Use Color.fromName() to look up a color by its display name.\n"
+            "enum Color {\n"
+            "  red,\n"
+            "  green,\n"
+            "  blue;\n\n"
+            "  String get hexCode => switch (this) {\n"
+            "    Color.red => '#FF0000',\n"
+            "    Color.green => '#00FF00',\n"
+            "    Color.blue => '#0000FF',\n"
+            "  };\n"
+            "}\n"
+        )
+
+        # user.dart — factory constructor (AC-9)
+        # adaptive_merge_split merges adjacent chunks if combined <= TARGET_MAX (2500 chars).
+        # To prevent the class body chunk from merging with the factory chunk, the class body
+        # needs to be large enough (> 2500 - factory_size ≈ > 1850 chars). We achieve this
+        # with a rich class body containing many fields, a large const constructor, and a
+        # big factory body.
+        factory_content = (
+            "/// User is the core domain object representing an authenticated user in the system.\n"
+            "/// It holds all identity, display, role, and session data for the current user.\n"
+            "/// Use User.fromJson() to deserialize from API response payloads (REST or GraphQL).\n"
+            "/// The copyWith() method returns a new User with selective field updates applied.\n"
+            "/// Instances are immutable; all mutation returns a new User via copyWith().\n"
+            "/// The id field is globally unique and assigned by the authentication service.\n"
+            "/// Never store the User object itself in shared preferences — use toJson() instead.\n"
+            "/// See UserRepository for persistence and UserService for business logic operations.\n"
+            "class User {\n"
+            "  final int id;\n"
+            "  final String name;\n"
+            "  final String displayName;\n"
+            "  final String email;\n"
+            "  final String? avatarUrl;\n"
+            "  final String? bio;\n"
+            "  final DateTime createdAt;\n"
+            "  final DateTime updatedAt;\n"
+            "  final DateTime? lastLoginAt;\n"
+            "  final List<String> roles;\n"
+            "  final List<String> permissions;\n"
+            "  final Map<String, String> preferences;\n"
+            "  final bool isVerified;\n"
+            "  final bool isActive;\n"
+            "  final bool isAdmin;\n"
+            "  final String? phoneNumber;\n"
+            "  final String locale;\n"
+            "  final String timezone;\n\n"
+            "  const User({\n"
+            "    required this.id,\n"
+            "    required this.name,\n"
+            "    required this.displayName,\n"
+            "    required this.email,\n"
+            "    this.avatarUrl,\n"
+            "    this.bio,\n"
+            "    required this.createdAt,\n"
+            "    required this.updatedAt,\n"
+            "    this.lastLoginAt,\n"
+            "    this.roles = const [],\n"
+            "    this.permissions = const [],\n"
+            "    this.preferences = const {},\n"
+            "    this.isVerified = false,\n"
+            "    this.isActive = true,\n"
+            "    this.isAdmin = false,\n"
+            "    this.phoneNumber,\n"
+            "    this.locale = 'en',\n"
+            "    this.timezone = 'UTC',\n"
+            "  });\n\n"
+            "  /// fromJson deserializes a User from an API response JSON map payload.\n"
+            "  /// The json must contain id (int), name, displayName, email (all String).\n"
+            "  /// Optional fields avatarUrl, bio, phoneNumber default to null when absent.\n"
+            "  /// Temporal fields createdAt and updatedAt are parsed from ISO-8601 strings.\n"
+            "  /// List and Map fields default to empty collections if omitted in the payload.\n"
+            "  /// Boolean fields (isVerified, isActive, isAdmin) default to false/true/false.\n"
+            "  factory User.fromJson(Map<String, dynamic> json) {\n"
+            "    return User(\n"
+            "      id: json['id'] as int,\n"
+            "      name: json['name'] as String,\n"
+            "      displayName: json['display_name'] as String? ?? json['name'] as String,\n"
+            "      email: json['email'] as String,\n"
+            "      avatarUrl: json['avatar_url'] as String?,\n"
+            "      bio: json['bio'] as String?,\n"
+            "      createdAt: DateTime.parse(json['created_at'] as String),\n"
+            "      updatedAt: DateTime.parse(json['updated_at'] as String),\n"
+            "      lastLoginAt: json['last_login_at'] != null\n"
+            "          ? DateTime.parse(json['last_login_at'] as String)\n"
+            "          : null,\n"
+            "      roles: (json['roles'] as List<dynamic>? ?? []).cast<String>(),\n"
+            "      permissions: (json['permissions'] as List<dynamic>? ?? []).cast<String>(),\n"
+            "      preferences: (json['preferences'] as Map<String, dynamic>? ?? {})\n"
+            "          .map((k, v) => MapEntry(k, v.toString())),\n"
+            "      isVerified: json['is_verified'] as bool? ?? false,\n"
+            "      isActive: json['is_active'] as bool? ?? true,\n"
+            "      isAdmin: json['is_admin'] as bool? ?? false,\n"
+            "      phoneNumber: json['phone_number'] as String?,\n"
+            "      locale: json['locale'] as String? ?? 'en',\n"
+            "      timezone: json['timezone'] as String? ?? 'UTC',\n"
+            "    );\n"
+            "  }\n"
+            "}\n"
+        )
+
+        # fetch_user.dart — async top-level function (AC-8)
+        function_content = (
+            "import 'package:http/http.dart' as http;\n\n"
+            "/// fetchUser retrieves a user by ID from the remote REST API.\n"
+            "/// Returns null when the server returns a 404 status code.\n"
+            "/// Throws HttpException on non-200/404 responses.\n"
+            "/// The caller is responsible for handling network errors.\n"
+            "Future<User?> fetchUser(int id) async {\n"
+            "  final resp = await http.get(Uri.parse('/users/$id'));\n"
+            "  if (resp.statusCode == 404) return null;\n"
+            "  return User.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);\n"
+            "}\n"
+        )
+
+        write_file(project_root / "user_service.dart", class_content)
+        write_file(project_root / "serializable.dart", mixin_content)
+        write_file(project_root / "string_x.dart", extension_content)
+        write_file(project_root / "color.dart", enum_content)
+        write_file(project_root / "user.dart", factory_content)
+        write_file(project_root / "fetch_user.dart", function_content)
+        _make_palace_config(project_root)
+
+        palace_path = str(project_root / "palace")
+        mine(str(project_root), palace_path)
+
+        store = open_store(palace_path, create=False)
+        result = store.get(include=["metadatas"], limit=200)
+        metadatas = result.get("metadatas", [])
+        assert len(metadatas) > 0, "Expected at least one drawer from .dart files"
+
+        # Every drawer must have language='dart' (AC-14 / detect_language coverage)
+        for meta in metadatas:
+            assert meta["language"] == "dart", f"Expected language='dart', got {meta['language']!r}"
+
+        # Must have a class drawer for UserService (AC-1)
+        class_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "class" and m.get("symbol_name") == "UserService"
+        ]
+        assert class_drawers, (
+            f"Expected symbol_type='class', symbol_name='UserService'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a mixin drawer for Serializable (AC-2)
+        mixin_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "mixin" and m.get("symbol_name") == "Serializable"
+        ]
+        assert mixin_drawers, (
+            f"Expected symbol_type='mixin', symbol_name='Serializable'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have an extension drawer for StringX (AC-3)
+        ext_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "extension" and m.get("symbol_name") == "StringX"
+        ]
+        assert ext_drawers, (
+            f"Expected symbol_type='extension', symbol_name='StringX'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have an enum drawer for Color (AC-4)
+        enum_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "enum" and m.get("symbol_name") == "Color"
+        ]
+        assert enum_drawers, (
+            f"Expected symbol_type='enum', symbol_name='Color'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a constructor drawer containing 'fromJson' (AC-9)
+        ctor_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "constructor" and "fromJson" in (m.get("symbol_name") or "")
+        ]
+        assert ctor_drawers, (
+            f"Expected symbol_type='constructor' with 'fromJson' in symbol_name. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+
+        # Must have a function drawer for fetchUser (AC-8)
+        func_drawers = [
+            m
+            for m in metadatas
+            if m.get("symbol_type") == "function" and m.get("symbol_name") == "fetchUser"
+        ]
+        assert func_drawers, (
+            f"Expected symbol_type='function', symbol_name='fetchUser'. "
+            f"Got: {[(m.get('symbol_type'), m.get('symbol_name')) for m in metadatas]}"
+        )
+    finally:
+        shutil.rmtree(tmpdir)

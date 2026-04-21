@@ -63,6 +63,7 @@ EXTENSION_LANG_MAP = {
     ".php": "php",
     ".scala": "scala",
     ".sc": "scala",
+    ".dart": "dart",
     # devops / infrastructure
     ".tf": "terraform",
     ".tfvars": "terraform",
@@ -134,6 +135,7 @@ READABLE_EXTENSIONS = {
     ".php",
     ".scala",
     ".sc",
+    ".dart",
     # devops / infrastructure
     ".tf",
     ".tfvars",
@@ -724,6 +726,44 @@ SCALA_BOUNDARY = re.compile(
     re.MULTILINE,
 )
 
+# Dart structural boundaries (.dart files).
+# Pattern ordering (per plan §Pattern ordering):
+#   1. extension type  (Dart 3.3+) — before plain extension
+#   2. mixin class     — before class and mixin
+#   3. mixin           — before class
+#   4. enum / typedef  — disjoint keywords, order flexible
+#   5. class           — with optional modifier chain (abstract/base/final/interface/sealed)
+#   6. factory constructor — unique `factory` anchor, before generic function arm
+#   7. typed top-level function — loosest pattern, last
+DART_BOUNDARY = re.compile(
+    r"^(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:"
+    # extension type (Dart 3.3+) — MUST precede plain extension
+    r"(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*extension\s+type\s+\w+"
+    r"|(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*extension\s+\w+"
+    # mixin class — before class and plain mixin
+    r"|(?:(?:abstract|base|final|interface|sealed)\s+)*mixin\s+class\s+\w+"
+    # plain mixin
+    r"|(?:base\s+)?mixin\s+\w+"
+    # enum
+    r"|enum\s+\w+"
+    # typedef
+    r"|typedef\s+\w+"
+    # class with optional modifier prefix chain
+    r"|(?:(?:abstract|base|final|interface|sealed)\s+)*class\s+\w+"
+    # factory constructor (const factory or plain factory); generic params before named suffix
+    r"|(?:const\s+)?factory\s+\w+(?:<[^>]*>)?(?:\.\w+)?\s*\("
+    # typed top-level function: optional modifiers, return type, name, (
+    # Return type uses explicit lowercase primitives (int/double/bool/num/dynamic/never) rather
+    # than a greedy [a-z]\w* to avoid matching Dart keywords like const/var/final/return.
+    r"|(?:(?:external|static|abstract)\s+)*"
+    r"(?:void|int|double|num|bool|dynamic|never"
+    r"|Future(?:<[^>]*>)?|Stream(?:<[^>]*>)?|[A-Z]\w*(?:<[^>]*>)?)"
+    r"\??\s+\w+\s*(?:<[^>]*>)?\s*\("
+    r")",
+    re.MULTILINE,
+)
+
 
 def get_boundary_pattern(language: str):
     """Return the appropriate structural boundary regex for a language string or file extension."""
@@ -766,6 +806,8 @@ def get_boundary_pattern(language: str):
         "scala": SCALA_BOUNDARY,
         ".scala": SCALA_BOUNDARY,
         ".sc": SCALA_BOUNDARY,
+        "dart": DART_BOUNDARY,
+        ".dart": DART_BOUNDARY,
     }
     return mapping.get(language)
 
@@ -1377,6 +1419,100 @@ _SCALA_EXTRACT = [
     ),
 ]
 
+# Dart extraction patterns (.dart files).
+# Order is strict (per plan §Pattern ordering):
+#   1. extension type — before extension (Dart 3.3+; zero-cost wrapper distinct from extension)
+#   2. mixin class    — before class and mixin (mixin here is a modifier on class)
+#   3. mixin          — before class
+#   4. enum / typedef — disjoint keywords
+#   5. class          — with optional Dart 3 modifier chain
+#   6. factory constructor — unique `factory` anchor keyword
+#   7. typed top-level function — loosest pattern, last
+_DART_MODIFIERS = r"(?:@\w+(?:\([^)]*\))?\s+)*"
+_DART_CLASS_MOD = r"(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*"
+
+_DART_EXTRACT = [
+    # extension type (Dart 3.3+) — distinct from plain extension
+    (
+        re.compile(
+            r"^" + _DART_MODIFIERS + _DART_CLASS_MOD + r"extension\s+type\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "extension_type",
+    ),
+    # plain extension — named extension on a type
+    (
+        re.compile(
+            r"^" + _DART_MODIFIERS + _DART_CLASS_MOD + r"extension\s+(\w+)\s+on\b",
+            re.MULTILINE,
+        ),
+        "extension",
+    ),
+    # mixin class — before class and plain mixin (mixin is a class modifier here)
+    (
+        re.compile(
+            r"^"
+            + _DART_MODIFIERS
+            + r"(?:(?:abstract|base|final|interface|sealed)\s+)*mixin\s+class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # plain mixin (standalone mixin declaration)
+    (
+        re.compile(
+            r"^" + _DART_MODIFIERS + r"(?:base\s+)?mixin\s+(\w+)\b",
+            re.MULTILINE,
+        ),
+        "mixin",
+    ),
+    # enum
+    (
+        re.compile(
+            r"^" + _DART_MODIFIERS + r"enum\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "enum",
+    ),
+    # typedef — emits symbol_type='type' (consistent with Scala/Swift typealias)
+    (
+        re.compile(
+            r"^typedef\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "type",
+    ),
+    # class with optional Dart 3 modifier chain
+    (
+        re.compile(
+            r"^" + _DART_MODIFIERS + _DART_CLASS_MOD + r"class\s+(\w+)",
+            re.MULTILINE,
+        ),
+        "class",
+    ),
+    # factory constructor — const or plain factory; captures ClassName or ClassName.named
+    (
+        re.compile(
+            r"^\s*(?:const\s+)?factory\s+(\w+(?:\.\w+)?)\s*[(<]",
+            re.MULTILINE,
+        ),
+        "constructor",
+    ),
+    # typed top-level function — requires explicit return type; uses explicit lowercase primitives
+    # (int/double/bool/num/dynamic/never) to avoid matching Dart keywords (const/var/final/return)
+    # as false-positive return types.
+    (
+        re.compile(
+            r"^(?:(?:external|static|abstract)\s+)*"
+            r"(?:void|int|double|num|bool|dynamic|never"
+            r"|Future(?:<[^>]*>)?|Stream(?:<[^>]*>)?|[A-Z]\w*(?:<[^>]*>)?)"
+            r"\??\s+(\w+)\s*(?:<[^>]*>)?\s*\(",
+            re.MULTILINE,
+        ),
+        "function",
+    ),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -1396,6 +1532,7 @@ _LANG_EXTRACT_MAP = {
     "xaml": _XAML_EXTRACT,
     "php": _PHP_EXTRACT,
     "scala": _SCALA_EXTRACT,
+    "dart": _DART_EXTRACT,
 }
 
 
@@ -1478,6 +1615,7 @@ def chunk_file(content: str, ext: str, source_file: str, language: str = None) -
         "swift",
         "php",
         "scala",
+        "dart",
     ):
         return chunk_code(content, language, source_file)
     elif language in ("terraform", "hcl"):
@@ -1884,6 +2022,10 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
         # Scala uses @Annotation decorators (e.g. @tailrec, @main, @deprecated) before
         # declarations. Extend the lookback so these lines attach to their declaration chunk.
         comment_prefixes = comment_prefixes + ("@",)
+    if canonical == "dart":
+        # Dart uses @override, @deprecated, @immutable, @pragma annotations before
+        # declarations. Extend the lookback so these lines attach to their declaration chunk.
+        comment_prefixes = comment_prefixes + ("@",)
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -1916,7 +2058,7 @@ def chunk_code(content: str, language: str, source_file: str) -> list:
                     # Only pure attribute-only lines (e.g. `@MainActor`,
                     # `@objc`, `@available(iOS 14, *)`) should attach.
                     if (
-                        canonical in ("swift", "scala")
+                        canonical in ("swift", "scala", "dart")
                         and prev.startswith("@")
                         and not _SWIFT_PURE_ATTR.match(prev)
                     ):

@@ -1855,3 +1855,206 @@ def test_scala_type_param_in_method_not_matched():
         "process",
         "function",
     )
+
+
+# =============================================================================
+# Dart
+# =============================================================================
+
+
+def test_dart_class():
+    # AC-1
+    assert extract_symbol("class UserService {\n}\n", "dart") == ("UserService", "class")
+
+
+def test_dart_abstract_class():
+    assert extract_symbol("abstract class Shape {\n}\n", "dart") == ("Shape", "class")
+
+
+def test_dart_sealed_class():
+    # AC-5: Dart 3 class modifier must not break extraction
+    assert extract_symbol("sealed class Result {\n}\n", "dart") == ("Result", "class")
+
+
+def test_dart_final_class():
+    assert extract_symbol("final class Singleton {\n}\n", "dart") == ("Singleton", "class")
+
+
+def test_dart_base_class():
+    assert extract_symbol("base class Animal {\n}\n", "dart") == ("Animal", "class")
+
+
+def test_dart_interface_class():
+    assert extract_symbol("interface class Printable {\n}\n", "dart") == ("Printable", "class")
+
+
+def test_dart_mixin():
+    # AC-2
+    assert extract_symbol("mixin Serializable {\n  String toJson();\n}\n", "dart") == (
+        "Serializable",
+        "mixin",
+    )
+
+
+def test_dart_mixin_class():
+    # mixin class must extract as class (not mixin) — mixin here is a class modifier
+    assert extract_symbol("mixin class Observable {\n}\n", "dart") == ("Observable", "class")
+
+
+def test_dart_extension():
+    # AC-3: named extension on a type
+    assert extract_symbol(
+        "extension StringX on String {\n  bool get isBlank => trim().isEmpty;\n}\n", "dart"
+    ) == (
+        "StringX",
+        "extension",
+    )
+
+
+def test_dart_extension_type():
+    # AC-6: extension type (Dart 3.3+) must NOT collapse to plain 'extension'
+    assert extract_symbol("extension type UserId(int value) {}\n", "dart") == (
+        "UserId",
+        "extension_type",
+    )
+
+
+def test_dart_extension_type_not_extension():
+    # Ordering test: extension type must win over plain extension pattern
+    name, sym_type = extract_symbol("extension type OrderId(int v) {}\n", "dart")
+    assert name == "OrderId"
+    assert sym_type == "extension_type"
+
+
+def test_dart_enum():
+    # AC-4
+    assert extract_symbol("enum Color {\n  red,\n  green,\n  blue\n}\n", "dart") == (
+        "Color",
+        "enum",
+    )
+
+
+def test_dart_enhanced_enum():
+    content = "enum Planet {\n  mercury(3.303e+23),\n  venus(4.869e+24);\n  final double mass;\n  const Planet(this.mass);\n}\n"
+    assert extract_symbol(content, "dart") == ("Planet", "enum")
+
+
+def test_dart_typedef():
+    # AC-7: typedef emits symbol_type='type'
+    assert extract_symbol("typedef Json = Map<String, dynamic>;\n", "dart") == ("Json", "type")
+
+
+def test_dart_typedef_function_type():
+    assert extract_symbol("typedef Callback = void Function(String msg);\n", "dart") == (
+        "Callback",
+        "type",
+    )
+
+
+def test_dart_top_level_function_void():
+    assert extract_symbol("void main() {\n  runApp(MyApp());\n}\n", "dart") == ("main", "function")
+
+
+def test_dart_top_level_function_future():
+    # AC-8: async keyword after ) must not break detection
+    assert extract_symbol(
+        "Future<User> fetchUser(int id) async {\n  return await db.find(id);\n}\n", "dart"
+    ) == (
+        "fetchUser",
+        "function",
+    )
+
+
+def test_dart_top_level_function_generic():
+    assert extract_symbol("List<T> mapItems<T>(List<int> ids) {\n  return [];\n}\n", "dart") == (
+        "mapItems",
+        "function",
+    )
+
+
+def test_dart_top_level_function_expression_body():
+    assert extract_symbol("String greetUser(String name) => 'Hello, $name!';\n", "dart") == (
+        "greetUser",
+        "function",
+    )
+
+
+def test_dart_factory_constructor_bare():
+    # AC-9: factory constructor — bare factory
+    assert extract_symbol(
+        "  factory User(Map<String, dynamic> json) {\n    return User._fromMap(json);\n  }\n",
+        "dart",
+    ) == (
+        "User",
+        "constructor",
+    )
+
+
+def test_dart_factory_constructor_named():
+    # AC-9: factory constructor — named (ClassName.fromJson)
+    name, sym_type = extract_symbol(
+        "  factory User.fromJson(Map<String, dynamic> json) {\n    return User._fromMap(json);\n  }\n",
+        "dart",
+    )
+    assert sym_type == "constructor"
+    assert "fromJson" in name
+
+
+def test_dart_const_factory_constructor():
+    assert extract_symbol("  const factory Color.red() = _RedColor;\n", "dart") == (
+        "Color.red",
+        "constructor",
+    )
+
+
+def test_dart_field_not_extracted():
+    # AC-10: field / variable declarations must not be extracted
+    assert extract_symbol("  var count = 0;\n", "dart") == ("", "")
+
+
+def test_dart_final_field_not_extracted():
+    assert extract_symbol("  final String name;\n", "dart") == ("", "")
+
+
+def test_dart_annotation_only_line_not_extracted():
+    # A standalone @override line with nothing else is not a symbol
+    assert extract_symbol("@override\n", "dart") == ("", "")
+
+
+def test_dart_untyped_function_not_extracted():
+    # Top-level functions without explicit return type are out of scope (plan §out_of_scope)
+    assert extract_symbol("greet(name) {}\n", "dart") == ("", "")
+
+
+def test_dart_annotation_prefixed_class():
+    # Annotation before class declaration — annotation must not prevent extraction
+    content = "@immutable\nclass Point {\n  final int x;\n  final int y;\n}\n"
+    assert extract_symbol(content, "dart") == ("Point", "class")
+
+
+def test_dart_annotation_with_args_prefixed_function():
+    content = "@deprecated\nvoid oldMethod() {}\n"
+    assert extract_symbol(content, "dart") == ("oldMethod", "function")
+
+
+def test_dart_nullable_return_type_string():
+    # F-3: nullable return types (Dart null-safety) must be extracted (MINE-DART round-1)
+    assert extract_symbol("String? getDeviceId() {\n  return null;\n}\n", "dart") == (
+        "getDeviceId",
+        "function",
+    )
+
+
+def test_dart_nullable_return_type_uppercase():
+    assert extract_symbol("User? findUser(int id) {\n  return null;\n}\n", "dart") == (
+        "findUser",
+        "function",
+    )
+
+
+def test_dart_nullable_return_type_primitive():
+    assert extract_symbol("int? getCount() => null;\n", "dart") == ("getCount", "function")
+
+
+def test_dart_nullable_return_type_generic():
+    assert extract_symbol("List<String>? getAll() => null;\n", "dart") == ("getAll", "function")
