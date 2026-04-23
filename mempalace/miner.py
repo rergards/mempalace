@@ -696,7 +696,8 @@ HEADING_MD = re.compile(r"^#{1,4}\s+.+", re.MULTILINE)
 
 # HCL / Terraform top-level block boundaries
 HCL_BOUNDARY = re.compile(
-    r"^(?:resource|data|module|variable|output|locals|provider|terraform)\s+",
+    r"^(?:resource|data|module|variable|output|locals|provider|terraform|moved|import|check|removed)"
+    r"(?=\s+[^=\s])",
     re.MULTILINE,
 )
 

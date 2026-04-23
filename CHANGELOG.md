@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-24 · MINE-HCL-BOUNDARY-MODERN
+
+Add Terraform 1.1+ HCL block boundaries for moved, import, check, and removed.
+
 ## v1.5.0 — 2026-04-21
 
 ### Added

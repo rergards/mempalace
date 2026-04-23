@@ -537,6 +537,13 @@ items:
 
       - No tree-sitter needed — simple regex extension
       - Don't break .tfvars handling (still falls back to chunk_adaptive_lines when no boundaries match)
+    hardening:
+      round: 1
+      status: passed
+      audit: docs/audits/MINE-HCL-BOUNDARY-MODERN-round-1.md
+      findings_fixed: 1
+      findings_backlogged: 0
+      findings_dismissed: 0
   - key: MINE-DEVOPS-SCAN-COVERAGE
     summary: Add scan_project integration tests for remaining DevOps extensions (.j2, .conf, .ini, .mk, Vagrantfile, Containerfile)
     type: task

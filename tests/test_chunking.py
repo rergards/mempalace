@@ -1777,6 +1777,12 @@ def _tf_block(resource_type: str, resource_name: str, n_pad: int = 20) -> str:
     )
 
 
+def _tf_block_with_body(block_start: str, body: str, n_pad: int = 20) -> str:
+    """Return a Terraform/HCL block padded enough to stay as its own chunk."""
+    pad = _FILLER * n_pad
+    return f"{block_start} {{\n{body}{pad}}}\n"
+
+
 TF_MULTI_RESOURCE = (
     _tf_block("aws_instance", "web")
     + "\n"
@@ -1804,6 +1810,102 @@ def test_chunk_terraform_hcl_boundaries():
         f"Expected each resource in its own chunk, got resource chunks: "
         f"{[c['content'][:60] for c in resource_chunks]}"
     )
+
+
+def test_chunk_terraform_modern_hcl_boundaries():
+    """Terraform 1.1+ moved/import/check/removed blocks split as structural boundaries."""
+    code = (
+        _tf_block_with_body(
+            "moved",
+            "  from = aws_instance.old\n  to   = aws_instance.web\n",
+        )
+        + "\n"
+        + _tf_block_with_body(
+            "import",
+            '  to = aws_s3_bucket.assets\n  id = "company-assets-prod"\n',
+        )
+        + "\n"
+        + _tf_block_with_body(
+            'check "website"',
+            "  assert {\n"
+            '    condition     = aws_instance.web.instance_type == "t3.micro"\n'
+            '    error_message = "Unexpected instance size."\n'
+            "  }\n",
+        )
+        + "\n"
+        + _tf_block_with_body(
+            "removed",
+            "  from = aws_instance.legacy\n  lifecycle {\n    destroy = false\n  }\n",
+        )
+    )
+
+    chunks = chunk_code(code, "terraform", "main.tf")
+
+    starts = [c["content"].lstrip().split(maxsplit=1)[0] for c in chunks]
+    assert starts == ["moved", "import", "check", "removed"]
+
+
+def test_chunk_terraform_legacy_and_modern_boundaries_with_tf_extension():
+    """Legacy and Terraform 1.1+ blocks are all split points for .tf language input."""
+    code = (
+        _tf_block("aws_instance", "web")
+        + "\n"
+        + _tf_block_with_body(
+            'module "network"',
+            '  source = "./modules/network"\n',
+        )
+        + "\n"
+        + _tf_block_with_body(
+            "moved",
+            "  from = module.old_network\n  to   = module.network\n",
+        )
+        + "\n"
+        + _tf_block_with_body(
+            "import",
+            '  to = aws_instance.web\n  id = "i-1234567890abcdef0"\n',
+        )
+        + "\n"
+        + _tf_block_with_body(
+            'check "network"',
+            "  assert {\n"
+            '    condition     = module.network.vpc_id != ""\n'
+            '    error_message = "VPC ID must be available."\n'
+            "  }\n",
+        )
+        + "\n"
+        + _tf_block_with_body(
+            "removed",
+            "  from = aws_security_group.old\n  lifecycle {\n    destroy = false\n  }\n",
+        )
+        + "\n"
+        + _tf_block_with_body(
+            'output "web_id"',
+            "  value = aws_instance.web.id\n",
+        )
+    )
+
+    chunks = chunk_code(code, ".tf", "main.tf")
+
+    starts = [c["content"].lstrip().split(maxsplit=1)[0] for c in chunks]
+    assert starts == ["resource", "module", "moved", "import", "check", "removed", "output"]
+
+
+def test_chunk_terraform_tfvars_assignment_names_use_adaptive_fallback():
+    """.tfvars assignments named like Terraform blocks do not become HCL boundaries."""
+    code = (
+        'environment = "production"\n'
+        'moved = "assignment key, not a moved block"\n'
+        'import    = "assignment key, not an import block"\n'
+        'check\t= "assignment key, not a check block"\n'
+        'removed  \t = "assignment key, not a removed block"\n'
+        'description = "A long tfvars line keeps this fixture above the chunk minimum."\n'
+    )
+
+    chunks = chunk_code(code, "terraform", "terraform.tfvars")
+    expected = chunk_adaptive_lines(code, "terraform.tfvars")
+
+    assert chunks == expected
+    assert chunks == [{"content": code.strip(), "chunk_index": 0}]
 
 
 # =============================================================================
