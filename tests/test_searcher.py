@@ -108,6 +108,98 @@ class TestCodeSearch:
         assert "hint" in result
 
 
+class TestReactLanguageSupport:
+    """Regression coverage for JSX/TSX code_search language filters."""
+
+    class FakeReactStore:
+        def __init__(self):
+            self.documents = [
+                "export function Button() { return <button>Save</button>; }",
+                (
+                    "type ProfileProps = { name: string }; "
+                    "export function Profile(props: ProfileProps) { "
+                    "return <section>{props.name}</section>; }"
+                ),
+            ]
+            self.metadatas = [
+                {
+                    "wing": "react_app",
+                    "room": "frontend",
+                    "source_file": "/project/src/Button.jsx",
+                    "language": "jsx",
+                    "symbol_name": "Button",
+                    "symbol_type": "function",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                },
+                {
+                    "wing": "react_app",
+                    "room": "frontend",
+                    "source_file": "/project/src/Profile.tsx",
+                    "language": "tsx",
+                    "symbol_name": "Profile",
+                    "symbol_type": "function",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-02T00:00:00",
+                },
+            ]
+
+        def query(self, **kwargs):
+            where = kwargs.get("where", {})
+            language = where.get("language")
+            matches = [
+                (doc, meta)
+                for doc, meta in zip(self.documents, self.metadatas)
+                if language is None or meta["language"] == language
+            ]
+            return {
+                "documents": [[doc for doc, _meta in matches]],
+                "metadatas": [[meta for _doc, meta in matches]],
+                "distances": [[0.1 for _doc, _meta in matches]],
+            }
+
+    @pytest.fixture
+    def react_palace_path(self, monkeypatch):
+        store = self.FakeReactStore()
+        monkeypatch.setattr("mempalace.searcher.open_store", lambda *_args, **_kwargs: store)
+        return "/fake/react-palace"
+
+    def test_code_search_jsx_language(self, react_palace_path):
+        """code_search(language='jsx') returns seeded JSX drawers instead of a validation error."""
+        result = code_search(react_palace_path, "button component", language="jsx")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert result["filters"]["language"] == "jsx"
+        assert len(result["results"]) > 0
+        assert all(hit["language"] == "jsx" for hit in result["results"])
+        assert any(hit["symbol_name"] == "Button" for hit in result["results"])
+
+    def test_code_search_tsx_language(self, react_palace_path):
+        """code_search(language='tsx') returns seeded TSX drawers instead of a validation error."""
+        result = code_search(react_palace_path, "profile component", language="tsx")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert result["filters"]["language"] == "tsx"
+        assert len(result["results"]) > 0
+        assert all(hit["language"] == "tsx" for hit in result["results"])
+        assert any(hit["symbol_name"] == "Profile" for hit in result["results"])
+
+    def test_code_search_tsx_language_uppercase_is_normalized(self, react_palace_path):
+        """code_search(language='TSX') normalizes to the stored 'tsx' language value."""
+        result = code_search(react_palace_path, "profile component", language="TSX")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert result["filters"]["language"] == "tsx"
+        assert len(result["results"]) > 0
+        assert all(hit["language"] == "tsx" for hit in result["results"])
+
+    def test_react_languages_in_supported_hint(self, react_palace_path):
+        """jsx/tsx appear in the supported_languages hint on an invalid language query."""
+        result = code_search(react_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "jsx" in result["supported_languages"]
+        assert "tsx" in result["supported_languages"]
+
+
 class TestDotNetLanguages:
     """.NET language and symbol type additions (MCP-ARCH-TOOLS AC-10, AC-11)."""
 

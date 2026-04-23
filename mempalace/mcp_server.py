@@ -1397,7 +1397,8 @@ TOOLS = {
                 "language": {
                     "type": "string",
                     "description": (
-                        "Filter by language (e.g. python, go, typescript, rust, java, scala, dart, cpp, c, "
+                        "Filter by language (e.g. python, go, javascript, jsx, typescript, tsx, "
+                        "rust, java, scala, dart, cpp, c, "
                         "swift, csharp, fsharp, vbnet, xaml, dotnet-solution, php, "
                         "sql, html, css, yaml, json, toml, terraform, hcl, dockerfile, make, "
                         "gotemplate, jinja2, conf, ini, markdown, text, csv, kubernetes)"

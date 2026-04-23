@@ -708,8 +708,8 @@ class TestCodeSearchTool:
         assert schema.get("required") == ["query"]
         assert props["n_results"]["type"] == "integer"
 
-    def test_code_search_dart_in_language_description(self):
-        """The mempalace_code_search language description must mention 'dart'."""
+    def test_code_search_react_and_dart_in_language_description(self):
+        """The mempalace_code_search language description must mention jsx, tsx, and dart."""
         from mempalace.mcp_server import handle_request
 
         resp = handle_request({"method": "tools/list", "id": 100, "params": {}})
@@ -717,7 +717,8 @@ class TestCodeSearchTool:
         lang_desc = tools["mempalace_code_search"]["inputSchema"]["properties"]["language"][
             "description"
         ]
-        assert "dart" in lang_desc, f"'dart' not found in language description: {lang_desc!r}"
+        for lang in ("jsx", "tsx", "dart"):
+            assert lang in lang_desc, f"{lang!r} not found in language description: {lang_desc!r}"
 
     def test_code_search_dart_symbol_types_in_description(self):
         """The mempalace_code_search symbol_type description must mention mixin, extension_type, constructor."""

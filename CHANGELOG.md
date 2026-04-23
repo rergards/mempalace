@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-24 · CODE-SEARCH-LANG-JSX-TSX
+
+Add jsx and tsx code_search language filters for React and TypeScript projects.
+
 ## 2026-04-24 · MINE-HCL-BOUNDARY-MODERN
 
 Add Terraform 1.1+ HCL block boundaries for moved, import, check, and removed.

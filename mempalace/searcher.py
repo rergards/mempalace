@@ -157,8 +157,10 @@ def search_memories(
 SUPPORTED_LANGUAGES = {
     "python",
     "go",
-    "typescript",
     "javascript",
+    "jsx",
+    "typescript",
+    "tsx",
     "rust",
     "java",
     "cpp",
