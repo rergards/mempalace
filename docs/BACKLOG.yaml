@@ -596,6 +596,9 @@ items:
       - [ ] Works on Rails projects
       - [ ] Tests for: classes, modules, methods, attr_accessor
     size: S
+    links:
+      - type: is-blocked-by
+        key: CLARIFY-MINE-RUBY-SMART
   - key: MINE-HELM
     summary: Add Helm chart support to code miner
     type: feature
@@ -1023,3 +1026,12 @@ items:
       ## Acceptance Criteria
       - [ ] ConfigMap with data containing embedded --- is stored as a single chunk
       - [ ] Multi-document YAML files with real --- separators continue to produce one chunk per document
+  - key: CLARIFY-MINE-RUBY-SMART
+    summary: "Clarify scope for MINE-RUBY-SMART before planning can proceed"
+    type: task
+    status: open
+    priority: highest
+    size: XS
+    section_id: immediate
+    assignee: owner
+    description: "Clarification required before MINE-RUBY-SMART can be planned.\n\n**Original task:** Add smart symbol extraction for Ruby\n\n**Block reasons:**\n- Task could not be planned within the time/token budget.\n\n**Questions requiring owner input:**\n1. The plan phase for MINE-RUBY-SMART timed out or stalled without producing a plan. Please clarify scope and expected deliverables so the next attempt can succeed within budget.\n\n*(Auto-generated: plan phase timed out without producing a plan)*\n\n**Acceptance criteria:** When questions are answered, mark CLARIFY-MINE-RUBY-SMART done (or remove its is-blocked-by link from MINE-RUBY-SMART) and re-run autopilot."
