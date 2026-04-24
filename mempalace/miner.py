@@ -624,9 +624,9 @@ CSHARP_BOUNDARY = re.compile(
     # Methods and constructors: at least one modifier required; return type optional for constructors
     r"|(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe|async|partial)\s+)+"
     r"(?:[\w<>\[\],?\s]+\s+)?\w+\s*[\(<]"
-    # Properties: at least one modifier, distinguished from fields by trailing {
+    # Properties: at least one modifier, distinguished from fields by trailing { or =>
     r"|(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe)\s+)+"
-    r"[\w<>\[\],? ]+(?:\[\])*\s+\w+\s*\{"
+    r"[\w<>\[\],? ]+(?:\[\])*\s+\w+\s*(?:\{|=>)"
     r")",
     re.MULTILINE,
 )
@@ -1085,11 +1085,11 @@ _CSHARP_EXTRACT = [
         ),
         "event",
     ),
-    # property: at least one modifier, anchored by trailing {
+    # property: at least one modifier, anchored by trailing { or =>
     (
         re.compile(
             r"^\s*(?:(?:public|private|protected|internal|static|abstract|virtual|override|sealed|new|extern|unsafe)\s+)+"
-            r"[\w<>\[\],? ]+(?:\[\])*\s+(\w+)\s*\{",
+            r"[\w<>\[\],? ]+(?:\[\])*\s+(\w+)\s*(?:\{|=>)",
             re.MULTILINE,
         ),
         "property",

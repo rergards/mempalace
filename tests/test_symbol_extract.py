@@ -989,6 +989,13 @@ def test_csharp_property():
     )
 
 
+def test_csharp_expression_bodied_property():
+    assert extract_symbol("    public int Count => _items.Count;\n", "csharp") == (
+        "Count",
+        "property",
+    )
+
+
 def test_csharp_event():
     assert extract_symbol("    public event EventHandler<EventArgs> OnChanged;\n", "csharp") == (
         "OnChanged",

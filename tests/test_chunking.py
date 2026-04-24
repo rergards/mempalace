@@ -1917,6 +1917,14 @@ _CSHARP_FILLER = (
 )
 
 
+def _csharp_field_filler(prefix: str, count: int = 28) -> str:
+    """Return non-boundary C# field lines that do not attach as comments."""
+    return "".join(
+        f'    private readonly string _{prefix}{index} = "padding for chunk size";\n'
+        for index in range(count)
+    )
+
+
 def _cs_class_with_methods(class_name: str, method_names: list) -> str:
     """Return a C# class with the given methods, each padded above MIN_CHUNK."""
     methods = ""
@@ -1985,6 +1993,44 @@ def test_csharp_chunk_xmldoc_attached():
     process_chunk = next((c for c in chunks if "Process" in c["content"]), None)
     assert process_chunk is not None, "No chunk found containing Process()"
     assert "/// <summary>" in process_chunk["content"], "XML doc not attached to Process chunk"
+
+
+def test_csharp_chunk_expression_bodied_properties():
+    """Expression-bodied C# properties create declaration chunks."""
+    code = (
+        "public class Catalog {\n"
+        + _csharp_field_filler("before_count")
+        + "    public int Count => _items.Count;\n"
+        + _csharp_field_filler("between_props")
+        + "    public string Name => _name;\n"
+        + _csharp_field_filler("after_name")
+        + "}\n"
+    )
+    chunks = chunk_code(code, "csharp", "Catalog.cs")
+    chunk_texts = contents(chunks)
+
+    assert any(text.startswith("public int Count =>") for text in chunk_texts)
+    assert any(text.startswith("public string Name =>") for text in chunk_texts)
+
+
+def test_csharp_chunk_expression_bodied_property_xmldoc_attached():
+    """XML doc comments attach to expression-bodied property declarations."""
+    code = (
+        "public class Catalog {\n"
+        + _csharp_field_filler("before_doc")
+        + "    /// <summary>\n"
+        + "    /// Number of catalog items.\n"
+        + "    /// </summary>\n"
+        + "    public int Count => _items.Count;\n"
+        + _csharp_field_filler("after_count")
+        + "}\n"
+    )
+    chunks = chunk_code(code, "csharp", "Catalog.cs")
+    count_chunk = next((c for c in chunks if "public int Count =>" in c["content"]), None)
+
+    assert count_chunk is not None, "No chunk found containing Count property"
+    assert "/// <summary>" in count_chunk["content"]
+    assert "/// Number of catalog items." in count_chunk["content"]
 
 
 def test_csharp_chunk_file_routing():

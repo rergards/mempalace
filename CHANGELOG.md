@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-24 · MINE-CSHARP-EXPR-BODY
+
+Detect C# expression-bodied properties as mining boundaries and symbols.
+
 ## 2026-04-24 · MINE-JAVA-PKG-PRIVATE-METHODS
 
 Extract package-private Java methods during symbol extraction.
