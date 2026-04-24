@@ -866,7 +866,7 @@ items:
   - key: MINE-SWIFT-DISTRIBUTED
     summary: Add distributed actor support to Swift miner
     type: feature
-    status: open
+    status: done
     priority: low
     size: S
     section_id: coding_first
@@ -884,6 +884,12 @@ items:
       - `extract_symbol('distributed actor X {}', 'swift')` returns `('X', 'actor')`
       - Regular `actor` declarations continue to work unchanged
       - SWIFT_BOUNDARY detects `distributed actor Foo {` as a boundary
+    resolution: |-
+      2026-04-24: Added Swift distributed actor support by accepting `distributed`
+      in Swift boundary modifiers and actor extraction. Added exact actor extraction
+      and boundary regression tests. Hardening round-1: 1 finding fixed by aligning
+      `distributed func` symbol extraction with the expanded boundary regex; targeted
+      symbol extraction tests and Ruff checks pass.
   - key: MINE-K8S-LARGE-DOC
     summary: 'K8s large-doc symbol propagation: sub-chunks past first lose kind/name metadata'
     type: feature

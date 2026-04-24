@@ -1306,9 +1306,9 @@ def test_swift_distributed_actor_boundary():
     assert match.group(0) == "distributed actor "
 
 
-def test_swift_distributed_func_not_extracted():
-    """Distributed functions are out of scope for this regex extension."""
-    assert extract_symbol("distributed func sync() {\n}\n", "swift") == ("", "")
+def test_swift_distributed_func():
+    """Swift distributed functions extract as function symbols."""
+    assert extract_symbol("distributed func sync() {\n}\n", "swift") == ("sync", "function")
 
 
 def test_swift_extension():

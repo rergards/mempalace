@@ -1262,13 +1262,14 @@ _SWIFT_EXTRACT = [
         "class",
     ),
     # func — optional modifiers including `class func`, `static func`, `async func`.
+    # Distributed actor methods may also use `distributed func`.
     # Generic type params appear AFTER the name in Swift (`func foo<T>(...)`), so no
     # pre-name generic arm is needed; `(\w+)` captures the name directly after `func `.
     (
         re.compile(
             r"^(?:@\w+(?:\([^)]*\))?\s+)*"
             r"(?:(?:public|private|fileprivate|internal|open|final|static|class|override|"
-            r"mutating|nonmutating|nonisolated|async)\s+)*"
+            r"mutating|nonmutating|nonisolated|async|distributed)\s+)*"
             r"func\s+(\w+)",
             re.MULTILINE,
         ),
