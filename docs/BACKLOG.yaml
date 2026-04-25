@@ -160,33 +160,6 @@ items:
       - Cold-cache runtime stays under 10 minutes for the main job.
       - Warm-cache runtime stays under 3 minutes for the main job, or the observed runtime is documented if the hosted runner is slower.
     resolution: null
-  - key: MINE-LANCE-VECTOR-SCAN
-    summary: get_source_files() loads full table including vector column before projecting to two columns
-    type: bug
-    status: open
-    priority: low
-    size: S
-    section_id: storage_reliability
-    labels: [mining, performance, storage]
-    description: |-
-      ## Symptom
-      LanceStore metadata scans materialize the vector column before projecting it away, wasting memory and I/O on large palaces.
-
-      ## Steps to reproduce
-      1. Seed a LanceDB palace with thousands of drawers.
-      2. Call `get_source_files()`, `get_source_file_hashes()`, `count_by()`, or `count_by_pair()`.
-      3. Profile the call and observe full-table materialization including vectors before `.select(...)` discards them.
-
-      ## Acceptance criteria
-      - `get_source_files()` and `get_source_file_hashes()` use a column-projected LanceDB scan.
-      - `count_by()` and `count_by_pair()` use the same projection-safe approach.
-      - A 5,000-drawer table metadata scan reads less than 1 MB of non-required data, or the profiler evidence is documented.
-      - All existing tests pass and ruff is clean.
-    resolution: |-
-      Harden round-1: no findings. The implementation uses LanceDB scan-time column
-      projection for get_source_files(), get_source_file_hashes(), count_by(), and
-      count_by_pair(); regression tests assert both projected column sets and exact
-      results for source-file, hash, and aggregation paths.
   - key: STORE-MIGRATE-CLI-TEST
     summary: Add CLI-level test for migrate-storage subcommand wiring
     type: task

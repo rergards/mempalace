@@ -266,3 +266,8 @@ items:
       resolution: '2026-04-25: completed in pipeline run'
       archived_date: "2026-04-25"
       done_summary: completed in pipeline run
+    - key: MINE-LANCE-VECTOR-SCAN
+      summary: get_source_files() loads full table including vector column before projecting to two columns
+      resolution: '2026-04-26: completed in pipeline run'
+      archived_date: "2026-04-26"
+      done_summary: completed in pipeline run
