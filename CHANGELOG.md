@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-25 · CLEAN-SPELLCHECK
+
+Disable spellcheck by default for code mining while keeping conversation mining spellcheck enabled.
+
 ## 2026-04-25 · CLEAN-ENTITY-DETECT
 
 Make heuristic people/project detection opt-in during init.
