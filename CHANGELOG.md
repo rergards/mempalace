@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-26 · STORE-SEARCH-SOURCE-FILE-FULL-PATH
+
+Return full source_file paths from search_memories to match code_search.
+
 ## 2026-04-26 · MINE-LANCE-VECTOR-SCAN
 
 Harden LanceStore metadata scans to avoid vector-column materialization.
