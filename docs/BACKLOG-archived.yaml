@@ -276,3 +276,11 @@ items:
       resolution: '2026-04-26: completed in pipeline run'
       archived_date: "2026-04-26"
       done_summary: completed in pipeline run
+    - key: HEALTH-SCAN-PROJECTION
+      summary: health_check Probe 3 uses to_arrow() loading all rows; switch to column-projected scanner
+      resolution: |-
+        Implemented in hardening round 1: health_check() and recover_to_last_working_version()
+        now use projected LanceDB scans for the wing/room metadata probe. Added regression
+        coverage for scanner projection, structured scan failure reporting, recovery dry-run
+        projection, and fallback projected search.
+      archived_date: "2026-04-26"

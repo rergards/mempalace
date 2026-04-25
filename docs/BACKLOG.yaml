@@ -542,38 +542,6 @@ items:
     links:
       - type: is-blocked-by
         key: CLARIFY-MINE-ANSIBLE
-  - key: HEALTH-SCAN-PROJECTION
-    summary: health_check Probe 3 uses to_arrow() loading all rows; switch to column-projected scanner
-    type: task
-    status: done
-    priority: low
-    size: S
-    section_id: storage_reliability
-    labels: [storage, performance, hardening]
-    description: |-
-      ## Problem
-      health_check() Probe 3 calls self._table.to_arrow().select(["wing","room"]) to detect fragment corruption. to_arrow() without column arguments materializes ALL columns — including the 384-float vector column — before the select() projection discards them. For a palace with 5,000 drawers this loads ~7MB of vector data into memory unnecessarily and may time out on very large palaces.
-
-      ## Scope
-      mempalace/storage.py — health_check() Probe 3 and the matching probe in recover_to_last_working_version().
-
-      ## Deliverable
-      Replace to_arrow().select(["wing","room"]) with a LanceDB scanner call that projects columns at scan time: self._table.scanner(columns=["wing","room"]).to_table(). Apply the same fix to the version-walk probe in recover_to_last_working_version().
-
-      ## Acceptance criteria
-      1. health_check() Probe 3 no longer materializes the vector column
-      2. All 571+ existing tests pass unchanged
-      3. ruff clean
-      4. Fix is consistent with MINE-LANCE-VECTOR-SCAN in count_by/count_by_pair
-
-      ## Constraints
-      - Must preserve the exact corruption detection semantics (still scans all fragments)
-      - Identified in FIX-LANCE-CORRUPT harden round-1 (F-4)
-    resolution: |-
-      Implemented in hardening round 1: health_check() and recover_to_last_working_version()
-      now use projected LanceDB scans for the wing/room metadata probe. Added regression
-      coverage for scanner projection, structured scan failure reporting, recovery dry-run
-      projection, and fallback projected search.
   - key: BENCH-DOTNET-CLONE-REPO
     summary: Clone jasontaylordev/CleanArchitecture (pin to a stable tag, e.g. v8.0.x) and record the commit hash before running the benchmark
     type: task
