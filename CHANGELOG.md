@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-26 · EXTRACT-REUSABLE-REFERENCES-PROJECT-GLUE
+
+Promote extract_reusable entities to glue when they reference platform projects.
+
 ## 2026-04-26 · ARCH-REF-COVERAGE
 
 Add find_references coverage for depended_by and referenced_by relationship categories.
