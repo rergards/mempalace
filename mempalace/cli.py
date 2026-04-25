@@ -200,6 +200,11 @@ def cmd_mine(args):
             dry_run=args.dry_run,
             extract_mode=args.extract,
             spellcheck=spellcheck,
+            extract_categories=(
+                ["decision", "preference", "milestone", "problem", "emotional"]
+                if args.include_emotional
+                else None
+            ),
         )
     else:
         from .miner import mine
@@ -1114,7 +1119,15 @@ def main():
         "--extract",
         choices=["exchange", "general"],
         default="exchange",
-        help="Extraction strategy for convos mode: 'exchange' (default) or 'general' (5 memory types)",
+        help=(
+            "Extraction strategy for convos mode: 'exchange' (default) or 'general' "
+            "(decision, preference, milestone, problem by default)"
+        ),
+    )
+    p_mine.add_argument(
+        "--include-emotional",
+        action="store_true",
+        help="Opt in to emotional memories for --mode convos --extract general",
     )
     spellcheck_group = p_mine.add_mutually_exclusive_group()
     spellcheck_group.add_argument(
@@ -1469,6 +1482,10 @@ def main():
 
     if args.command == "diary":
         args._diary_parser = p_diary
+
+    if args.command == "mine" and args.include_emotional:
+        if args.mode != "convos" or args.extract != "general":
+            p_mine.error("--include-emotional requires --mode convos --extract general")
 
     dispatch = {
         "init": cmd_init,

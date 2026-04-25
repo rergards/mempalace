@@ -20,7 +20,7 @@ The Python package that powers mempalace-code. All modules, all logic.
 | `onboarding.py` | Guided first-run setup — asks about people/projects, generates AAAK bootstrap + wing config |
 | `entity_registry.py` | Entity code registry — maps names to AAAK codes, handles ambiguous names |
 | `entity_detector.py` | Auto-detect people and projects from file content |
-| `general_extractor.py` | Classifies text into 5 memory types (decision, preference, milestone, problem, emotional) |
+| `general_extractor.py` | Classifies text into default memory types (decision, preference, milestone, problem); emotional extraction is opt-in for conversation-focused mining |
 | `room_detector_local.py` | Maps folders to room names using 70+ patterns — no API |
 | `spellcheck.py` | Name-aware spellcheck — won't "correct" proper nouns in your entity registry |
 | `split_mega_files.py` | Splits concatenated transcript files into per-session files |

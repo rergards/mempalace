@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-general_extractor.py — Extract 5 types of memories from text.
+general_extractor.py — Extract general memories from text.
 
-Types:
+Default types:
   1. DECISIONS    — "we went with X because Y", choices made
   2. PREFERENCES  — "always use X", "never do Y", "I prefer Z"
   3. MILESTONES   — breakthroughs, things that finally worked
   4. PROBLEMS     — what broke, what fixed it, root causes
+
+Opt-in type:
   5. EMOTIONAL    — feelings, vulnerability, relationships
 
 No LLM required. Pure keyword/pattern heuristics.
@@ -20,7 +22,7 @@ Usage:
 """
 
 import re
-from typing import List, Dict, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 
 # =============================================================================
@@ -167,6 +169,8 @@ ALL_MARKERS = {
     "problem": PROBLEM_MARKERS,
     "emotional": EMOTION_MARKERS,
 }
+
+DEFAULT_CATEGORIES = ("decision", "preference", "milestone", "problem")
 
 
 # =============================================================================
@@ -360,17 +364,39 @@ def _score_markers(text: str, markers: List[str]) -> Tuple[float, List[str]]:
 # =============================================================================
 
 
-def extract_memories(text: str, min_confidence: float = 0.3) -> List[Dict]:
+def _resolve_categories(categories: Optional[Iterable[str]]) -> Tuple[str, ...]:
+    """Resolve and validate extraction categories."""
+    if categories is None:
+        return DEFAULT_CATEGORIES
+
+    resolved = tuple(dict.fromkeys(categories))
+    unknown = sorted(set(resolved) - set(ALL_MARKERS))
+    if unknown:
+        known = ", ".join(sorted(ALL_MARKERS))
+        raise ValueError(f"Unknown extraction categories: {', '.join(unknown)}. Known: {known}")
+    return resolved
+
+
+def extract_memories(
+    text: str,
+    min_confidence: float = 0.3,
+    categories: Optional[Iterable[str]] = None,
+) -> List[Dict]:
     """
     Extract memories from a text string.
 
     Args:
         text: The text to extract from (any format).
         min_confidence: Minimum confidence threshold (0.0-1.0).
+        categories: Optional memory types to extract. Defaults to decisions,
+            preferences, milestones, and problems. Include "emotional" explicitly
+            to extract emotional memories.
 
     Returns:
         List of dicts: {"content": str, "memory_type": str, "chunk_index": int}
     """
+    enabled_categories = _resolve_categories(categories)
+
     # Split into paragraphs (double newline or speaker-turn boundaries)
     paragraphs = _split_into_segments(text)
     memories = []
@@ -381,9 +407,10 @@ def extract_memories(text: str, min_confidence: float = 0.3) -> List[Dict]:
 
         prose = _extract_prose(para)
 
-        # Score against all types
+        # Score against enabled types
         scores = {}
-        for mem_type, markers in ALL_MARKERS.items():
+        for mem_type in enabled_categories:
+            markers = ALL_MARKERS[mem_type]
             score, _ = _score_markers(prose, markers)
             if score > 0:
                 scores[mem_type] = score
@@ -495,8 +522,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python general_extractor.py <file>")
         print()
-        print("Extracts decisions, preferences, milestones, problems, and")
-        print("emotional moments from any text file.")
+        print("Extracts decisions, preferences, milestones, and problems from any text file.")
+        print("Emotional extraction is available by calling extract_memories(...,")
+        print("categories=[..., 'emotional']).")
         sys.exit(1)
 
     filepath = sys.argv[1]

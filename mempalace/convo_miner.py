@@ -15,6 +15,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
+from typing import Iterable, Optional
 
 from .storage import open_store
 from .normalize import normalize
@@ -262,12 +263,14 @@ def mine_convos(
     dry_run: bool = False,
     extract_mode: str = "exchange",
     spellcheck: bool = True,
+    extract_categories: Optional[Iterable[str]] = None,
 ):
     """Mine a directory of conversation files into the palace.
 
     extract_mode:
         "exchange" — default exchange-pair chunking (Q+A = one unit)
-        "general"  — general extractor: decisions, preferences, milestones, problems, emotions
+        "general"  — general extractor: decisions, preferences, milestones, problems,
+                     plus emotional memories when explicitly enabled
     """
 
     convo_path = Path(convo_dir).expanduser().resolve()
@@ -322,7 +325,7 @@ def mine_convos(
         if extract_mode == "general":
             from .general_extractor import extract_memories
 
-            chunks = extract_memories(content)
+            chunks = extract_memories(content, categories=extract_categories)
             # Each chunk already has memory_type; use it as the room name
         else:
             chunks = chunk_exchanges(content)

@@ -197,6 +197,64 @@ class TestMineSpellcheckFlags:
         assert mock_mine_convos.call_args.kwargs["spellcheck"] is False
 
 
+class TestMineGeneralEmotionalFlag:
+    def test_mine_convos_general_defaults_extract_categories(self, tmp_path):
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(
+                [
+                    "mempalace",
+                    "mine",
+                    str(tmp_path),
+                    "--mode",
+                    "convos",
+                    "--extract",
+                    "general",
+                ]
+            )
+
+        assert mock_mine_convos.call_args.kwargs["extract_categories"] is None
+
+    def test_mine_convos_general_include_emotional_dispatches_categories(self, tmp_path):
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(
+                [
+                    "mempalace",
+                    "mine",
+                    str(tmp_path),
+                    "--mode",
+                    "convos",
+                    "--extract",
+                    "general",
+                    "--include-emotional",
+                ]
+            )
+
+        assert mock_mine_convos.call_args.kwargs["extract_categories"] == [
+            "decision",
+            "preference",
+            "milestone",
+            "problem",
+            "emotional",
+        ]
+
+    def test_mine_convos_general_emotional_flag_requires_general_mode(self, tmp_path, capsys):
+        with pytest.raises(SystemExit) as excinfo:
+            run_mine_cli(
+                [
+                    "mempalace",
+                    "mine",
+                    str(tmp_path),
+                    "--mode",
+                    "convos",
+                    "--include-emotional",
+                ]
+            )
+
+        captured = capsys.readouterr()
+        assert excinfo.value.code == 2
+        assert "--include-emotional requires --mode convos --extract general" in captured.err
+
+
 class TestDiaryWrite:
     def test_diary_write_success(self, tmp_path):
         palace = str(tmp_path / "palace")

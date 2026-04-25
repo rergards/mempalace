@@ -109,3 +109,65 @@ def test_mine_convos_passes_spellcheck_false_when_requested(tmp_path):
         )
 
     assert mock_normalize.call_args.kwargs["spellcheck"] is False
+
+
+def test_mine_convos_general_uses_default_extract_categories(tmp_path):
+    convo_file = tmp_path / "chat.txt"
+    convo_file.write_text("conversation export", encoding="utf-8")
+    normalized = (
+        "> User: I feel worried and lonely about the migration.\n"
+        "Assistant: I understand the concern and can help.\n"
+    ) * 3
+    extracted = [
+        {
+            "content": "The fix worked and solved the bug.",
+            "memory_type": "milestone",
+            "chunk_index": 0,
+        }
+    ]
+
+    with (
+        patch("mempalace.convo_miner.normalize", return_value=normalized),
+        patch(
+            "mempalace.general_extractor.extract_memories", return_value=extracted
+        ) as mock_extract,
+    ):
+        mine_convos(
+            str(tmp_path),
+            str(tmp_path / "palace"),
+            wing="test",
+            dry_run=True,
+            extract_mode="general",
+        )
+
+    assert mock_extract.call_args.kwargs["categories"] is None
+
+
+def test_mine_convos_general_passes_emotional_opt_in(tmp_path):
+    convo_file = tmp_path / "chat.txt"
+    convo_file.write_text("conversation export", encoding="utf-8")
+    normalized = (
+        "> User: I feel worried and lonely about the migration.\n"
+        "Assistant: I understand the concern and can help.\n"
+    ) * 3
+    categories = ["decision", "preference", "milestone", "problem", "emotional"]
+    extracted = [
+        {"content": "I feel worried and lonely.", "memory_type": "emotional", "chunk_index": 0}
+    ]
+
+    with (
+        patch("mempalace.convo_miner.normalize", return_value=normalized),
+        patch(
+            "mempalace.general_extractor.extract_memories", return_value=extracted
+        ) as mock_extract,
+    ):
+        mine_convos(
+            str(tmp_path),
+            str(tmp_path / "palace"),
+            wing="test",
+            dry_run=True,
+            extract_mode="general",
+            extract_categories=categories,
+        )
+
+    assert mock_extract.call_args.kwargs["categories"] == categories
