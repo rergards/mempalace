@@ -208,6 +208,13 @@ class MempalaceConfig:
     @property
     def entity_detection(self):
         """Whether init should run heuristic people/project detection."""
+        env_val = os.environ.get("MEMPALACE_ENTITY_DETECTION")
+        if env_val is not None:
+            parsed = _parse_optional_bool(env_val)
+            if parsed is not None:
+                return parsed
+            return DEFAULT_ENTITY_DETECTION
+
         if "entity_detection" in self._file_config:
             parsed = _parse_optional_bool(self._file_config["entity_detection"])
             if parsed is not None:

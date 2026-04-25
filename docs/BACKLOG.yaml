@@ -145,18 +145,18 @@ items:
 
       ## Acceptance Criteria
 
-      - [ ] `mempalace init <dir>` no longer runs entity detection by default
+      - [x] `mempalace init <dir>` no longer runs entity detection by default
 
-      - [ ] `mempalace init <dir> --detect-entities` runs it explicitly
+      - [x] `mempalace init <dir> --detect-entities` runs it explicitly
 
-      - [ ] Conversation mining still runs entity detection by default
+      - [x] Conversation mining still runs entity detection by default
 
-      - [ ] Config file option (`entity_detection: true/false`) respected
+      - [x] Config file option (`entity_detection: true/false`) respected
 
-      - [ ] `--yes` flag still works without entity detection
+      - [x] `--yes` flag still works without entity detection
 
-      - [ ] Tests for: init skips detection, flag enables it, convos mode runs it
-    resolution: null
+      - [x] Tests for: init skips detection, flag enables it, convos mode runs it
+    resolution: "Implemented and hardened in docs/audits/CLEAN-ENTITY-DETECT-round-1.md."
   - key: QUAL-CODE-BENCH
     summary: "Code mining benchmark — measure retrieval quality on real repos"
     type: feature
