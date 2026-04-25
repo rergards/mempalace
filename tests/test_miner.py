@@ -2647,6 +2647,34 @@ data:
     assert "following-config" not in chunks[0]["content"]
 
 
+def test_chunk_k8s_sequence_block_scalar_with_separator_stays_one_container():
+    content = """\
+apiVersion: v1
+kind: Pod
+metadata:
+  name: script-pod
+spec:
+  containers:
+    - name: app
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          cat <<'EOF'
+          ---
+          EOF
+"""
+
+    chunks = _chunk_k8s_manifest(content, "pod.yaml")
+
+    assert len(chunks) == 1
+    assert chunks[0]["symbol_name"] == "Pod/script-pod"
+    assert chunks[0]["symbol_type"] == "pod"
+    assert chunks[0]["chunk_index"] == 0
+    assert "          ---" in chunks[0]["content"]
+
+
 def test_chunk_k8s_chunk_index_sequential():
     chunks = _chunk_k8s_manifest(_K8S_THREE_DOCS, "manifests.yaml")
     indices = [c["chunk_index"] for c in chunks]

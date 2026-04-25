@@ -1585,7 +1585,7 @@ def extract_symbol(content: str, language: str) -> tuple:
 # =============================================================================
 
 
-_YAML_BLOCK_SCALAR_RE = re.compile(r":\s*[|>](?:[1-9]?[+-]?|[+-]?[1-9]?)?\s*(?:#.*)?$")
+_YAML_BLOCK_SCALAR_RE = re.compile(r"(?::\s*|^\s*-\s*)[|>](?:[1-9]?[+-]?|[+-]?[1-9]?)?\s*(?:#.*)?$")
 
 
 def _split_yaml_documents(content: str) -> list[str]:
