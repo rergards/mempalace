@@ -139,6 +139,7 @@ items:
       - `$or` filters are covered by a regression test.
       - `$ne` and `$gt` filters are covered by regression tests.
       - Existing storage tests continue to pass.
+    resolution: "Hardening round 1 complete: no findings; `python -m pytest tests/test_storage_lance.py -q` passed with 57 tests."
   - key: CI-CHROMA-COMPAT-TESTS
     summary: "Add ChromaStore-specific tests so the chroma-compat CI job actually validates ChromaDB"
     type: task
