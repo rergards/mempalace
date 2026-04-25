@@ -2561,10 +2561,13 @@ def test_chunk_k8s_single_doc_produces_one_chunk():
 def test_chunk_k8s_three_docs_produces_three_chunks():
     chunks = _chunk_k8s_manifest(_K8S_THREE_DOCS, "manifests.yaml")
     assert len(chunks) == 3
-    contents = [c["content"] for c in chunks]
-    assert any("Deployment" in c for c in contents)
-    assert any("Service" in c for c in contents)
-    assert any("ConfigMap" in c for c in contents)
+    assert [c["symbol_name"] for c in chunks] == [
+        "Deployment/my-app",
+        "Service/my-app-svc",
+        "ConfigMap/app-config",
+    ]
+    assert [c["symbol_type"] for c in chunks] == ["deployment", "service", "configmap"]
+    assert [c["chunk_index"] for c in chunks] == [0, 1, 2]
 
 
 def test_chunk_k8s_empty_separator_skipped():
@@ -2572,6 +2575,76 @@ def test_chunk_k8s_empty_separator_skipped():
     content = _K8S_SINGLE_DOC + "\n---\n\n---\n" + _K8S_SINGLE_DOC
     chunks = _chunk_k8s_manifest(content, "manifests.yaml")
     assert len(chunks) == 2
+    assert [c["symbol_name"] for c in chunks] == ["Deployment/my-app", "Deployment/my-app"]
+
+
+def test_chunk_k8s_literal_block_scalar_with_separator_stays_one_configmap():
+    content = """\
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: embedded-config
+data:
+  app.yaml: |
+    server:
+      host: localhost
+    ---
+    logging:
+      level: info
+"""
+
+    chunks = _chunk_k8s_manifest(content, "configmap.yaml")
+
+    assert len(chunks) == 1
+    assert chunks[0]["symbol_name"] == "ConfigMap/embedded-config"
+    assert chunks[0]["symbol_type"] == "configmap"
+    assert chunks[0]["chunk_index"] == 0
+    assert "    ---" in chunks[0]["content"]
+
+
+def test_chunk_k8s_folded_block_scalar_separator_does_not_hide_next_doc():
+    content = """\
+apiVersion: v1
+kind: Secret
+metadata:
+  name: embedded-secret
+stringData:
+  config.txt: >-
+    first section
+    ---
+    second section
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: following-config
+data:
+  key: value
+  another: value
+  config.yaml: |
+    server:
+      port: 8080
+    featureFlags:
+      beta: true
+    logging:
+      level: debug
+    database:
+      host: localhost
+      port: 5432
+      poolSize: 5
+"""
+
+    chunks = _chunk_k8s_manifest(content, "mixed.yaml")
+
+    assert len(chunks) == 2
+    assert [c["symbol_name"] for c in chunks] == [
+        "Secret/embedded-secret",
+        "ConfigMap/following-config",
+    ]
+    assert [c["symbol_type"] for c in chunks] == ["secret", "configmap"]
+    assert [c["chunk_index"] for c in chunks] == [0, 1]
+    assert "    ---" in chunks[0]["content"]
+    assert "following-config" not in chunks[0]["content"]
 
 
 def test_chunk_k8s_chunk_index_sequential():

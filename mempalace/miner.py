@@ -1585,9 +1585,40 @@ def extract_symbol(content: str, language: str) -> tuple:
 # =============================================================================
 
 
+_YAML_BLOCK_SCALAR_RE = re.compile(r":\s*[|>](?:[1-9]?[+-]?|[+-]?[1-9]?)?\s*(?:#.*)?$")
+
+
+def _split_yaml_documents(content: str) -> list[str]:
+    """Split YAML documents on top-level --- markers, ignoring block scalar content."""
+    docs: list[list[str]] = [[]]
+    in_block_scalar = False
+    block_parent_indent = 0
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
+
+        if in_block_scalar:
+            if not stripped or indent > block_parent_indent:
+                docs[-1].append(line)
+                continue
+            in_block_scalar = False
+
+        if indent == 0 and stripped == "---":
+            docs.append([])
+            continue
+
+        docs[-1].append(line)
+        if _YAML_BLOCK_SCALAR_RE.search(line):
+            in_block_scalar = True
+            block_parent_indent = indent
+
+    return ["\n".join(doc) for doc in docs]
+
+
 def _chunk_k8s_manifest(content: str, source_file: str) -> list:
     """Split a K8s YAML file on --- document separators, one chunk per resource."""
-    raw_docs = re.split(r"(?:^|\n)---\s*(?:\n|$)", content)
+    raw_docs = _split_yaml_documents(content)
     all_chunks = []
     for doc in raw_docs:
         doc = doc.strip()
