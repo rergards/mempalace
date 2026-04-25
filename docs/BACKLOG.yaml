@@ -64,26 +64,6 @@ items:
       - Existing prompt-based onboarding remains reachable for users who request it.
       - Tests cover default config generation and opt-in interactive behavior.
     resolution: null
-  - key: CLEAN-EMOTION-EXTRACT
-    summary: "Remove EMOTIONAL category from general_extractor defaults"
-    type: task
-    priority: low
-    status: open
-    size: S
-    section_id: cleanup
-    labels: [cleanup, mining]
-    description: |-
-      ## Problem
-      general_extractor.py classifies memories into DECISIONS, PREFERENCES, MILESTONES, PROBLEMS, EMOTIONAL. The EMOTIONAL category is conversation-first and noisy for code-focused mining.
-
-      ## Scope
-      Remove EMOTIONAL from the default extraction categories while keeping it available as an opt-in for users who mine conversations.
-
-      ## Acceptance criteria
-      - Default general extraction does not emit EMOTIONAL memories.
-      - Conversation-focused users can explicitly enable emotional extraction.
-      - Tests cover default extraction and the opt-in path.
-    resolution: "Hardening round-1: 1 fixed (string categories API boundary), 0 backlogged, 0 dismissed. Focused tests and Ruff passed."
   - key: QUAL-CODE-BENCH
     summary: "Code mining benchmark — measure retrieval quality on real repos"
     type: feature

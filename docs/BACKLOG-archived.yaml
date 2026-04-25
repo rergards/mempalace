@@ -243,3 +243,8 @@ items:
       summary: Disable spellcheck by default for code mining
       resolution: Implemented and hardened in docs/audits/CLEAN-SPELLCHECK-round-1.md.
       archived_date: "2026-04-25"
+    - key: CLEAN-EMOTION-EXTRACT
+      summary: Remove EMOTIONAL category from general_extractor defaults
+      resolution: '2026-04-25: completed in pipeline run'
+      archived_date: "2026-04-25"
+      done_summary: completed in pipeline run
