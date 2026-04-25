@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-25 · MINE-K8S-YAML-SEPARATOR
+
+Keep Kubernetes YAML document separators inside block scalar values from splitting manifest chunks.
+
 ## 2026-04-25 · CLEAN-EMOTION-EXTRACT
 
 Remove emotional memories from default general extraction while keeping them opt-in for conversation mining.
