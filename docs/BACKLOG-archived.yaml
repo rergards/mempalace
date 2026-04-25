@@ -226,3 +226,6 @@ items:
         `distributed func` symbol extraction with the expanded boundary regex; targeted
         symbol extraction tests and Ruff checks pass.
       archived_date: "2026-04-24"
+    - key: MINE-K8S-LARGE-DOC
+      summary: 'K8s large-doc symbol propagation: sub-chunks past first lose kind/name metadata'
+      archived_date: "2026-04-25"

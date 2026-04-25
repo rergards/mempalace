@@ -64,7 +64,6 @@ items:
       - Interactive onboarding is not the default for code projects.
       - Existing prompt-based onboarding remains reachable for users who request it.
       - Tests cover default config generation and opt-in interactive behavior.
-
     resolution: null
   - key: CLEAN-EMOTION-EXTRACT
     summary: "Remove EMOTIONAL category from general_extractor defaults"
@@ -85,7 +84,6 @@ items:
       - Default general extraction does not emit EMOTIONAL memories.
       - Conversation-focused users can explicitly enable emotional extraction.
       - Tests cover default extraction and the opt-in path.
-
     resolution: null
   - key: CLEAN-SPELLCHECK
     summary: "Disable spellcheck by default for code mining"
@@ -179,7 +177,6 @@ items:
       - Results report R@5/R@10 and enough metadata to diagnose misses.
       - Benchmark compares at least two chunking strategies.
       - README or benchmarks docs explain how to reproduce the run.
-
     resolution: null
   - key: QUAL-RUFF-STRICT
     summary: "Enable stricter ruff rules"
@@ -201,7 +198,6 @@ items:
       - Existing violations are fixed or explicitly ignored with justification.
       - CI runs the stricter ruff check.
       - Local `ruff check` passes.
-
     resolution: null
   # ── FUTURE — Post-v1 Ideas ─────────────────────────────────
   - key: FUT-MULTI-REPO
@@ -255,7 +251,6 @@ items:
       - chroma-compat CI exercises at least five ChromaStore operations.
       - Main CI matrix still passes without chromadb installed.
       - Chroma-specific failures are visible in the chroma-compat job.
-
     resolution: null
   - key: CI-CACHING
     summary: "Add pip and HuggingFace model caching to CI jobs to reduce run time"
@@ -277,7 +272,6 @@ items:
       - CI caches the HuggingFace model directory when model-backed tests run.
       - Cold-cache runtime stays under 10 minutes for the main job.
       - Warm-cache runtime stays under 3 minutes for the main job, or the observed runtime is documented if the hosted runner is slower.
-
     resolution: null
   - key: STORE-CHROMA-COUNTBY-FALLBACK
     summary: "ChromaStore.count_by/count_by_pair silently return empty when deprecated ChromaDB backend is used"
@@ -301,7 +295,6 @@ items:
       - `tool_list_wings` on a ChromaDB palace with N drawers across M wings returns all M wings.
       - `tool_list_rooms` and taxonomy return non-empty counts for ChromaDB palaces.
       - The fix is documented as a stop-gap for the deprecated ChromaDB backend.
-
     resolution: null
   - key: MINE-LANCE-VECTOR-SCAN
     summary: get_source_files() loads full table including vector column before projecting to two columns
@@ -983,31 +976,6 @@ items:
       ## Constraints
 
       Identified in PY-TYPE-KG hardening round-1 (F-2). Low priority -- multi-module imports are uncommon in modern Python.
-  - key: MINE-K8S-LARGE-DOC
-    summary: 'K8s large-doc symbol propagation: sub-chunks past first lose kind/name metadata'
-    type: feature
-    status: done
-    priority: low
-    size: S
-    section_id: coding_first
-    labels: [feat, miner, infra]
-    description: |-
-      ## Problem
-      When a K8s manifest doc exceeds HARD_MAX (4000 chars), adaptive_merge_split splits it. Sub-chunks past the first lack kind: and metadata.name:, so _extract_k8s_symbol returns ('', '') — empty symbol_type and symbol_name in the index.
-
-      ## Scope
-      - _chunk_k8s_manifest in miner.py: extract kind+name from first sub-chunk and apply to all sub-chunks of the same doc
-      - Add a test with a large K8s doc (>4000 chars) verifying all sub-chunks have correct symbol metadata
-
-      ## Acceptance Criteria
-      - [x] Large K8s doc (>4000 chars) produces multiple chunks all with correct symbol_type and symbol_name
-      - [x] Existing K8s tests continue to pass unchanged
-
-      ## Resolution
-      2026-04-25: Propagated Kubernetes kind/name metadata from each full manifest
-      document to every adaptive sub-chunk, including oversized docs split past
-      HARD_MAX. Added large-doc, missing-kind, and multi-doc metadata isolation
-      regression tests. Hardening round-1: 0 findings; tests/test_miner.py passes.
   - key: MINE-K8S-YAML-SEPARATOR
     summary: K8s chunker false splits on '---' inside YAML block scalar values
     type: bug
