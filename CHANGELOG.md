@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-26 · MINE-LANCE-VECTOR-SCAN
+
+Harden LanceStore metadata scans to avoid vector-column materialization.
+
 ## 2026-04-25 · STORE-CHROMA-COUNTBY-FALLBACK
 
 Add ChromaDB count fallbacks so wings, rooms, taxonomy, and status reflect existing drawers.
