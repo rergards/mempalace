@@ -182,6 +182,11 @@ items:
       - `count_by()` and `count_by_pair()` use the same projection-safe approach.
       - A 5,000-drawer table metadata scan reads less than 1 MB of non-required data, or the profiler evidence is documented.
       - All existing tests pass and ruff is clean.
+    resolution: |-
+      Harden round-1: no findings. The implementation uses LanceDB scan-time column
+      projection for get_source_files(), get_source_file_hashes(), count_by(), and
+      count_by_pair(); regression tests assert both projected column sets and exact
+      results for source-file, hash, and aggregation paths.
   - key: STORE-MIGRATE-CLI-TEST
     summary: Add CLI-level test for migrate-storage subcommand wiring
     type: task
