@@ -284,3 +284,8 @@ items:
         coverage for scanner projection, structured scan failure reporting, recovery dry-run
         projection, and fallback projected search.
       archived_date: "2026-04-26"
+    - key: ARCH-REF-COVERAGE
+      summary: Add find_references test coverage for depended_by and referenced_by categories
+      resolution: '2026-04-26: completed in pipeline run'
+      archived_date: "2026-04-26"
+      done_summary: completed in pipeline run
