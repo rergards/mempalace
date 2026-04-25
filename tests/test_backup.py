@@ -302,6 +302,50 @@ class TestAutoBackupDefault:
         cfg = MempalaceConfig(config_dir=cfg_dir)
         assert cfg.backup_schedule == "weekly"
 
+    def test_backup_retain_count_default(self, tmp_dir):
+        """backup_retain_count defaults to 0, which disables pruning."""
+        from mempalace.config import MempalaceConfig
+
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        assert cfg.backup_retain_count == 0
+
+    def test_backup_retain_count_file_key(self, tmp_dir):
+        """backup_retain_count file key is honored when env var is absent."""
+        import json as _json
+        from mempalace.config import MempalaceConfig
+
+        cfg_dir = os.path.join(tmp_dir, "cfg")
+        os.makedirs(cfg_dir)
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            _json.dump({"backup_retain_count": 2}, f)
+        cfg = MempalaceConfig(config_dir=cfg_dir)
+        assert cfg.backup_retain_count == 2
+
+    def test_backup_retain_count_env_overrides_file(self, tmp_dir, monkeypatch):
+        """AC-5: MEMPALACE_BACKUP_RETAIN_COUNT wins over backup_retain_count."""
+        import json as _json
+        from mempalace.config import MempalaceConfig
+
+        cfg_dir = os.path.join(tmp_dir, "cfg")
+        os.makedirs(cfg_dir)
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            _json.dump({"backup_retain_count": 1}, f)
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "3")
+        cfg = MempalaceConfig(config_dir=cfg_dir)
+        assert cfg.backup_retain_count == 3
+
+    @pytest.mark.parametrize("env_value", ["", "not-a-number", "-1"])
+    def test_backup_retain_count_invalid_env_disables_retention(
+        self, tmp_dir, monkeypatch, env_value
+    ):
+        """Invalid or negative env values fall back to disabled retention."""
+        from mempalace.config import MempalaceConfig
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", env_value)
+        cfg = MempalaceConfig(config_dir=os.path.join(tmp_dir, "cfg"))
+        assert cfg.backup_retain_count == 0
+
 
 # ── TestListBackups ────────────────────────────────────────────────────────────
 

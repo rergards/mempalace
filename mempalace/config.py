@@ -14,6 +14,7 @@ DEFAULT_COLLECTION_NAME = "mempalace_drawers"
 # Storage safety defaults
 DEFAULT_OPTIMIZE_AFTER_MINE = True  # Set False to disable auto-compaction
 DEFAULT_BACKUP_BEFORE_OPTIMIZE = True  # Auto-backup before risky operations (on by default)
+DEFAULT_BACKUP_RETAIN_COUNT = 0  # 0 keeps all pre-optimize backups (backwards compatible)
 DEFAULT_BACKUP_SCHEDULE = "off"  # Scheduled backup frequency: off|daily|weekly|hourly
 
 DEFAULT_TOPIC_WINGS = [
@@ -160,6 +161,22 @@ class MempalaceConfig:
     def auto_backup_before_optimize(self):
         """Preferred alias for backup_before_optimize. Returns the same value."""
         return self.backup_before_optimize
+
+    @property
+    def backup_retain_count(self):
+        """Number of pre-optimize backups to retain. 0 disables pruning."""
+        raw_value = os.environ.get("MEMPALACE_BACKUP_RETAIN_COUNT")
+        if raw_value is None:
+            raw_value = self._file_config.get("backup_retain_count", DEFAULT_BACKUP_RETAIN_COUNT)
+
+        try:
+            retain_count = int(raw_value)
+        except (TypeError, ValueError):
+            return DEFAULT_BACKUP_RETAIN_COUNT
+
+        if retain_count < 0:
+            return DEFAULT_BACKUP_RETAIN_COUNT
+        return retain_count
 
     @property
     def backup_schedule(self):

@@ -4,6 +4,7 @@ test_storage.py — Tests for DrawerStore aggregation and delete_wing.
 
 import logging
 import os
+from datetime import datetime
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -728,6 +729,16 @@ class TestGetSourceFileHashes:
 
 
 class TestSafeOptimize:
+    def _add_optimize_fixture(self, store, doc_id):
+        store.add(
+            ids=[doc_id],
+            documents=[f"safe optimize retention test document {doc_id}"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+
+    def _pre_optimize_archives(self, tmp_dir):
+        return sorted(os.listdir(os.path.join(tmp_dir, "backups")))
+
     def test_happy_path_returns_true_and_readable(self, palace_path):
         """AC-1: safe_optimize(backup_first=False) returns True; row count unchanged; table readable."""
         store = open_store(palace_path, create=True)
@@ -785,6 +796,109 @@ class TestSafeOptimize:
         assert result is False
         mock_backup.assert_called_once()
         mock_optimize.assert_not_called()
+
+    def test_retention_prunes_old_pre_optimize_archives(self, palace_path, tmp_dir, monkeypatch):
+        """AC-1: keep only the newest N pre-optimize archives after successful optimize."""
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain1")
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "2")
+        fake_datetime = MagicMock()
+        fake_datetime.now.side_effect = [
+            datetime(2026, 1, 1, 12, 0, 0),
+            datetime(2026, 1, 1, 12, 0, 1),
+            datetime(2026, 1, 1, 12, 0, 2),
+        ]
+
+        with patch("mempalace.storage.datetime", fake_datetime):
+            results = [store.safe_optimize(palace_path, backup_first=True) for _ in range(3)]
+
+        assert results == [True, True, True]
+        archives = self._pre_optimize_archives(tmp_dir)
+        assert archives == [
+            "pre_optimize_20260101_120001.tar.gz",
+            "pre_optimize_20260101_120002.tar.gz",
+        ]
+
+    def test_retention_default_zero_keeps_all_archives(self, palace_path, tmp_dir):
+        """AC-2: default backup_retain_count=0 disables pruning."""
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain_default")
+
+        fake_datetime = MagicMock()
+        fake_datetime.now.side_effect = [
+            datetime(2026, 1, 1, 12, 1, 0),
+            datetime(2026, 1, 1, 12, 1, 1),
+        ]
+
+        with patch("mempalace.storage.datetime", fake_datetime):
+            first = store.safe_optimize(palace_path, backup_first=True)
+            second = store.safe_optimize(palace_path, backup_first=True)
+
+        assert (first, second) == (True, True)
+        archives = self._pre_optimize_archives(tmp_dir)
+        assert archives == [
+            "pre_optimize_20260101_120100.tar.gz",
+            "pre_optimize_20260101_120101.tar.gz",
+        ]
+
+    def test_retention_preserves_non_pre_optimize_files(self, palace_path, tmp_dir, monkeypatch):
+        """AC-3: retention only removes old pre_optimize_*.tar.gz files."""
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain_scope")
+        backup_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backup_dir)
+        for name in (
+            "pre_optimize_20260101_115900.tar.gz",
+            "mempalace_backup_20260101_115900.tar.gz",
+            "scheduled_20260101_115900.tar.gz",
+            "notes.txt",
+        ):
+            with open(os.path.join(backup_dir, name), "w") as f:
+                f.write("sentinel")
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "1")
+        fake_datetime = MagicMock()
+        fake_datetime.now.return_value = datetime(2026, 1, 1, 12, 2, 0)
+
+        with patch("mempalace.storage.datetime", fake_datetime):
+            result = store.safe_optimize(palace_path, backup_first=True)
+
+        assert result is True
+        assert sorted(os.listdir(backup_dir)) == [
+            "mempalace_backup_20260101_115900.tar.gz",
+            "notes.txt",
+            "pre_optimize_20260101_120200.tar.gz",
+            "scheduled_20260101_115900.tar.gz",
+        ]
+
+    def test_retention_prune_error_is_warning_not_failure(
+        self, palace_path, tmp_dir, monkeypatch, caplog
+    ):
+        """AC-4: failed pruning logs WARNING and does not mask successful optimize."""
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain_warning")
+        backup_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backup_dir)
+        for name in (
+            "pre_optimize_20260101_115800.tar.gz",
+            "pre_optimize_20260101_115900.tar.gz",
+        ):
+            with open(os.path.join(backup_dir, name), "w") as f:
+                f.write("sentinel")
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "1")
+        fake_datetime = MagicMock()
+        fake_datetime.now.return_value = datetime(2026, 1, 1, 12, 3, 0)
+
+        with patch("mempalace.storage.datetime", fake_datetime):
+            with patch("pathlib.Path.unlink", side_effect=OSError("permission denied")):
+                with caplog.at_level(logging.WARNING, logger="mempalace"):
+                    result = store.safe_optimize(palace_path, backup_first=True)
+
+        assert result is True
+        warning_msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("backup pruning" in msg.lower() for msg in warning_msgs)
 
     def test_backup_failure_logs_error(self, palace_path, caplog):
         """AC-3: Backup failure is logged at ERROR level."""

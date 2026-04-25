@@ -24,6 +24,7 @@ present (raises ImportError with a helpful message when it is not).
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -31,6 +32,28 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("mempalace")
+
+
+def _prune_pre_optimize_backups(backup_dir: str, retain_count: int) -> None:
+    """Best-effort pruning for pre-optimize archives only."""
+    if retain_count <= 0:
+        return
+
+    candidates = []
+    for path in Path(backup_dir).glob("pre_optimize_*.tar.gz"):
+        if not path.is_file():
+            continue
+        try:
+            candidates.append((path.stat().st_mtime, path.name, path))
+        except OSError as e:
+            logger.warning("Pre-optimize backup pruning failed for %s: %s", path, e)
+    candidates.sort(reverse=True)
+
+    for _, _, archive in candidates[retain_count:]:
+        try:
+            archive.unlink()
+        except OSError as e:
+            logger.warning("Pre-optimize backup pruning failed for %s: %s", archive, e)
 
 
 # ─── Abstract interface ────────────────────────────────────────────────────────
@@ -664,8 +687,6 @@ class LanceStore(DrawerStore):
         # Pre-optimize backup (fail-closed gate)
         if backup_first:
             try:
-                from datetime import datetime
-
                 from .backup import create_backup
 
                 backup_dir = os.path.join(os.path.dirname(palace_path), "backups")
@@ -694,6 +715,14 @@ class LanceStore(DrawerStore):
             post_count = self._table.count_rows()
             if post_count != pre_count:
                 logger.warning("Row count changed after optimize: %d -> %d", pre_count, post_count)
+            if backup_first:
+                from .config import MempalaceConfig
+
+                backup_dir = os.path.join(os.path.dirname(palace_path), "backups")
+                _prune_pre_optimize_backups(
+                    backup_dir,
+                    MempalaceConfig().backup_retain_count,
+                )
             return True
         except Exception as e:
             logger.error("Table unreadable after optimize: %s", e)
