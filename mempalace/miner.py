@@ -1593,9 +1593,21 @@ def _chunk_k8s_manifest(content: str, source_file: str) -> list:
         doc = doc.strip()
         if len(doc) < MIN_CHUNK:
             continue
-        all_chunks.extend(adaptive_merge_split([doc], source_file))
+        symbol_name, symbol_type = _extract_k8s_symbol(doc)
+        for chunk in adaptive_merge_split([doc], source_file):
+            chunk["symbol_name"] = symbol_name
+            chunk["symbol_type"] = symbol_type
+            all_chunks.append(chunk)
     # Re-index chunk_index across all documents
-    return [{"content": c["content"], "chunk_index": i} for i, c in enumerate(all_chunks)]
+    return [
+        {
+            "content": c["content"],
+            "chunk_index": i,
+            "symbol_name": c["symbol_name"],
+            "symbol_type": c["symbol_type"],
+        }
+        for i, c in enumerate(all_chunks)
+    ]
 
 
 def chunk_file(content: str, ext: str, source_file: str, language: str = None) -> list:
@@ -2337,7 +2349,10 @@ def _collect_specs_for_file(
 
     specs = []
     for chunk in chunks:
-        symbol_name, symbol_type = extract_symbol(chunk["content"], language)
+        symbol_name = chunk.get("symbol_name")
+        symbol_type = chunk.get("symbol_type")
+        if symbol_name is None or symbol_type is None:
+            symbol_name, symbol_type = extract_symbol(chunk["content"], language)
         drawer_id = f"drawer_{wing}_{room}_{hashlib.md5((source_file + str(chunk['chunk_index'])).encode(), usedforsecurity=False).hexdigest()[:16]}"
         specs.append(
             {

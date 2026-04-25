@@ -2544,6 +2544,65 @@ def test_chunk_k8s_chunk_index_sequential():
     assert indices == list(range(len(chunks)))
 
 
+def _large_k8s_doc(kind: str = "Deployment", name: str = "large-app") -> str:
+    body = "\n\n".join(f"# generated payload {i}\n" + ("x" * 900) for i in range(6))
+    return f"""\
+apiVersion: apps/v1
+kind: {kind}
+metadata:
+  name: {name}
+spec:
+  replicas: 1
+
+{body}
+"""
+
+
+def test_chunk_k8s_large_doc_propagates_symbol_metadata_to_all_subchunks():
+    chunks = _chunk_k8s_manifest(_large_k8s_doc(), "large-deploy.yaml")
+
+    assert len(chunks) > 1
+    assert [c["chunk_index"] for c in chunks] == list(range(len(chunks)))
+    assert {c["symbol_name"] for c in chunks} == {"Deployment/large-app"}
+    assert {c["symbol_type"] for c in chunks} == {"deployment"}
+
+
+def test_chunk_k8s_large_doc_without_kind_keeps_empty_symbol_metadata():
+    body = "\n\n".join(f"# generated payload {i}\n" + ("x" * 900) for i in range(6))
+    content = f"""\
+apiVersion: v1
+metadata:
+  name: nameless-kind
+data:
+  key: value
+
+{body}
+"""
+
+    chunks = _chunk_k8s_manifest(content, "unknown.yaml")
+
+    assert len(chunks) > 1
+    assert {c["symbol_name"] for c in chunks} == {""}
+    assert {c["symbol_type"] for c in chunks} == {""}
+
+
+def test_chunk_k8s_large_doc_metadata_does_not_leak_to_following_doc():
+    content = _large_k8s_doc() + "\n---\n" + _K8S_THREE_DOCS.split("---", 1)[1].strip()
+
+    chunks = _chunk_k8s_manifest(content, "mixed.yaml")
+
+    assert len(chunks) > 2
+    assert [c["chunk_index"] for c in chunks] == list(range(len(chunks)))
+    assert chunks[-1]["symbol_name"] == "ConfigMap/app-config"
+    assert chunks[-1]["symbol_type"] == "configmap"
+    assert all(
+        c["symbol_name"] == "Deployment/large-app" and c["symbol_type"] == "deployment"
+        for c in chunks[:-2]
+    )
+    assert chunks[-2]["symbol_name"] == "Service/my-app-svc"
+    assert chunks[-2]["symbol_type"] == "service"
+
+
 # =============================================================================
 # Kubernetes roundtrip — mine() AC-1
 # =============================================================================
