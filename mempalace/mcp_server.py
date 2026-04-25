@@ -763,7 +763,8 @@ def tool_extract_reusable(entity: str, max_depth: int = 3) -> dict:
        c. targets_framework containing PLATFORM_FRAMEWORK_MARKERS → platform
        d. Any PLATFORM_KG_PREDICATES (binds_viewmodel etc.) → platform
        Otherwise: core (tentative)
-    3. Promote core→glue: entity implements a core interface AND depends_on a platform entity.
+    3. Promote core→glue: entity implements a core interface AND depends_on or
+       references_project a platform entity.
     4. Extract boundary_interfaces: core interfaces implemented by glue entities.
     5. Return {entity, graph: {core, platform, glue}, boundary_interfaces, summary}.
     """
@@ -831,7 +832,8 @@ def tool_extract_reusable(entity: str, max_depth: int = 3) -> dict:
             evidence[name] = []
 
     # Step 3: Promote → glue
-    # An entity is glue if it implements a core-classified interface AND depends_on a platform entity.
+    # An entity is glue if it implements a core-classified interface AND depends on a platform entity.
+    # Project references are first-class coupling signals here, equivalent to package references.
     # This overrides any previous classification (core or platform): a type that bridges a core
     # contract and platform dependencies is always glue, regardless of step-2 result.
     # Only `implements` (not `inherits`) triggers promotion — contracts, not base classes.
@@ -848,10 +850,12 @@ def tool_extract_reusable(entity: str, max_depth: int = 3) -> dict:
         if not core_interfaces:
             continue
 
+        platform_dependency_predicates = {"depends_on", "references_project"}
         platform_deps = [
             f["object"]
             for f in facts
-            if f["predicate"] == "depends_on" and classification.get(f["object"]) == "platform"
+            if f["predicate"] in platform_dependency_predicates
+            and classification.get(f["object"]) == "platform"
         ]
         if platform_deps:
             classification[name] = "glue"

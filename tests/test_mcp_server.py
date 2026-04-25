@@ -1476,6 +1476,67 @@ class TestExtractReusable:
                 implementors = {imp["entity"] for imp in bi["implemented_by"]}
                 assert "WinFormsAdapter" in implementors
 
+    def test_references_project_to_platform_project_promotes_glue(
+        self, monkeypatch, config, palace_path, kg
+    ):
+        """Project references to platform-classified projects promote implementors to glue."""
+        kg.add_triple("WpfAdapter", "implements", "IService")
+        kg.add_triple("WpfAdapter", "references_project", "WpfHost")
+        kg.add_triple("WpfHost", "targets_framework", "net8.0-windows")
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_extract_reusable
+
+        root_result = tool_extract_reusable(entity="WpfAdapter")
+        boundary_by_interface = {
+            item["interface"]: item["implemented_by"] for item in root_result["boundary_interfaces"]
+        }
+        assert boundary_by_interface == {
+            "IService": [{"entity": "WpfAdapter", "classification": "glue"}]
+        }
+
+        kg.add_triple("Container", "references_project", "WpfAdapter")
+        container_result = tool_extract_reusable(entity="Container")
+        glue_by_entity = {item["entity"]: item for item in container_result["graph"]["glue"]}
+        assert glue_by_entity["WpfAdapter"]["core_interfaces"] == ["IService"]
+        assert glue_by_entity["WpfAdapter"]["platform_deps"] == ["WpfHost"]
+
+    def test_references_project_to_core_project_does_not_promote_glue(
+        self, monkeypatch, config, palace_path, kg
+    ):
+        """Non-platform project references do not create glue boundaries by themselves."""
+        kg.add_triple("CoreAdapter", "implements", "IService")
+        kg.add_triple("CoreAdapter", "references_project", "CoreLib")
+        kg.add_triple("CoreLib", "targets_framework", "netstandard2.0")
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_extract_reusable
+
+        result = tool_extract_reusable(entity="CoreAdapter")
+        assert result["boundary_interfaces"] == []
+        assert result["graph"]["glue"] == []
+        assert {item["entity"] for item in result["graph"]["core"]} == {"IService", "CoreLib"}
+
+    def test_expired_references_project_to_platform_project_is_ignored(
+        self, monkeypatch, config, palace_path, kg
+    ):
+        """Expired project references are not traversed and cannot promote glue."""
+        kg.add_triple("ExpiredAdapter", "implements", "IService")
+        kg.add_triple(
+            "ExpiredAdapter",
+            "references_project",
+            "WpfHost",
+            valid_to="2020-01-01",
+        )
+        kg.add_triple("WpfHost", "targets_framework", "net8.0-windows")
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace.mcp_server import tool_extract_reusable
+
+        result = tool_extract_reusable(entity="ExpiredAdapter")
+        assert result["boundary_interfaces"] == []
+        assert result["graph"]["glue"] == []
+        all_entities = {item["entity"] for values in result["graph"].values() for item in values}
+        assert all_entities == {"IService"}
+        assert "WpfHost" not in all_entities
+
     def test_empty_kg_returns_empty_graph(self, monkeypatch, config, palace_path, kg):
         """AC-4: Entity has no KG facts → valid empty response, no error."""
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
