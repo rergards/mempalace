@@ -52,8 +52,18 @@ items:
     size: M
     section_id: cleanup
     labels: [cleanup, ux]
-    description: >
-      Current onboarding.py is a guided interview (mode: work/personal/combo, people, projects, wing taxonomy). Replace with: 'mempalace init <dir>' reads project structure, generates mempalace.yaml automatically. Interactive prompts are opt-in, not default. Coding users want zero-friction setup.
+    description: |-
+      ## Problem
+      Current onboarding.py is a guided interview (mode: work/personal/combo, people, projects, wing taxonomy). Coding users want zero-friction setup driven by the project directory.
+
+      ## Scope
+      Replace the default setup path with `mempalace init <dir>` reading project structure and generating mempalace.yaml automatically. Interactive prompts should remain available only as an explicit opt-in path.
+
+      ## Acceptance criteria
+      - `mempalace init <dir>` can generate a usable mempalace.yaml without an interview.
+      - Interactive onboarding is not the default for code projects.
+      - Existing prompt-based onboarding remains reachable for users who request it.
+      - Tests cover default config generation and opt-in interactive behavior.
 
     resolution: null
   - key: CLEAN-EMOTION-EXTRACT
@@ -64,8 +74,17 @@ items:
     size: S
     section_id: cleanup
     labels: [cleanup, mining]
-    description: >
-      general_extractor.py classifies memories into DECISIONS, PREFERENCES, MILESTONES, PROBLEMS, EMOTIONAL. The EMOTIONAL category is conversation-first (tracks sentiment/feelings). Remove from default extraction. Keep in code as opt-in for users who mine conversations.
+    description: |-
+      ## Problem
+      general_extractor.py classifies memories into DECISIONS, PREFERENCES, MILESTONES, PROBLEMS, EMOTIONAL. The EMOTIONAL category is conversation-first and noisy for code-focused mining.
+
+      ## Scope
+      Remove EMOTIONAL from the default extraction categories while keeping it available as an opt-in for users who mine conversations.
+
+      ## Acceptance criteria
+      - Default general extraction does not emit EMOTIONAL memories.
+      - Conversation-focused users can explicitly enable emotional extraction.
+      - Tests cover default extraction and the opt-in path.
 
     resolution: null
   - key: CLEAN-SPELLCHECK
@@ -148,8 +167,18 @@ items:
     size: L
     section_id: quality
     labels: [benchmarks, testing]
-    description: >
-      Upstream benchmarks (LongMemEval, LoCoMo) test conversation retrieval. Build a code-specific benchmark: mine a known repo, ask code questions (where is function X, what does module Y do, how does feature Z work), measure retrieval accuracy. Compare naive chunking vs smart chunking vs tree-sitter.
+    description: |-
+      ## Problem
+      Upstream benchmarks (LongMemEval, LoCoMo) test conversation retrieval, not codebase retrieval. The fork needs a benchmark that measures whether code mining answers developer questions well.
+
+      ## Scope
+      Build a code-specific benchmark: mine a known repo, ask code questions such as where a function lives, what a module does, and how a feature works. Measure retrieval accuracy and compare naive chunking, smart chunking, and tree-sitter chunking.
+
+      ## Acceptance criteria
+      - Benchmark dataset includes known-answer code questions against at least one pinned real repo.
+      - Results report R@5/R@10 and enough metadata to diagnose misses.
+      - Benchmark compares at least two chunking strategies.
+      - README or benchmarks docs explain how to reproduce the run.
 
     resolution: null
   - key: QUAL-RUFF-STRICT
@@ -160,8 +189,18 @@ items:
     size: S
     section_id: quality
     labels: [quality, lint]
-    description: >
-      Current ruff config is minimal. Enable: type-checking rules, import sorting (isort), docstring conventions, unused variable detection. Fix existing violations. Add to CI.
+    description: |-
+      ## Problem
+      Current ruff config is minimal, so style and maintainability regressions can land without CI catching them.
+
+      ## Scope
+      Enable stricter ruff rules such as type-checking-related rules, import sorting, docstring conventions where appropriate, and unused variable detection. Fix existing violations and add the stricter check to CI.
+
+      ## Acceptance criteria
+      - pyproject.toml enables the agreed stricter ruff rule set.
+      - Existing violations are fixed or explicitly ignored with justification.
+      - CI runs the stricter ruff check.
+      - Local `ruff check` passes.
 
     resolution: null
   # ── FUTURE — Post-v1 Ideas ─────────────────────────────────
@@ -185,7 +224,18 @@ items:
     size: S
     section_id: quality
     labels: [test, storage]
-    description: LanceStore.get(ids=[]) and _where_to_sql with $or, $ne, $gt operators have no test coverage. Add targeted unit tests to prevent regressions on these paths.
+    description: |-
+      ## Problem
+      LanceStore.get(ids=[]) and _where_to_sql with $or, $ne, and $gt operators have no targeted test coverage.
+
+      ## Scope
+      Add focused storage tests for empty ID lookup and SQL generation/filter behavior for logical OR and comparison operators.
+
+      ## Acceptance criteria
+      - `LanceStore.get(ids=[])` returns an empty result without querying invalid SQL.
+      - `$or` filters are covered by a regression test.
+      - `$ne` and `$gt` filters are covered by regression tests.
+      - Existing storage tests continue to pass.
   - key: CI-CHROMA-COMPAT-TESTS
     summary: "Add ChromaStore-specific tests so the chroma-compat CI job actually validates ChromaDB"
     type: task
@@ -194,8 +244,17 @@ items:
     size: S
     section_id: quality
     labels: [ci, testing, storage]
-    description: >
-      The chroma-compat CI job installs .[dev,chroma] then runs the full test suite — but all tests use open_store() (LanceDB). The job only proves "chromadb installs without import errors", not "ChromaDB works as a storage backend". Add a test module (tests/test_chroma_compat.py) that explicitly instantiates ChromaStore and exercises add/search/delete. Mark it with pytest.importorskip("chromadb") so it is skipped in the main matrix and only runs in the chroma-compat job. AC: chroma-compat job exercises at least 5 ChromaStore operations; main matrix still passes without chromadb installed.
+    description: |-
+      ## Problem
+      The chroma-compat CI job installs .[dev,chroma] then runs the full test suite, but most tests use open_store() with LanceDB. The job mostly proves chromadb imports, not that ChromaStore works.
+
+      ## Scope
+      Add ChromaStore-specific tests that explicitly instantiate ChromaStore and exercise add, search, get, delete, and count behavior. Guard the module with pytest.importorskip("chromadb") so it is skipped in the main matrix.
+
+      ## Acceptance criteria
+      - chroma-compat CI exercises at least five ChromaStore operations.
+      - Main CI matrix still passes without chromadb installed.
+      - Chroma-specific failures are visible in the chroma-compat job.
 
     resolution: null
   - key: CI-CACHING
@@ -206,8 +265,18 @@ items:
     size: S
     section_id: quality
     labels: [ci, devex]
-    description: >
-      Each CI run re-downloads ~500MB of packages (lancedb, sentence-transformers, torch) and the all-MiniLM-L6-v2 model at test runtime. Add pip cache via actions/setup-python cache param, and a HuggingFace model cache step (cache key: model name hash). Expected savings: 3–5 minutes per job, ~15 minutes total per push. AC: cold cache run completes in under 10 minutes; warm cache run completes in under 3 minutes.
+    description: |-
+      ## Problem
+      CI repeatedly downloads large Python packages and the all-MiniLM-L6-v2 model, increasing runtime and making feedback slower.
+
+      ## Scope
+      Add pip caching through actions/setup-python and a HuggingFace model cache keyed by model name and dependency lock inputs.
+
+      ## Acceptance criteria
+      - CI caches pip packages.
+      - CI caches the HuggingFace model directory when model-backed tests run.
+      - Cold-cache runtime stays under 10 minutes for the main job.
+      - Warm-cache runtime stays under 3 minutes for the main job, or the observed runtime is documented if the hosted runner is slower.
 
     resolution: null
   - key: STORE-CHROMA-COUNTBY-FALLBACK
@@ -218,8 +287,20 @@ items:
     size: S
     section_id: storage_reliability
     labels: [storage, chroma, hardening]
-    description: >
-      After STORE-STATUS-LIMIT, ChromaStore.count_by and count_by_pair raise NotImplementedError. MCP tools (tool_status, tool_list_wings, tool_list_rooms, tool_get_taxonomy) wrap these calls in try/except Exception: pass, so ChromaDB palaces silently report wings={}, rooms={} even though drawers exist. This is a regression from pre-fix behavior (ChromaDB returned truncated but non-empty results). Fix: implement get-and-iterate fallback in ChromaStore.count_by using self.get(include=["metadatas"], limit=self.count()) — similar to the old approach but with the correct upper bound. Acceptance criteria: tool_list_wings on a ChromaDB palace with N drawers across M wings returns all M wings. Note: ChromaDB is deprecated — this is a stop-gap until STORE-MIGRATION-CLI lands.
+    description: |-
+      ## Symptom
+      ChromaDB palaces can silently report empty wings and rooms even though drawers exist.
+
+      ## Steps to reproduce
+      1. Open a deprecated ChromaDB-backed palace with drawers across multiple wings.
+      2. Call `tool_list_wings`, `tool_list_rooms`, `tool_get_taxonomy`, or `tool_status`.
+      3. Observe `wings={}` or `rooms={}` because ChromaStore.count_by/count_by_pair are not implemented and MCP aggregation failures are swallowed.
+
+      ## Acceptance criteria
+      - Implement a get-and-iterate fallback for ChromaStore.count_by/count_by_pair using `self.get(include=["metadatas"], limit=self.count())`.
+      - `tool_list_wings` on a ChromaDB palace with N drawers across M wings returns all M wings.
+      - `tool_list_rooms` and taxonomy return non-empty counts for ChromaDB palaces.
+      - The fix is documented as a stop-gap for the deprecated ChromaDB backend.
 
     resolution: null
   - key: MINE-LANCE-VECTOR-SCAN
@@ -230,7 +311,20 @@ items:
     size: S
     section_id: storage_reliability
     labels: [mining, performance, storage]
-    description: 'LanceStore.get_source_files() calls self._table.to_arrow().select([''source_file'',''wing'']). to_arrow() without column arguments materializes ALL columns — including the large vector column (384 floats per row) — before the .select() projection discards everything except two string columns. For a palace with 5,000 drawers, this loads ~7MB of vector data into memory unnecessarily. The same pattern exists in count_by(), count_by_pair(), and get_source_file_hashes() (added in CODE-INCREMENTAL). Fix: pass a columns argument to to_arrow() or use the LanceDB scanner API for column-projected scans. Acceptance criteria: (1) get_source_files() and get_source_file_hashes() on a 5,000-drawer table each read less than 1MB of data (verified via LanceDB IO stats or a profiler); (2) all existing tests pass; (3) ruff clean; (4) the fix also applies to count_by() and count_by_pair() for consistency. Identified in MINE-LANCE-COMPACT harden round-1 (F-002); scope extended in CODE-INCREMENTAL harden round-1 (F-002).'
+    description: |-
+      ## Symptom
+      LanceStore metadata scans materialize the vector column before projecting it away, wasting memory and I/O on large palaces.
+
+      ## Steps to reproduce
+      1. Seed a LanceDB palace with thousands of drawers.
+      2. Call `get_source_files()`, `get_source_file_hashes()`, `count_by()`, or `count_by_pair()`.
+      3. Profile the call and observe full-table materialization including vectors before `.select(...)` discards them.
+
+      ## Acceptance criteria
+      - `get_source_files()` and `get_source_file_hashes()` use a column-projected LanceDB scan.
+      - `count_by()` and `count_by_pair()` use the same projection-safe approach.
+      - A 5,000-drawer table metadata scan reads less than 1 MB of non-required data, or the profiler evidence is documented.
+      - All existing tests pass and ruff is clean.
   - key: STORE-MIGRATE-CLI-TEST
     summary: Add CLI-level test for migrate-storage subcommand wiring
     type: task
@@ -239,7 +333,19 @@ items:
     size: S
     section_id: quality
     labels: [test, cli, migration]
-    description: 'test_cli.py has no tests for migrate-storage. The argparse wiring (args.backup_dir from --backup-dir), VerificationError->sys.exit(1) path in cmd_migrate_storage, and --force passthrough are untested. Deliverable: add tests invoking cmd_migrate_storage covering (1) happy path; (2) VerificationError yields exit code 1; (3) --force passes through. AC: test_migrate_storage_cli_happy_path and test_migrate_storage_cli_verify_fail pass; existing migrate tests unaffected; skip file if chromadb not installed. Identified in STORE-MIGRATION-CLI harden round-1 (F-002).'
+    description: |-
+      ## Problem
+      test_cli.py has no tests for migrate-storage. The argparse wiring, VerificationError exit path, and --force passthrough are untested.
+
+      ## Scope
+      Add CLI-level tests invoking cmd_migrate_storage for the happy path, VerificationError handling, backup_dir wiring, and --force passthrough.
+
+      ## Acceptance criteria
+      - test_migrate_storage_cli_happy_path passes.
+      - test_migrate_storage_cli_verify_fail exits with code 1.
+      - --backup-dir is passed through as args.backup_dir.
+      - --force is passed through to migrate_chroma_to_lance.
+      - Existing migrate tests are unaffected and chromadb-specific tests skip when chromadb is absent.
   - key: CORE-EXPORT-IMPORT-STREAM-TEST
     summary: 'Add test_export_streams_large_palace: verify iter_all streams without OOM on 5k-drawer palaces'
     type: task
@@ -414,6 +520,9 @@ items:
 
       Without a negative test, removing the gap check would not break any existing assertion. This is the same gap identified in CODE-TREESITTER-PYTHON-DETACH-TEST for Python.
 
+      ## Scope
+      tests/test_chunking.py — add negative AST chunking tests for Go and Rust detached comments, with fixtures large enough to avoid adaptive merge masking the assertion.
+
       ## Deliverable
 
       Add two test functions to tests/test_chunking.py:
@@ -448,6 +557,10 @@ items:
       tests/test_backup.py exercises create_backup() and restore_backup() at the library level
       but does not test the CLI dispatch path: cmd_backup(args) and cmd_restore(args).
       The argparse wiring, sys.exit(1) on error, and the returned out_path display are untested.
+
+      ## Scope
+
+      Add CLI dispatch tests for backup and restore commands, either in tests/test_backup.py or a new tests/test_backup_cli.py.
 
       ## Deliverable
 
@@ -484,6 +597,10 @@ items:
       2. `open_store(palace_path, backend="chroma")`
 
       Neither path has test coverage. If the lazy import guard is accidentally removed or broken, there is no test to catch the regression.
+
+      ## Scope
+
+      Add tests for the lazy ChromaDB import failure paths without requiring chromadb to be absent from the developer machine.
 
       ## Deliverable
 
@@ -623,6 +740,9 @@ items:
     description: |-
       ## Problem
       safe_optimize() creates pre_optimize_YYYYMMDD_HHMMSS.tar.gz archives in <palace_parent>/backups/ before each optimize run. Currently there is no cleanup — archives accumulate forever, which will silently fill disk on long-running installations.
+
+      ## Scope
+      Add a retention policy for pre_optimize_*.tar.gz archives created by safe_optimize(), wired through config and environment overrides.
 
       ## Deliverable
       A configurable retention policy (e.g. keep last N backups, or delete archives older than D days) applied at the end of safe_optimize() after a successful optimize. Default: keep last 5 archives (or 0 = keep all, for backwards compatibility).
@@ -891,8 +1011,13 @@ items:
     section_id: coding_first
     labels: [fix, miner, infra]
     description: |-
-      ## Problem
+      ## Symptom
       _chunk_k8s_manifest splits on the regex (?:^|\n)---\s*(?:\n|$) which matches any --- at a line boundary, including --- inside YAML block scalars (|, >) in ConfigMap/Secret data fields. A ConfigMap with an embedded config file containing --- would be incorrectly split.
+
+      ## Steps to reproduce
+      1. Create a ConfigMap with a block scalar under data containing a line with `---`.
+      2. Run K8s manifest chunking on the file.
+      3. Observe the ConfigMap split as though the embedded separator were a YAML document separator.
 
       ## Scope
       - _chunk_k8s_manifest in miner.py: guard against splitting inside YAML block scalar values
@@ -909,7 +1034,17 @@ items:
     size: XS
     section_id: immediate
     assignee: owner
-    description: "Clarification required before MINE-RUBY-SMART can be planned.\n\n**Original task:** Add smart symbol extraction for Ruby\n\n**Block reasons:**\n- Task could not be planned within the time/token budget.\n\n**Questions requiring owner input:**\n1. The plan phase for MINE-RUBY-SMART timed out or stalled without producing a plan. Please clarify scope and expected deliverables so the next attempt can succeed within budget.\n\n*(Auto-generated: plan phase timed out without producing a plan)*\n\n**Acceptance criteria:** When questions are answered, mark CLARIFY-MINE-RUBY-SMART done (or remove its is-blocked-by link from MINE-RUBY-SMART) and re-run autopilot."
+    description: |-
+      ## Problem
+      Clarification is required before MINE-RUBY-SMART can be planned.
+
+      ## Scope
+      Owner should clarify the expected Ruby support level, especially Rails DSL coverage, metaprogramming expectations, and the minimum symbol set required for a first pass.
+
+      ## Acceptance criteria
+      - Owner answers the scope questions or narrows MINE-RUBY-SMART to a first-pass deliverable.
+      - CLARIFY-MINE-RUBY-SMART is marked done, or its is-blocked-by link is removed from MINE-RUBY-SMART.
+      - Autopilot can re-run MINE-RUBY-SMART planning without timing out on ambiguous scope.
   - key: CLARIFY-MINE-HELM
     summary: "Clarify scope for MINE-HELM before planning can proceed"
     type: task
@@ -918,7 +1053,17 @@ items:
     size: XS
     section_id: immediate
     assignee: owner
-    description: "Clarification required before MINE-HELM can be planned.\n\n**Original task:** Add Helm chart support to code miner\n\n**Block reasons:**\n- Task could not be planned within the time/token budget.\n\n**Questions requiring owner input:**\n1. The plan phase for MINE-HELM timed out or stalled without producing a plan. Please clarify scope and expected deliverables so the next attempt can succeed within budget.\n\n*(Auto-generated: plan phase timed out without producing a plan)*\n\n**Acceptance criteria:** When questions are answered, mark CLARIFY-MINE-HELM done (or remove its is-blocked-by link from MINE-HELM) and re-run autopilot."
+    description: |-
+      ## Problem
+      Clarification is required before MINE-HELM can be planned.
+
+      ## Scope
+      Owner should clarify whether Helm support means chart metadata only, rendered-template-aware extraction, raw Go-template YAML parsing, or a smaller first-pass subset.
+
+      ## Acceptance criteria
+      - Owner defines the Helm first-pass scope and explicit out-of-scope behavior.
+      - CLARIFY-MINE-HELM is marked done, or its is-blocked-by link is removed from MINE-HELM.
+      - Autopilot can re-run MINE-HELM planning without timing out on ambiguous scope.
   - key: CLARIFY-MINE-ANSIBLE
     summary: "Clarify scope for MINE-ANSIBLE before planning can proceed"
     type: task
@@ -927,7 +1072,17 @@ items:
     size: XS
     section_id: immediate
     assignee: owner
-    description: "Clarification required before MINE-ANSIBLE can be planned.\n\n**Original task:** Add Ansible support to code miner\n\n**Block reasons:**\n- Task could not be planned within the time/token budget.\n\n**Questions requiring owner input:**\n1. The plan phase for MINE-ANSIBLE timed out or stalled without producing a plan. Please clarify scope and expected deliverables so the next attempt can succeed within budget.\n\n*(Auto-generated: plan phase timed out without producing a plan)*\n\n**Acceptance criteria:** When questions are answered, mark CLARIFY-MINE-ANSIBLE done (or remove its is-blocked-by link from MINE-ANSIBLE) and re-run autopilot."
+    description: |-
+      ## Problem
+      Clarification is required before MINE-ANSIBLE can be planned.
+
+      ## Scope
+      Owner should clarify whether Ansible support covers playbooks only, roles and inventories, Jinja-templated YAML, or a smaller first-pass subset.
+
+      ## Acceptance criteria
+      - Owner defines the Ansible first-pass scope and explicit out-of-scope behavior.
+      - CLARIFY-MINE-ANSIBLE is marked done, or its is-blocked-by link is removed from MINE-ANSIBLE.
+      - Autopilot can re-run MINE-ANSIBLE planning without timing out on ambiguous scope.
   - key: CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST
     summary: "Clarify scope for CODE-TREESITTER-GO-RUST-DETACH-TEST before planning can proceed"
     type: task
@@ -936,4 +1091,14 @@ items:
     size: XS
     section_id: immediate
     assignee: owner
-    description: "Clarification required before CODE-TREESITTER-GO-RUST-DETACH-TEST can be planned.\n\n**Original task:** Add negative tests for detached-comment gap detection in Go and Rust AST chunkers\n\n**Block reasons:**\n- Task could not be planned within the time/token budget.\n\n**Questions requiring owner input:**\n1. The plan phase for CODE-TREESITTER-GO-RUST-DETACH-TEST timed out or stalled without producing a plan. Please clarify scope and expected deliverables so the next attempt can succeed within budget.\n\n*(Auto-generated: plan phase timed out without producing a plan)*\n\n**Acceptance criteria:** When questions are answered, mark CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST done (or remove its is-blocked-by link from CODE-TREESITTER-GO-RUST-DETACH-TEST) and re-run autopilot."
+    description: |-
+      ## Problem
+      Clarification is required before CODE-TREESITTER-GO-RUST-DETACH-TEST can be planned.
+
+      ## Scope
+      Owner should confirm whether this task should only add regression tests, or may also adjust fixtures and chunking helper code if needed to make the tests meaningful.
+
+      ## Acceptance criteria
+      - Owner confirms test-only versus test-plus-fixture scope.
+      - CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST is marked done, or its is-blocked-by link is removed from CODE-TREESITTER-GO-RUST-DETACH-TEST.
+      - Autopilot can re-run CODE-TREESITTER-GO-RUST-DETACH-TEST planning without timing out on ambiguous scope.
