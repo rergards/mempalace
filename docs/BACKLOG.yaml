@@ -83,7 +83,7 @@ items:
       - Default general extraction does not emit EMOTIONAL memories.
       - Conversation-focused users can explicitly enable emotional extraction.
       - Tests cover default extraction and the opt-in path.
-    resolution: null
+    resolution: "Hardening round-1: 1 fixed (string categories API boundary), 0 backlogged, 0 dismissed. Focused tests and Ruff passed."
   - key: QUAL-CODE-BENCH
     summary: "Code mining benchmark — measure retrieval quality on real repos"
     type: feature

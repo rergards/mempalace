@@ -47,3 +47,11 @@ def test_unknown_category_raises_value_error():
             "This is long enough to be considered for extraction.",
             categories=["imaginary"],
         )
+
+
+def test_string_category_argument_raises_value_error():
+    with pytest.raises(ValueError, match="categories must be an iterable of category names"):
+        extract_memories(
+            "I feel worried and lonely about this migration.",
+            categories="emotional",
+        )

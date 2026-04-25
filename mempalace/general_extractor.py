@@ -369,6 +369,9 @@ def _resolve_categories(categories: Optional[Iterable[str]]) -> Tuple[str, ...]:
     if categories is None:
         return DEFAULT_CATEGORIES
 
+    if isinstance(categories, str):
+        raise ValueError("categories must be an iterable of category names, not a string")
+
     resolved = tuple(dict.fromkeys(categories))
     unknown = sorted(set(resolved) - set(ALL_MARKERS))
     if unknown:
