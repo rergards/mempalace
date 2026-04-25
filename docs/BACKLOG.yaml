@@ -182,7 +182,10 @@ items:
       - `tool_list_wings` on a ChromaDB palace with N drawers across M wings returns all M wings.
       - `tool_list_rooms` and taxonomy return non-empty counts for ChromaDB palaces.
       - The fix is documented as a stop-gap for the deprecated ChromaDB backend.
-    resolution: null
+    resolution: |-
+      Implemented ChromaStore.count_by/count_by_pair metadata iteration fallback and
+      Chroma-specific regression tests. Hardening round-1: 0 findings; targeted
+      Chroma compatibility tests and Ruff checks pass.
   - key: MINE-LANCE-VECTOR-SCAN
     summary: get_source_files() loads full table including vector column before projecting to two columns
     type: bug
