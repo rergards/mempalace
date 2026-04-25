@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-26 · ARCH-REF-COVERAGE
+
+Add find_references coverage for depended_by and referenced_by relationship categories.
+
 ## 2026-04-26 · HEALTH-SCAN-PROJECTION
 
 Use projected metadata scans for health check and recovery probes to avoid vector-column materialization.
