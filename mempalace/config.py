@@ -16,6 +16,7 @@ DEFAULT_OPTIMIZE_AFTER_MINE = True  # Set False to disable auto-compaction
 DEFAULT_BACKUP_BEFORE_OPTIMIZE = True  # Auto-backup before risky operations (on by default)
 DEFAULT_BACKUP_RETAIN_COUNT = 0  # 0 keeps all pre-optimize backups (backwards compatible)
 DEFAULT_BACKUP_SCHEDULE = "off"  # Scheduled backup frequency: off|daily|weekly|hourly
+DEFAULT_SPELLCHECK_ENABLED = None  # None lets each ingest mode choose its own default
 
 DEFAULT_TOPIC_WINGS = [
     "emotions",
@@ -186,6 +187,23 @@ class MempalaceConfig:
             return env_val.lower()
         return self._file_config.get("backup_schedule", DEFAULT_BACKUP_SCHEDULE)
 
+    @property
+    def spellcheck_enabled(self):
+        """Tri-state spellcheck setting: True, False, or None for mode defaults."""
+        env_val = os.environ.get("MEMPALACE_SPELLCHECK_ENABLED")
+        if env_val is not None:
+            parsed = _parse_optional_bool(env_val)
+            if parsed is not None:
+                return parsed
+            return DEFAULT_SPELLCHECK_ENABLED
+
+        if "spellcheck_enabled" in self._file_config:
+            parsed = _parse_optional_bool(self._file_config["spellcheck_enabled"])
+            if parsed is not None:
+                return parsed
+
+        return DEFAULT_SPELLCHECK_ENABLED
+
     def init(self):
         """Create config directory and write default config.json if it doesn't exist."""
         self._config_dir.mkdir(parents=True, exist_ok=True)
@@ -210,3 +228,16 @@ class MempalaceConfig:
         with open(self._people_map_file, "w") as f:
             json.dump(people_map, f, indent=2)
         return self._people_map_file
+
+
+def _parse_optional_bool(value):
+    """Parse bool-like config values, returning None for unset/invalid values."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("1", "true", "yes", "on"):
+            return True
+        if normalized in ("0", "false", "no", "off"):
+            return False
+    return None

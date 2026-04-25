@@ -81,3 +81,31 @@ def test_mine_convos_default_calls_safe_optimize_backup_first():
         assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
     finally:
         shutil.rmtree(tmpdir)
+
+
+def test_mine_convos_passes_spellcheck_true_by_default(tmp_path):
+    convo_file = tmp_path / "chat.json"
+    convo_file.write_text("{}", encoding="utf-8")
+    normalized = "> pleese remember this important decision\nAssistant response.\n" * 3
+
+    with patch("mempalace.convo_miner.normalize", return_value=normalized) as mock_normalize:
+        mine_convos(str(tmp_path), str(tmp_path / "palace"), wing="test", dry_run=True)
+
+    assert mock_normalize.call_args.kwargs["spellcheck"] is True
+
+
+def test_mine_convos_passes_spellcheck_false_when_requested(tmp_path):
+    convo_file = tmp_path / "chat.json"
+    convo_file.write_text("{}", encoding="utf-8")
+    normalized = "> pleese remember this important decision\nAssistant response.\n" * 3
+
+    with patch("mempalace.convo_miner.normalize", return_value=normalized) as mock_normalize:
+        mine_convos(
+            str(tmp_path),
+            str(tmp_path / "palace"),
+            wing="test",
+            dry_run=True,
+            spellcheck=False,
+        )
+
+    assert mock_normalize.call_args.kwargs["spellcheck"] is False

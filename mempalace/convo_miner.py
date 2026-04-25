@@ -261,6 +261,7 @@ def mine_convos(
     limit: int = 0,
     dry_run: bool = False,
     extract_mode: str = "exchange",
+    spellcheck: bool = True,
 ):
     """Mine a directory of conversation files into the palace.
 
@@ -310,7 +311,7 @@ def mine_convos(
 
         # Normalize format
         try:
-            content = normalize(str(filepath))
+            content = normalize(str(filepath), spellcheck=spellcheck)
         except (OSError, ValueError):
             continue
 

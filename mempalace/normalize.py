@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 
-def normalize(filepath: str) -> str:
+def normalize(filepath: str, spellcheck: bool = True) -> str:
     """
     Load a file and normalize to transcript format if it's a chat export.
     Plain text files pass through unchanged.
@@ -42,21 +42,21 @@ def normalize(filepath: str) -> str:
     # Try JSON normalization
     ext = Path(filepath).suffix.lower()
     if ext in (".json", ".jsonl") or content.strip()[:1] in ("{", "["):
-        normalized = _try_normalize_json(content)
+        normalized = _try_normalize_json(content, spellcheck=spellcheck)
         if normalized:
             return normalized
 
     return content
 
 
-def _try_normalize_json(content: str) -> Optional[str]:
+def _try_normalize_json(content: str, spellcheck: bool = True) -> Optional[str]:
     """Try all known JSON chat schemas."""
 
-    normalized = _try_claude_code_jsonl(content)
+    normalized = _try_claude_code_jsonl(content, spellcheck=spellcheck)
     if normalized:
         return normalized
 
-    normalized = _try_codex_jsonl(content)
+    normalized = _try_codex_jsonl(content, spellcheck=spellcheck)
     if normalized:
         return normalized
 
@@ -66,14 +66,14 @@ def _try_normalize_json(content: str) -> Optional[str]:
         return None
 
     for parser in (_try_claude_ai_json, _try_chatgpt_json, _try_slack_json):
-        normalized = parser(data)
+        normalized = parser(data, spellcheck=spellcheck)
         if normalized:
             return normalized
 
     return None
 
 
-def _try_claude_code_jsonl(content: str) -> Optional[str]:
+def _try_claude_code_jsonl(content: str, spellcheck: bool = True) -> Optional[str]:
     """Claude Code JSONL sessions."""
     lines = [line.strip() for line in content.strip().split("\n") if line.strip()]
     messages = []
@@ -95,11 +95,11 @@ def _try_claude_code_jsonl(content: str) -> Optional[str]:
             if text:
                 messages.append(("assistant", text))
     if len(messages) >= 2:
-        return _messages_to_transcript(messages)
+        return _messages_to_transcript(messages, spellcheck=spellcheck)
     return None
 
 
-def _try_codex_jsonl(content: str) -> Optional[str]:
+def _try_codex_jsonl(content: str, spellcheck: bool = True) -> Optional[str]:
     """OpenAI Codex CLI sessions (~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl).
 
     Uses only event_msg entries (user_message / agent_message) which represent
@@ -143,11 +143,11 @@ def _try_codex_jsonl(content: str) -> Optional[str]:
             messages.append(("assistant", text))
 
     if len(messages) >= 2 and has_session_meta:
-        return _messages_to_transcript(messages)
+        return _messages_to_transcript(messages, spellcheck=spellcheck)
     return None
 
 
-def _try_claude_ai_json(data) -> Optional[str]:
+def _try_claude_ai_json(data, spellcheck: bool = True) -> Optional[str]:
     """Claude.ai JSON export: flat messages list or privacy export with chat_messages."""
     if isinstance(data, dict):
         data = data.get("messages", data.get("chat_messages", []))
@@ -171,7 +171,7 @@ def _try_claude_ai_json(data) -> Optional[str]:
                 elif role in ("assistant", "ai") and text:
                     all_messages.append(("assistant", text))
         if len(all_messages) >= 2:
-            return _messages_to_transcript(all_messages)
+            return _messages_to_transcript(all_messages, spellcheck=spellcheck)
         return None
 
     # Flat messages list
@@ -186,11 +186,11 @@ def _try_claude_ai_json(data) -> Optional[str]:
         elif role in ("assistant", "ai") and text:
             messages.append(("assistant", text))
     if len(messages) >= 2:
-        return _messages_to_transcript(messages)
+        return _messages_to_transcript(messages, spellcheck=spellcheck)
     return None
 
 
-def _try_chatgpt_json(data) -> Optional[str]:
+def _try_chatgpt_json(data, spellcheck: bool = True) -> Optional[str]:
     """ChatGPT conversations.json with mapping tree."""
     if not isinstance(data, dict) or "mapping" not in data:
         return None
@@ -227,11 +227,11 @@ def _try_chatgpt_json(data) -> Optional[str]:
             children = node.get("children", [])
             current_id = children[0] if children else None
     if len(messages) >= 2:
-        return _messages_to_transcript(messages)
+        return _messages_to_transcript(messages, spellcheck=spellcheck)
     return None
 
 
-def _try_slack_json(data) -> Optional[str]:
+def _try_slack_json(data, spellcheck: bool = True) -> Optional[str]:
     """
     Slack channel export: [{"type": "message", "user": "...", "text": "..."}]
     Optimized for 2-person DMs. In channels with 3+ people, alternating
@@ -260,7 +260,7 @@ def _try_slack_json(data) -> Optional[str]:
         last_role = seen_users[user_id]
         messages.append((seen_users[user_id], text))
     if len(messages) >= 2:
-        return _messages_to_transcript(messages)
+        return _messages_to_transcript(messages, spellcheck=spellcheck)
     return None
 
 

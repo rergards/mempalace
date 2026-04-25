@@ -3159,6 +3159,7 @@ def mine(
     incremental: bool = True,
     kg=None,
     skip_optimize: bool = False,
+    spellcheck: bool = False,
 ):
     """Mine a project directory into the palace.
 
@@ -3169,6 +3170,9 @@ def mine(
     *kg* is an optional KnowledgeGraph instance. When provided, .NET project files
     (.csproj, .fsproj, .vbproj) and solution files (.sln) are also parsed for
     structured dependency triples that are written to the knowledge graph.
+
+    *spellcheck* is accepted for shared CLI/config plumbing but ignored: project
+    mining stores source files verbatim.
 
     When *skip_optimize* is True, post-mine storage compaction is skipped.  Callers
     (e.g. the watcher) that run many mine() calls in sequence should skip optimize

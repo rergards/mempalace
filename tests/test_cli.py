@@ -16,6 +16,65 @@ from mempalace.cli import main
 from mempalace.storage import open_store
 
 
+def run_mine_cli(argv):
+    with patch.object(sys, "argv", argv):
+        main()
+
+
+class TestMineSpellcheckFlags:
+    def test_project_mode_defaults_spellcheck_false(self, tmp_path):
+        with patch("mempalace.miner.mine") as mock_mine:
+            run_mine_cli(["mempalace", "mine", str(tmp_path)])
+
+        assert mock_mine.call_args.kwargs["spellcheck"] is False
+
+    def test_convos_mode_defaults_spellcheck_true(self, tmp_path):
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(["mempalace", "mine", str(tmp_path), "--mode", "convos"])
+
+        assert mock_mine_convos.call_args.kwargs["spellcheck"] is True
+
+    def test_spellcheck_flag_overrides_project_default(self, tmp_path):
+        with patch("mempalace.miner.mine") as mock_mine:
+            run_mine_cli(["mempalace", "mine", str(tmp_path), "--spellcheck"])
+
+        assert mock_mine.call_args.kwargs["spellcheck"] is True
+
+    def test_no_spellcheck_flag_overrides_convos_default(self, tmp_path):
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(
+                ["mempalace", "mine", str(tmp_path), "--mode", "convos", "--no-spellcheck"]
+            )
+
+        assert mock_mine_convos.call_args.kwargs["spellcheck"] is False
+
+    def test_config_spellcheck_value_used_without_flag(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / ".mempalace").mkdir()
+        (tmp_path / ".mempalace" / "config.json").write_text(
+            '{"spellcheck_enabled": false}', encoding="utf-8"
+        )
+
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(["mempalace", "mine", str(tmp_path), "--mode", "convos"])
+
+        assert mock_mine_convos.call_args.kwargs["spellcheck"] is False
+
+    def test_cli_flag_overrides_config_spellcheck_value(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / ".mempalace").mkdir()
+        (tmp_path / ".mempalace" / "config.json").write_text(
+            '{"spellcheck_enabled": true}', encoding="utf-8"
+        )
+
+        with patch("mempalace.convo_miner.mine_convos") as mock_mine_convos:
+            run_mine_cli(
+                ["mempalace", "mine", str(tmp_path), "--mode", "convos", "--no-spellcheck"]
+            )
+
+        assert mock_mine_convos.call_args.kwargs["spellcheck"] is False
+
+
 class TestDiaryWrite:
     def test_diary_write_success(self, tmp_path):
         palace = str(tmp_path / "palace")

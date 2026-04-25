@@ -64,6 +64,42 @@ def test_project_mining():
         shutil.rmtree(tmpdir)
 
 
+def test_project_mining_preserves_code_identifiers_even_with_spellcheck_true():
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(
+            project_root / "src" / "deploy.py",
+            (
+                "def run_kubectl_deploy():\n"
+                "    snake_case = 'kubectl apply --context CamelCaseCluster'\n"
+                "    CamelCaseValue = snake_case\n"
+                "    return CamelCaseValue\n\n"
+            )
+            * 20,
+        )
+        with open(project_root / "mempalace.yaml", "w") as f:
+            yaml.dump(
+                {
+                    "wing": "test_project",
+                    "rooms": [{"name": "general", "description": "General"}],
+                },
+                f,
+            )
+
+        palace_path = project_root / "palace"
+        mine(str(project_root), str(palace_path), spellcheck=True)
+
+        store = open_store(str(palace_path), create=False)
+        documents = "\n".join(store.get(include=["documents"])["documents"])
+        assert "kubectl" in documents
+        assert "snake_case" in documents
+        assert "CamelCaseValue" in documents
+        assert "cubectl" not in documents
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def test_scan_project_respects_gitignore():
     tmpdir = tempfile.mkdtemp()
     try:

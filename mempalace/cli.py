@@ -132,7 +132,9 @@ def cmd_init(args):
 
 
 def cmd_mine(args):
-    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    config = MempalaceConfig()
+    palace_path = os.path.expanduser(args.palace) if args.palace else config.palace_path
+    spellcheck = _resolve_spellcheck(args, config)
     include_ignored = []
     for raw in args.include_ignored or []:
         include_ignored.extend(part.strip() for part in raw.split(",") if part.strip())
@@ -192,6 +194,7 @@ def cmd_mine(args):
             limit=args.limit,
             dry_run=args.dry_run,
             extract_mode=args.extract,
+            spellcheck=spellcheck,
         )
     else:
         from .miner import mine
@@ -209,7 +212,21 @@ def cmd_mine(args):
             include_ignored=include_ignored,
             incremental=not args.full,
             kg=kg,
+            spellcheck=spellcheck,
         )
+
+
+def _resolve_spellcheck(args, config: MempalaceConfig) -> bool:
+    """Resolve spellcheck precedence: CLI flag > config/env > ingest-mode default."""
+    flag_value = getattr(args, "spellcheck", None)
+    if flag_value is not None:
+        return flag_value
+
+    config_value = config.spellcheck_enabled
+    if config_value is not None:
+        return config_value
+
+    return args.mode == "convos"
 
 
 def cmd_mine_all(args):
@@ -1088,6 +1105,20 @@ def main():
         choices=["exchange", "general"],
         default="exchange",
         help="Extraction strategy for convos mode: 'exchange' (default) or 'general' (5 memory types)",
+    )
+    spellcheck_group = p_mine.add_mutually_exclusive_group()
+    spellcheck_group.add_argument(
+        "--spellcheck",
+        dest="spellcheck",
+        action="store_true",
+        default=None,
+        help="Enable spellcheck for conversation normalization",
+    )
+    spellcheck_group.add_argument(
+        "--no-spellcheck",
+        dest="spellcheck",
+        action="store_false",
+        help="Disable spellcheck for conversation normalization",
     )
     p_mine.add_argument(
         "--watch",
