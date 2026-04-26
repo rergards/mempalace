@@ -73,7 +73,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "ARG", "DTZ", "PT", "RET", "SIM"]
+select = ["E", "F", "W", "I", "UP", "B", "ARG", "DTZ", "PT", "RET", "SIM", "TCH"]
 ignore = [
     # Ruff format owns wrapping; avoid duplicate churn from the line-length lint.
     "E501",
@@ -118,9 +118,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Transitional production-code strictness pass. These rule families are selected
-# so new files enter the stricter policy, while current broad cleanup is tracked
-# by the code-specific comments in [tool.ruff.lint]. Keep imports enforced now.
+# Transitional production-code strictness pass. These ignores keep the existing
+# codebase passing while the selected rule families make each deferred rule
+# visible in local focused runs such as `ruff check --select SIM`.
 "mempalace/**/*.py" = [
     "ARG001",
     "ARG002",

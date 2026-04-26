@@ -84,7 +84,13 @@ items:
       - Existing violations are fixed or explicitly ignored with justification.
       - CI runs the stricter ruff check.
       - Local `ruff check` passes.
-    resolution: null
+    resolution: |-
+      HARDEN round 1 completed on 2026-04-26. Added Ruff TCH selection so
+      type-checking-related import hygiene is enforced, corrected transitional
+      ignore comments, and recorded audit results in
+      docs/audits/QUAL-RUFF-STRICT-round-1.md. Verified with:
+      `python -m ruff check mempalace/ tests/` and
+      `python -m ruff format --check mempalace/ tests/`.
   # ── FUTURE — Post-v1 Ideas ─────────────────────────────────
   - key: FUT-MULTI-REPO
     summary: "Multi-repo palace — mine multiple projects into one palace"
