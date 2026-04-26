@@ -21,7 +21,6 @@ import yaml
 from mempalace.cli import main
 from mempalace.watcher import _invalidate_gitignore_cache, _is_relevant_change, watch_and_mine
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

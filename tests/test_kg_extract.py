@@ -18,7 +18,6 @@ from mempalace.miner import (
     parse_xaml_file,
 )
 
-
 # =============================================================================
 # Helpers
 # =============================================================================
@@ -307,6 +306,7 @@ def test_parse_sln_no_projects(tmp_path):
 def test_csproj_remining_invalidates_stale_triples(tmp_path):
     """After changing a .csproj and re-mining, old KG triples are invalidated."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -674,6 +674,7 @@ def test_parse_xaml_resource_dict_no_xclass(tmp_path):
 def test_xaml_remining_invalidates_stale_triples(tmp_path):
     """After changing a .xaml and re-mining, old KG triples are invalidated."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1056,6 +1057,7 @@ def test_vb_implements_generic_stripped(tmp_path):
 def test_cs_remining_invalidates_stale_triples(tmp_path):
     """After modifying a .cs file and re-mining, old type-relationship triples are invalidated."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1113,6 +1115,7 @@ def test_cs_remining_invalidates_stale_triples(tmp_path):
 def test_cs_stale_sweep_invalidates_triples(tmp_path):
     """Deleting a .cs file and running the stale sweep invalidates its KG triples."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1165,6 +1168,7 @@ def test_cs_stale_sweep_invalidates_triples(tmp_path):
 def test_cs_incremental_skip_unchanged(tmp_path):
     """Unchanged .cs file is skipped on second incremental mine — no duplicate triples."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1211,6 +1215,7 @@ def test_multi_project_cross_project_interface_query(tmp_path):
     Also exercises direction='incoming' query path (AC-8).
     """
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1260,6 +1265,7 @@ def test_multi_project_cross_project_interface_query(tmp_path):
 def test_cs_incoming_query_base_class(tmp_path):
     """direction='incoming' on a base class returns all subclasses with predicate 'inherits' (AC-9)."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1422,6 +1428,7 @@ def test_py_init_module_name(tmp_path):
 def test_py_mine_populates_kg(tmp_path):
     """mine() on a Python project populates KG with class inheritance triples — AC-11."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1449,6 +1456,7 @@ def test_py_mine_populates_kg(tmp_path):
 def test_py_remining_invalidates_stale_triples(tmp_path):
     """After modifying a .py file and re-mining, old type-relationship triples are invalidated — AC-12."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1504,6 +1512,7 @@ def test_py_remining_invalidates_stale_triples(tmp_path):
 def test_py_stale_sweep_invalidates_triples(tmp_path):
     """Deleting a .py file and running the stale sweep invalidates its KG triples — AC-14."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 
@@ -1552,6 +1561,7 @@ def test_py_stale_sweep_invalidates_triples(tmp_path):
 def test_py_incoming_query_base_class(tmp_path):
     """direction='incoming' on a Python base class returns subclasses via inherits predicate — AC-15."""
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
     from mempalace.miner import mine
 

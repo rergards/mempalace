@@ -27,11 +27,11 @@ Tools (write):
   mempalace_mine            — trigger re-mining of a project directory
 """
 
-import os
-import sys
+import hashlib
 import json
 import logging
-import hashlib
+import os
+import sys
 import uuid
 from collections import deque
 from datetime import datetime
@@ -39,13 +39,12 @@ from pathlib import Path
 from typing import Optional
 
 from .config import MempalaceConfig
-from .version import __version__
-from .searcher import code_search, search_memories
-from .palace_graph import traverse, find_tunnels, graph_stats
-from .storage import open_store, DrawerStore, LanceStore
-from .miner import mine
-
 from .knowledge_graph import KnowledgeGraph
+from .miner import mine
+from .palace_graph import find_tunnels, graph_stats, traverse
+from .searcher import code_search, search_memories
+from .storage import DrawerStore, LanceStore, open_store
+from .version import __version__
 
 _kg = KnowledgeGraph()
 

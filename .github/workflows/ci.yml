@@ -25,5 +25,5 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ruff
-      - run: ruff check .
-      - run: ruff format --check .
+      - run: ruff check mempalace/ tests/
+      - run: ruff format --check mempalace/ tests/

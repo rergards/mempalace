@@ -5,6 +5,7 @@ Tests the library-facing search interface (not the CLI print variant).
 """
 
 import pytest
+
 from mempalace.searcher import code_search, search_memories
 from mempalace.storage import open_store
 

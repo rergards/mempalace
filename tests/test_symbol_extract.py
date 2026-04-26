@@ -4,7 +4,6 @@ import pytest
 
 from mempalace.miner import SWIFT_BOUNDARY, chunk_code, extract_symbol
 
-
 # =============================================================================
 # PYTHON
 # =============================================================================

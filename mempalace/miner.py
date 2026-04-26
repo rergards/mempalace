@@ -7,21 +7,21 @@ Routes each file to the right room based on content.
 Stores verbatim chunks as drawers. No summaries. Ever.
 """
 
+import fnmatch
+import hashlib
 import os
 import re
 import sys
 import time
-import hashlib
-import fnmatch
-from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from .config import MempalaceConfig
 from .storage import open_store
 from .treesitter import get_parser
 from .version import __version__
-from .config import MempalaceConfig
 
 EXTENSION_LANG_MAP = {
     ".py": "python",

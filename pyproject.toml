@@ -73,8 +73,99 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "UP", "B", "ARG", "DTZ", "PT", "RET", "SIM"]
+ignore = [
+    # Ruff format owns wrapping; avoid duplicate churn from the line-length lint.
+    "E501",
+    # Transitional pyupgrade backlog: modern annotation/open-mode rewrites are
+    # mechanical but broad, so keep them out of the first strictness pass.
+    "UP006",
+    "UP015",
+    "UP024",
+    "UP028",
+    "UP035",
+    "UP036",
+    "UP045",
+    # Transitional maintainability backlog: current CLI/miner/storage code has
+    # several real refactor candidates that should be reviewed separately.
+    "B007",
+    "B027",
+    "B033",
+    "B904",
+    "B905",
+    "DTZ001",
+    "DTZ005",
+    "DTZ011",
+    "RET504",
+    "RET505",
+    "RET508",
+    "SIM102",
+    "SIM103",
+    "SIM105",
+    "SIM108",
+    "SIM114",
+    "SIM115",
+    "SIM116",
+    "SIM117",
+    # Pytest cleanup backlog: fixtures, callbacks, and patch side effects use
+    # framework-required signatures that need local underscore renames.
+    "ARG001",
+    "ARG002",
+    "ARG005",
+    "PT001",
+    "PT006",
+    "PT017",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Transitional production-code strictness pass. These rule families are selected
+# so new files enter the stricter policy, while current broad cleanup is tracked
+# by the code-specific comments in [tool.ruff.lint]. Keep imports enforced now.
+"mempalace/**/*.py" = [
+    "ARG001",
+    "ARG002",
+    "B007",
+    "B027",
+    "B033",
+    "B904",
+    "B905",
+    "DTZ005",
+    "DTZ011",
+    "RET504",
+    "RET505",
+    "RET508",
+    "SIM102",
+    "SIM103",
+    "SIM105",
+    "SIM108",
+    "SIM114",
+    "SIM115",
+    "SIM116",
+    "UP006",
+    "UP015",
+    "UP024",
+    "UP035",
+    "UP045",
+]
+# Tests intentionally use fixture parameters, callbacks, and mocks with framework
+# signatures. Non-ARG pytest and maintainability diagnostics remain staged here
+# until they can be reviewed without obscuring behavior-focused tests.
+"tests/**/*.py" = [
+    "ARG001",
+    "ARG002",
+    "ARG005",
+    "B905",
+    "DTZ001",
+    "DTZ005",
+    "PT001",
+    "PT006",
+    "PT017",
+    "SIM115",
+    "SIM117",
+    "UP015",
+    "UP028",
+    "UP036",
+]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -35,9 +35,9 @@ Examples:
     mempalace diary write --agent claude-code --entry "Finished feature X" --topic dev
 """
 
+import argparse
 import os
 import sys
-import argparse
 from pathlib import Path
 
 from .config import MempalaceConfig
@@ -51,6 +51,7 @@ def fetch_model(model_name: str, force: bool = False) -> None:
     retrieved.
     """
     import shutil
+
     from sentence_transformers import SentenceTransformer
 
     # Compute cache dir at call time so HF_HOME env-var changes (e.g. in tests) are respected.
@@ -93,13 +94,14 @@ def cmd_fetch_model(args):
 def cmd_init(args):
     import json
     from pathlib import Path
+
     from .room_detector_local import detect_rooms_local
 
     config = MempalaceConfig()
     detect_entities_enabled = getattr(args, "detect_entities", False) or config.entity_detection
 
     if detect_entities_enabled:
-        from .entity_detector import scan_for_detection, detect_entities, confirm_entities
+        from .entity_detector import confirm_entities, detect_entities, scan_for_detection
 
         # Pass 1: opt-in people/project detection from file content
         print(f"\n  Scanning for entities in: {args.dir}")
@@ -207,8 +209,8 @@ def cmd_mine(args):
             ),
         )
     else:
-        from .miner import mine
         from .knowledge_graph import KnowledgeGraph
+        from .miner import mine
 
         kg = KnowledgeGraph()
         mine(
@@ -241,8 +243,8 @@ def _resolve_spellcheck(args, config: MempalaceConfig) -> bool:
 
 def cmd_mine_all(args):
     """Mine all detected projects in a parent directory."""
-    from .miner import mine, detect_projects, derive_wing_name
     from .knowledge_graph import KnowledgeGraph
+    from .miner import derive_wing_name, detect_projects, mine
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
 
@@ -371,7 +373,7 @@ def cmd_mine_all(args):
 
 
 def cmd_search(args):
-    from .searcher import search, SearchError
+    from .searcher import SearchError, search
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
     try:
@@ -402,8 +404,9 @@ def cmd_wakeup(args):
 
 def cmd_split(args):
     """Split concatenated transcript mega-files into per-session files."""
-    from .split_mega_files import main as split_main
     import sys
+
+    from .split_mega_files import main as split_main
 
     # Rebuild argv for split_mega_files argparse
     argv = ["--source", args.dir]
@@ -432,6 +435,7 @@ def cmd_status(args):
 def cmd_diary_write(args):
     import uuid
     from datetime import datetime
+
     from .storage import open_store
     from .version import __version__
 
@@ -486,7 +490,7 @@ def cmd_diary(args):
 
 def cmd_migrate_storage(args):
     """Migrate a ChromaDB palace to a LanceDB palace."""
-    from .migrate import migrate_chroma_to_lance, VerificationError
+    from .migrate import VerificationError, migrate_chroma_to_lance
 
     try:
         src_count, dst_count = migrate_chroma_to_lance(
@@ -511,7 +515,8 @@ def cmd_migrate_storage(args):
 def cmd_health(args):
     """Probe the palace for fragment-missing or read errors."""
     import json as _json
-    from .storage import open_store, LanceStore
+
+    from .storage import LanceStore, open_store
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
 
@@ -557,7 +562,8 @@ def cmd_health(args):
 def cmd_repair(args):
     """Rebuild palace — rollback to last working version, or extract-and-rebuild."""
     import shutil
-    from .storage import open_store, LanceStore
+
+    from .storage import LanceStore, open_store
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
     dry_run = getattr(args, "dry_run", False)
@@ -684,8 +690,8 @@ def cmd_repair(args):
 
 def cmd_compress(args):
     """Compress drawers in a wing using AAAK Dialect."""
-    from .storage import open_store
     from .dialect import Dialect
+    from .storage import open_store
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
 
@@ -916,6 +922,7 @@ def cmd_backup_list(args):
 
 def cmd_backup_schedule(args):
     import sys as _sys
+
     from .backup import render_schedule
 
     if getattr(args, "install", False):
@@ -989,9 +996,9 @@ def cmd_restore(args):
 
 
 def cmd_export(args):
-    from .storage import open_store
-    from .knowledge_graph import KnowledgeGraph
     from .export import write_jsonl
+    from .knowledge_graph import KnowledgeGraph
+    from .storage import open_store
 
     palace_path = args.palace or MempalaceConfig().palace_path
     store = open_store(palace_path, create=False)
@@ -1017,9 +1024,9 @@ def cmd_export(args):
 
 
 def cmd_import(args):
-    from .storage import open_store
-    from .knowledge_graph import KnowledgeGraph
     from .export import import_jsonl
+    from .knowledge_graph import KnowledgeGraph
+    from .storage import open_store
 
     palace_path = args.palace or MempalaceConfig().palace_path
     store = open_store(palace_path, create=True)

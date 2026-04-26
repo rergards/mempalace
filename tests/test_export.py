@@ -16,10 +16,9 @@ import json
 import os
 import shutil
 
-from mempalace.storage import open_store
+from mempalace.export import import_jsonl, read_jsonl, write_jsonl
 from mempalace.knowledge_graph import KnowledgeGraph
-from mempalace.export import write_jsonl, import_jsonl, read_jsonl
-
+from mempalace.storage import open_store
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -8,21 +8,20 @@ Normalizes format, chunks by exchange pair (Q+A = one unit), files to palace.
 Same palace as project mining. Different ingest strategy.
 """
 
+import hashlib
 import os
 import sys
 import time
-import hashlib
-from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 from typing import Iterable, Optional
 
-from .storage import open_store
-from .normalize import normalize
-from .miner import BATCH_SIZE, add_drawers_batch
-from .version import __version__
 from .config import MempalaceConfig
-
+from .miner import BATCH_SIZE, add_drawers_batch
+from .normalize import normalize
+from .storage import open_store
+from .version import __version__
 
 # File types that might contain conversations
 CONVO_EXTENSIONS = {

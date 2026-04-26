@@ -2,7 +2,6 @@ import pytest
 
 from mempalace.general_extractor import extract_memories
 
-
 EMOTIONAL_TEXT = (
     "I feel worried and lonely about this migration. "
     "I miss the old workflow and I am grateful for the help."

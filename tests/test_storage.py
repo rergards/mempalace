@@ -5,16 +5,16 @@ test_storage.py — Tests for DrawerStore aggregation and delete_wing.
 import logging
 import os
 from datetime import datetime
-
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mempalace.storage import (
-    DrawerStore,
-    LanceStore,
     _META_DEFAULTS,
     _META_FIELD_SPEC,
     _META_KEYS,
+    DrawerStore,
+    LanceStore,
     _sql_default_for_arrow_type,
     _target_drawer_schema,
     open_store,

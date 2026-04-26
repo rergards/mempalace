@@ -21,7 +21,6 @@ from mempalace.knowledge_graph import KnowledgeGraph
 from mempalace.miner import mine
 from mempalace.storage import open_store
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 

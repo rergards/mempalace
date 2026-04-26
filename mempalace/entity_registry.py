@@ -17,11 +17,10 @@ Usage:
 
 import json
 import re
-import urllib.request
 import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Common English words that could be confused with names
@@ -552,7 +551,7 @@ class EntityRegistry:
         Scan session text for new entity candidates.
         Returns list of newly discovered candidates for review.
         """
-        from mempalace.entity_detector import extract_candidates, score_entity, classify_entity
+        from mempalace.entity_detector import classify_entity, extract_candidates, score_entity
 
         lines = text.splitlines()
         candidates = extract_candidates(text)

@@ -18,13 +18,11 @@ and ~/.mempalace/identity.txt.
 
 import os
 import sys
-from pathlib import Path
 from collections import defaultdict
-
-from .storage import open_store
+from pathlib import Path
 
 from .config import MempalaceConfig
-
+from .storage import open_store
 
 # ---------------------------------------------------------------------------
 # Layer 0 — Identity

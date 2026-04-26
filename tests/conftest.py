@@ -10,12 +10,12 @@ mempalace imports — so that module-level initialisations (e.g.
 instead of the real user profile.
 """
 
-import os
-import shutil
-import tempfile
 import hashlib
 import math
+import os
 import re
+import shutil
+import tempfile
 
 # ── Isolate HOME before any mempalace imports ──────────────────────────
 _original_env = {}

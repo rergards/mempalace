@@ -18,7 +18,6 @@ import pytest
 from mempalace.backup import create_backup, list_backups, render_schedule, restore_backup
 from mempalace.storage import open_store
 
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -250,6 +249,7 @@ class TestAutoBackupDefault:
     def test_file_key_opt_out(self, tmp_dir):
         """AC-3: config.json with backup_before_optimize=false is honored."""
         import json as _json
+
         from mempalace.config import MempalaceConfig
 
         cfg_dir = os.path.join(tmp_dir, "cfg")
@@ -262,6 +262,7 @@ class TestAutoBackupDefault:
     def test_auto_alias_file_key(self, tmp_dir):
         """auto_backup_before_optimize file key takes precedence over backup_before_optimize."""
         import json as _json
+
         from mempalace.config import MempalaceConfig
 
         cfg_dir = os.path.join(tmp_dir, "cfg")
@@ -293,6 +294,7 @@ class TestAutoBackupDefault:
     def test_backup_schedule_file_key(self, tmp_dir):
         """backup_schedule file key is honored when env var is absent."""
         import json as _json
+
         from mempalace.config import MempalaceConfig
 
         cfg_dir = os.path.join(tmp_dir, "cfg")
@@ -312,6 +314,7 @@ class TestAutoBackupDefault:
     def test_backup_retain_count_file_key(self, tmp_dir):
         """backup_retain_count file key is honored when env var is absent."""
         import json as _json
+
         from mempalace.config import MempalaceConfig
 
         cfg_dir = os.path.join(tmp_dir, "cfg")
@@ -324,6 +327,7 @@ class TestAutoBackupDefault:
     def test_backup_retain_count_env_overrides_file(self, tmp_dir, monkeypatch):
         """AC-5: MEMPALACE_BACKUP_RETAIN_COUNT wins over backup_retain_count."""
         import json as _json
+
         from mempalace.config import MempalaceConfig
 
         cfg_dir = os.path.join(tmp_dir, "cfg")

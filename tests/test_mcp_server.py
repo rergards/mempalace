@@ -7,7 +7,9 @@ via monkeypatch to avoid touching real data.
 """
 
 import json
+
 import pytest
+
 from mempalace.storage import open_store
 
 
@@ -261,7 +263,7 @@ class TestWriteTools:
         cached stub and fail with RuntimeError("Table does not exist and create=False").
         """
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_status, tool_add_drawer
+        from mempalace.mcp_server import tool_add_drawer, tool_status
 
         # Step 1: read-only call on a palace that has no table yet
         status_result = tool_status()
@@ -327,7 +329,7 @@ class TestWriteTools:
 
     def test_delete_drawer(self, monkeypatch, config, palace_path, seeded_collection, kg):
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_delete_drawer, _get_store
+        from mempalace.mcp_server import _get_store, tool_delete_drawer
 
         result = tool_delete_drawer("drawer_proj_backend_aaa")
         assert result["success"] is True
@@ -344,7 +346,7 @@ class TestWriteTools:
 
     def test_delete_wing(self, monkeypatch, config, palace_path, seeded_collection, kg):
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_delete_wing, _get_store
+        from mempalace.mcp_server import _get_store, tool_delete_wing
 
         result = tool_delete_wing("project")
         assert result["success"] is True
@@ -365,7 +367,7 @@ class TestWriteTools:
         self, monkeypatch, config, palace_path, seeded_collection, kg
     ):
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
-        from mempalace.mcp_server import tool_delete_wing, _get_store
+        from mempalace.mcp_server import _get_store, tool_delete_wing
 
         store = _get_store()
 
@@ -455,7 +457,7 @@ class TestDiaryTools:
     def test_diary_write_and_read(self, monkeypatch, config, palace_path, kg):
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
         _ensure_store(palace_path)
-        from mempalace.mcp_server import tool_diary_write, tool_diary_read
+        from mempalace.mcp_server import tool_diary_read, tool_diary_write
 
         w = tool_diary_write(
             agent_name="TestAgent",
@@ -498,7 +500,7 @@ class TestDiaryTools:
         # drawers in other wings so count() > the number of diary entries.
         # We verify the fetch is not artificially capped by inserting diary
         # entries directly and checking last_n is respected.
-        from mempalace.mcp_server import tool_diary_write, tool_diary_read
+        from mempalace.mcp_server import tool_diary_read, tool_diary_write
 
         for i in range(3):
             tool_diary_write(agent_name="BoundaryAgent", entry=f"Entry number {i}", topic="test")

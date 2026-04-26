@@ -1,6 +1,6 @@
 import os
-import tempfile
 import shutil
+import tempfile
 from unittest.mock import patch
 
 from mempalace.convo_miner import mine_convos

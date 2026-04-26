@@ -5,8 +5,8 @@ Tests exercise main() via sys.argv patching, verifying the full
 argparse → dispatch → storage path for the diary write subcommand.
 """
 
-import os
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch

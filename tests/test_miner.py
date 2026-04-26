@@ -14,9 +14,9 @@ from mempalace.miner import (
     _detect_batch_size,
     _detect_sln_wing,
     add_drawers_batch,
+    derive_wing_name,
     detect_projects,
     detect_room,
-    derive_wing_name,
     mine,
     process_file,
     scan_project,
@@ -1081,6 +1081,7 @@ def test_provenance_fields_set_on_mine():
 def test_provenance_fields_set_on_convo_mine():
     """AC-7: mine_convos() stores extractor_version and chunker_strategy on every drawer."""
     import os
+
     from mempalace.convo_miner import mine_convos
     from mempalace.version import __version__
 
@@ -2034,6 +2035,7 @@ def test_process_file_xaml_roundtrip():
     the code-behind link when an adjacent .xaml.cs file exists.
     """
     import yaml
+
     from mempalace.knowledge_graph import KnowledgeGraph
 
     tmpdir = tempfile.mkdtemp()

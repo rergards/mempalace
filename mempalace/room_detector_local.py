@@ -11,9 +11,10 @@ No internet. No API key. Your files stay on your machine.
 
 import os
 import sys
-import yaml
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+
+import yaml
 
 # Common room patterns — detected from folder names and filenames
 # Format: {folder_keyword: room_name}

@@ -15,7 +15,8 @@ Enables queries like:
 No external graph DB needed — built from ChromaDB metadata.
 """
 
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
+
 from .config import MempalaceConfig
 from .storage import open_store
 

@@ -24,10 +24,10 @@ present (raises ImportError with a helpful message when it is not).
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -263,8 +263,9 @@ class LanceStore(DrawerStore):
     """
 
     def __init__(self, palace_path: str, create: bool = True, embed_model: Optional[str] = None):
-        import lancedb
         import logging
+
+        import lancedb
 
         self._model_name = embed_model or DEFAULT_EMBED_MODEL
         self._db = lancedb.connect(os.path.join(palace_path, "lance"))

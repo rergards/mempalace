@@ -13,7 +13,6 @@ import pytest
 import mempalace.treesitter as ts_mod
 from mempalace.miner import chunk_code
 
-
 # =============================================================================
 # Fallback tests — always run, even without tree-sitter installed
 # =============================================================================
