@@ -97,6 +97,37 @@ User Facts:      0.980
 Time:            ~2 minutes
 ```
 
+## Benchmark 4: Code Retrieval Chunking
+
+Tests whether retrieval surfaces the right source file for developer-style code questions.
+It compares three chunking modes while holding the embedding model fixed at
+`all-MiniLM-L6-v2`:
+
+- `naive`: benchmark-only fixed line windows.
+- `smart`: production regex/adaptive chunking with tree-sitter suppressed for this run.
+- `treesitter`: production AST-capable chunking; records degraded fallback when grammars are unavailable.
+
+```bash
+# Validate the known-answer dataset without embedding or querying
+python benchmarks/code_retrieval_bench.py --repo-dir . --validate-dataset
+
+# Fast smoke run
+python benchmarks/code_retrieval_bench.py --repo-dir . --modes smart --limit 5 --out /tmp/code-bench.json
+
+# Compare all modes
+python benchmarks/code_retrieval_bench.py \
+  --repo-dir . \
+  --modes naive,smart,treesitter \
+  --limit 5 \
+  --out /tmp/code-bench.json
+```
+
+The JSON report contains `meta`, a `modes` map, and a compact `comparison`
+section. Each mode includes `chunk_count`, `embed_time_s`,
+`query_latency_avg_ms`, `R@5`, `R@10`, `MRR`, `per_category`, and per-query
+`top5_files` / `top5_symbols`. Recall answers only "did retrieval surface the
+right code file?" It does not prove an LLM would generate a correct answer.
+
 ## What Each Benchmark Tests
 
 | Benchmark | What it measures | Why it matters |
@@ -104,6 +135,7 @@ Time:            ~2 minutes
 | **LongMemEval** | Can you find a fact buried in 53 sessions? | Tests basic retrieval quality — the "needle in a haystack" |
 | **LoCoMo** | Can you connect facts across conversations over weeks? | Tests multi-hop reasoning and temporal understanding |
 | **ConvoMem** | Does your memory system work at scale? | Tests all memory types: facts, preferences, changes, abstention |
+| **Code Retrieval** | Can you retrieve the right source files for code questions? | Tests code mining and chunker quality separately from answer generation |
 
 ## Results Files
 
