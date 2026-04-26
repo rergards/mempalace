@@ -64,33 +64,6 @@ items:
       - Existing prompt-based onboarding remains reachable for users who request it.
       - Tests cover default config generation and opt-in interactive behavior.
     resolution: null
-  - key: QUAL-RUFF-STRICT
-    summary: "Enable stricter ruff rules"
-    type: task
-    priority: low
-    status: open
-    size: S
-    section_id: quality
-    labels: [quality, lint]
-    description: |-
-      ## Problem
-      Current ruff config is minimal, so style and maintainability regressions can land without CI catching them.
-
-      ## Scope
-      Enable stricter ruff rules such as type-checking-related rules, import sorting, docstring conventions where appropriate, and unused variable detection. Fix existing violations and add the stricter check to CI.
-
-      ## Acceptance criteria
-      - pyproject.toml enables the agreed stricter ruff rule set.
-      - Existing violations are fixed or explicitly ignored with justification.
-      - CI runs the stricter ruff check.
-      - Local `ruff check` passes.
-    resolution: |-
-      HARDEN round 1 completed on 2026-04-26. Added Ruff TCH selection so
-      type-checking-related import hygiene is enforced, corrected transitional
-      ignore comments, and recorded audit results in
-      docs/audits/QUAL-RUFF-STRICT-round-1.md. Verified with:
-      `python -m ruff check mempalace/ tests/` and
-      `python -m ruff format --check mempalace/ tests/`.
   # ── FUTURE — Post-v1 Ideas ─────────────────────────────────
   - key: FUT-MULTI-REPO
     summary: "Multi-repo palace — mine multiple projects into one palace"
