@@ -318,6 +318,21 @@ The `--yes` flag auto-accepts init prompts and is required for non-interactive e
 Heuristic people/project entity detection is opt-in; add `--detect-entities` only when the
 human explicitly wants entity detection during initialization.
 
+`--detect-entities` is intended for prose-heavy folders (meeting notes, client notes,
+personal notes, conversation exports), not ordinary code repos. It samples up to 10
+readable files, prefers prose extensions (`.md`, `.txt`, `.rst`, `.csv`), reads the first
+5 KB of each sampled file, and looks for heuristic people/project signals. If candidates
+are confirmed, init writes `<MINE_PATH>/entities.json` with:
+
+```json
+{"people": ["Alice"], "projects": ["Apollo"]}
+```
+
+For unattended setup, use `--detect-entities --yes` only after the human accepts the
+tradeoff: detected people/projects are auto-accepted and uncertain candidates are skipped.
+Do not add the flag just because a directory is a source repo; code symbols are handled by
+`mempalace mine`, and broad entity scans over code create false positives.
+
 **Pass →** Exit code 0. Config and room setup complete. Continue to Step 4c.
 
 **Fail →** Non-zero exit. Common causes: directory does not exist, permissions error. **ASK HUMAN:** "Could not initialize `<MINE_PATH>`. Error: `<paste stderr>`. Please confirm the path exists and is readable, then reply `retry` with a corrected path, or `skip`."

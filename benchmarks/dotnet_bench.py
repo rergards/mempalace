@@ -9,7 +9,8 @@ R@5 / R@10 across 4 query categories:
   - interface_impl    : concrete service and validator implementations
   - project_dependency: NuGet packages and project references in .csproj files
 
-Target repo: jasontaylordev/CleanArchitecture (must be pre-cloned)
+Target repo: jasontaylordev/CleanArchitecture v7.0.0
+Pinned commit: 5a600ab8749c110384bc3bd436b9c67f3067b489
 
 Usage:
     python benchmarks/dotnet_bench.py --repo-dir /path/to/CleanArchitecture
@@ -110,12 +111,12 @@ QUERIES = [
     },
     {
         "query": "infrastructure service registration extension method dependency injection",
-        "expected_files": ["DependencyInjection.cs"],
+        "expected_files": ["ConfigureServices.cs"],
         "category": "interface_impl",
     },
     {
         "query": "application layer MediatR pipeline behavior registration assembly scan",
-        "expected_files": ["DependencyInjection.cs"],
+        "expected_files": ["ConfigureServices.cs"],
         "category": "interface_impl",
     },
     {
@@ -140,8 +141,8 @@ QUERIES = [
         "category": "project_dependency",
     },
     {
-        "query": "target framework net8 output type WebApplication configuration",
-        "expected_files": ["Web.csproj"],
+        "query": "target framework net7 web sdk application configuration",
+        "expected_files": ["WebUI.csproj"],
         "category": "project_dependency",
     },
     {
@@ -455,6 +456,8 @@ def main():
         "meta": {
             "date": today,
             "repo": "jasontaylordev/CleanArchitecture",
+            "repo_tag": "v7.0.0",
+            "expected_repo_commit": "5a600ab8749c110384bc3bd436b9c67f3067b489",
             "repo_commit": get_repo_commit(repo_dir),
             "embed_model": EMBED_MODEL,
             "query_count": len(QUERIES),

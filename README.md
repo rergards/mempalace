@@ -29,7 +29,7 @@ No cloud. No API keys. No subscription. Nothing leaves your machine.
 <tr>
 <td align="center"><strong>595x Token Savings</strong><br><sub>measured peak · median 80x<br><a href="docs/BENCH_TOKEN_DELTA.md">scales with project size</a></sub></td>
 <td align="center"><strong>Cross-Project Tunnels</strong><br><sub>Search <code>auth</code> in one project<br>find it everywhere</sub></td>
-<td align="center"><strong>1008 Tests · $0 Cost</strong><br><sub>Every feature acceptance-gated<br>fully offline after install</sub></td>
+<td align="center"><strong>1312 Tests · $0 Cost</strong><br><sub>Every feature acceptance-gated<br>fully offline after install</sub></td>
 </tr>
 </table>
 
@@ -56,7 +56,7 @@ Then ask your AI to read [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) — it
 
 ```bash
 mempalace init ~/projects/myapp       # detect rooms, download embedding model (~80 MB)
-mempalace init ~/projects/myapp --detect-entities  # optional people/project detection
+mempalace init ~/projects/myapp --detect-entities  # optional people/project detection for notes/convos
 mempalace mine ~/projects/myapp       # index your codebase
 claude mcp add mempalace -- python -m mempalace.mcp_server  # connect to Claude Code
 ```
@@ -148,6 +148,37 @@ mempalace mine-all ~/projects/                   # batch mine all projects in a 
 ```
 
 Mining is **incremental** by default — content-hash based, only changed files are re-chunked. Use `--full` to force a rebuild.
+
+### Optional Entity Detection
+
+`mempalace init <dir>` is config-first by default: it detects rooms from the directory
+structure and does not scan file contents for names. Add `--detect-entities` only when
+the directory contains prose where people or project names matter, such as meeting notes,
+client notes, personal notes, or conversation exports:
+
+```bash
+mempalace init ~/notes --detect-entities
+mempalace init ~/notes --detect-entities --yes  # auto-accept detected people/projects
+```
+
+The detector is a lightweight bootstrap step, not the main miner. It samples up to 10
+readable files, prefers prose files (`.md`, `.txt`, `.rst`, `.csv`), reads the first 5 KB
+of each sampled file, and looks for heuristic signals such as `Alice said`, `thanks Bob`,
+`Apollo repo`, `deploy Apollo`, or `import Apollo`. Confirmed results are written to
+`<dir>/entities.json`:
+
+```json
+{
+  "people": ["Alice", "Bob"],
+  "projects": ["Apollo"]
+}
+```
+
+Use it for human/project context. Leave it off for normal code repos unless their docs
+contain the entities you want captured. Full-repo scanning would be slower and noisier:
+class names, packages, examples, and variables often look like people or products to a
+heuristic pass. Code structure, symbols, languages, and architecture relationships are
+handled by `mempalace mine`, not by entity detection.
 
 ### Auto-Watch
 
@@ -422,7 +453,7 @@ This is a code-first fork of [milla-jovovich/mempalace](https://github.com/milla
 | ChromaDB — [silently deletes data on version bump](https://github.com/milla-jovovich/mempalace/issues/469) | LanceDB — crash-safe Arrow storage, no version-cliff |
 | "No internet after install" — [false](https://github.com/milla-jovovich/mempalace/issues/524) | `mempalace init` downloads model explicitly; fully offline after |
 | "100% R@5" — [unverifiable](https://github.com/milla-jovovich/mempalace/issues/27) | Number removed. Methodology caveats documented |
-| ~30% test coverage | 1008 tests, every feature acceptance-gated |
+| ~30% test coverage | 1312 tests, every feature acceptance-gated |
 | No backup, no recovery | `backup` / `restore` / `export` / `import` |
 | No incremental mining | Content-hash incremental: only changed files re-chunked |
 | No code-search | `code_search` — filter by language, symbol, glob |
@@ -488,7 +519,7 @@ pip install "mempalace-code[dev]"         # pytest + ruff
 ```bash
 # Setup
 mempalace init <dir>                              # initialize rooms
-mempalace init <dir> --detect-entities            # also scan for people/projects
+mempalace init <dir> --detect-entities            # optional prose entity bootstrap
 
 # Mining
 mempalace mine <dir>                              # mine code project
@@ -559,7 +590,7 @@ mempalace/
 ├── benchmarks/             ← reproducible benchmark runners
 ├── hooks/                  ← Claude Code auto-save hooks (legacy, optional)
 ├── examples/               ← usage examples
-└── tests/                  ← 1008 tests
+└── tests/                  ← 1312 tests
 ```
 
 </details>
@@ -579,7 +610,7 @@ python -m pytest tests/ -x -q    # full suite, all local, no network
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 <!-- Link Definitions -->
-[version-shield]: https://img.shields.io/badge/version-1.4.0-4dc9f6?style=flat-square&labelColor=0a0e14
+[version-shield]: https://img.shields.io/badge/version-1.6.0-4dc9f6?style=flat-square&labelColor=0a0e14
 [release-link]: https://github.com/rergards/mempalace-code/releases
 [python-shield]: https://img.shields.io/badge/python-3.9+-7dd8f8?style=flat-square&labelColor=0a0e14&logo=python&logoColor=7dd8f8
 [python-link]: https://www.python.org/

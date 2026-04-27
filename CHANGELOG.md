@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.6.0 — 2026-04-27
+
+### Added
+
+- Code retrieval benchmark for mempalace itself, with dataset validation and malformed-dataset hardening.
+- .NET benchmark release pin: `jasontaylordev/CleanArchitecture` `v7.0.0` at `5a600ab8749c110384bc3bd436b9c67f3067b489`; current baseline is R@5 0.600 / R@10 0.850.
+
+### Changed
+
+- Code mining cleanup defaults: entity detection is opt-in during init, spellcheck is disabled by default for code mining, and emotional extraction is opt-in for conversation mining.
+- Search and health paths avoid unnecessary LanceDB vector-column materialization and return full `source_file` paths consistently.
+- README and install docs now document `--detect-entities`, its sampling limits, output file, and code-repo caveats.
+
+### Fixed
+
+- ChromaDB count fallbacks for status/taxonomy views.
+- Kubernetes YAML separator handling inside block scalars.
+- C# expression-bodied property extraction, Java package-private method extraction, Swift distributed actor detection, HCL block boundaries, and JSX/TSX language filters.
+- Architecture MCP reference coverage and `extract_reusable` glue classification.
+
 ## 2026-04-26 · EXTRACT-REUSABLE-REFERENCES-PROJECT-GLUE
 
 Promote extract_reusable entities to glue when they reference platform projects.

@@ -500,15 +500,6 @@ items:
     links:
       - type: is-blocked-by
         key: CLARIFY-MINE-ANSIBLE
-  - key: BENCH-DOTNET-CLONE-REPO
-    summary: Clone jasontaylordev/CleanArchitecture (pin to a stable tag, e.g. v8.0.x) and record the commit hash before running the benchmark
-    type: task
-    status: open
-    priority: medium
-    section_id: immediate
-    assignee: owner
-    labels: [deploy-prereq, owner-action]
-    blocks_deploy: true
   - key: BENCH-DOTNET-CI-GATE
     summary: Add CI gate for dotnet benchmark R@5 regression detection
     type: task
@@ -534,7 +525,8 @@ items:
       - [ ] Pinned CleanArchitecture commit hash is documented.
 
       ## Constraints
-      - Requires BENCH-DOTNET-CLONE-REPO (the repo must be pre-cloned or cloned in CI).
+      - BENCH-DOTNET-CLONE-REPO is complete: use CleanArchitecture tag v7.0.0 at 5a600ab8749c110384bc3bd436b9c67f3067b489.
+      - Current pinned-corpus baseline is R@5=0.600 / R@10=0.850, below the existing R5_THRESHOLD=0.800 warning level.
       - CI machine must have Python 3.9+ and sentence-transformers available.
   - key: ARCH-EXTRACTION-MODE
     summary: 'Architecture extraction mode: produce higher-level entities'

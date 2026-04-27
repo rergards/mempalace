@@ -128,6 +128,47 @@ section. Each mode includes `chunk_count`, `embed_time_s`,
 `top5_files` / `top5_symbols`. Recall answers only "did retrieval surface the
 right code file?" It does not prove an LLM would generate a correct answer.
 
+## Benchmark 5: .NET Code Retrieval
+
+Tests C#/.NET retrieval on a pinned CleanArchitecture corpus. The known-answer
+dataset targets `jasontaylordev/CleanArchitecture` tag `v7.0.0` at commit
+`5a600ab8749c110384bc3bd436b9c67f3067b489`.
+
+```bash
+git clone --branch v7.0.0 --depth 1 \
+  https://github.com/jasontaylordev/CleanArchitecture.git \
+  /tmp/CleanArchitecture-v7.0.0
+
+# Validate that the known-answer files exist in the pinned corpus
+python benchmarks/dotnet_bench.py \
+  --repo-dir /tmp/CleanArchitecture-v7.0.0 \
+  --validate-queries
+
+# Run the benchmark and write a JSON report
+python benchmarks/dotnet_bench.py \
+  --repo-dir /tmp/CleanArchitecture-v7.0.0 \
+  --out /tmp/dotnet-bench.json
+```
+
+The benchmark mines the target repo into a temporary LanceDB palace, then
+measures R@5/R@10 across symbol lookup, cross-project interface/implementation,
+service registration, and project dependency queries.
+
+Current v1.6.0 baseline on the pinned corpus:
+
+| Metric | Value |
+|---|---:|
+| Chunks | 271 |
+| R@5 | 0.600 |
+| R@10 | 0.850 |
+| Embed time | 10.0s |
+| Avg query latency | 13.9ms |
+
+R@5 is below the warning threshold (`0.800`). The benchmark is therefore useful
+as a reproducible baseline, not yet as a passing CI gate; `BENCH-DOTNET-CI-GATE`
+tracks adding the regression gate once the target threshold is either met or
+reset deliberately.
+
 ## What Each Benchmark Tests
 
 | Benchmark | What it measures | Why it matters |
@@ -136,6 +177,7 @@ right code file?" It does not prove an LLM would generate a correct answer.
 | **LoCoMo** | Can you connect facts across conversations over weeks? | Tests multi-hop reasoning and temporal understanding |
 | **ConvoMem** | Does your memory system work at scale? | Tests all memory types: facts, preferences, changes, abstention |
 | **Code Retrieval** | Can you retrieve the right source files for code questions? | Tests code mining and chunker quality separately from answer generation |
+| **.NET Retrieval** | Can you retrieve the right C#/.NET files across projects? | Tests .NET mining, project files, and architecture-oriented query coverage |
 
 ## Results Files
 

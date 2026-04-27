@@ -1,4 +1,8 @@
 items:
+    - key: BENCH-DOTNET-CLONE-REPO
+      summary: Clone jasontaylordev/CleanArchitecture and record the pinned benchmark commit
+      resolution: '2026-04-27: Cloned jasontaylordev/CleanArchitecture tag v7.0.0 into /Users/rerg/.cache/mempalace/benchmarks/CleanArchitecture-v7.0.0; pinned commit 5a600ab8749c110384bc3bd436b9c67f3067b489; updated dotnet_bench.py and benchmarks/README.md to document the pin; validate-queries passes against the pinned corpus; full benchmark baseline is R@5=0.600 / R@10=0.850.'
+      archived_date: "2026-04-27"
     - key: MINE-DEVOPS-INFRA
       summary: Add DevOps/infrastructure file support to miner (Terraform, Docker, Helm, Ansible, Make, etc.)
       resolution: '2026-04-14: Added DevOps/infrastructure file support: Terraform (.tf/.tfvars/.hcl) with HCL boundary chunking, Dockerfile/Makefile via FILENAME_LANG_MAP, Helm templates (.tpl), Ansible Jinja2 (.j2/.jinja2), config files (.conf/.cfg/.ini/.mk). .terraform/ added to SKIP_DIRS. Updated SUPPORTED_LANGUAGES in searcher.py and code_search description in mcp_server.py. 237 tests pass. Hardening round-1 (2026-04-14): 0 fixed, 2 backlogged (MINE-HCL-BOUNDARY-MODERN, MINE-DEVOPS-SCAN-COVERAGE), 1 dismissed.'
