@@ -130,3 +130,11 @@ Per-category R@5:
   - `chore:` — maintenance, deps, tooling
 - **No force-push to `main`**.
 - PR merges go through the `feat/*` → `main` flow; squash if the branch is noisy.
+
+## Operational Lessons
+
+- **Record new lessons as they happen.** When a session exposes a reusable project gotcha, publish step, verification boundary, or agent-behavior correction, add a concise durable note to this file or a linked repo doc before closing the work.
+- **Verify the environment that will actually run the change.** GitHub Actions runtime changes are not proven by Python tests alone. Use local YAML/static checks such as `actionlint`, then verify the real hosted workflow run when action runtime behavior matters.
+- **Name the verification boundary.** If a workflow is tag-only or release-only, say that it was syntax-checked and version-checked but not execution-tested unless a real trigger was run. Do not imply full local coverage for hosted-only behavior.
+- **Use the public remote for public release truth.** Publishing and public CI checks for `mempalace-code` live on the `publish` remote (`rergards/mempalace-code`), while `origin` may be a private/dev remote and can lag behind.
+- **Keep benchmark gates tied to measured baselines.** If a release benchmark fails, reproduce it locally against the pinned fixture, update the CI threshold only to the observed stable baseline, and backlog any desired quality increase separately.
