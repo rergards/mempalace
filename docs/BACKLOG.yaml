@@ -43,48 +43,153 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: BENCH-DOTNET-R5-IMPROVE
-    summary: Raise .NET retrieval benchmark R@5 from 0.600 to 0.800
-    type: task
+  - key: STORAGE-LANCE-STALE-FRAGMENT-CLEANUP
+    summary: Reclaim stale LanceDB fragments after optimize without unsafe manual deletion
+    type: bug
     status: open
-    priority: high
+    priority: highest
     size: M
-    section_id: quality
-    labels: [benchmark, dotnet, retrieval, ci]
+    section_id: storage_reliability
+    labels: [storage, lancedb, cleanup, disk, reliability]
     description: |-
-      ## Problem
+      ## Symptom
 
-      The pinned CleanArchitecture .NET retrieval benchmark currently scores
-      R@5=0.600 / R@10=0.850 on 20 known-answer queries. CI gates at the measured
-      0.600 baseline so main stays green while still catching regressions, but
-      the original quality target was R@5 >= 0.800.
+      A live palace with 32,582 drawers had only one current Lance fragment
+      (`total_files_size` about 117M) but occupied 61G on disk because 3,759 old
+      table versions retained 1,188 stale data files and 1,996 deletion files.
+      `safe_optimize()` calls `Table.optimize()` with default cleanup behavior,
+      which preserves recent files; the installed runtime also lacked the
+      `pylance`/`lance` module needed for explicit `cleanup_old_versions()`.
 
-      The weakest category is project_dependency (R@5=0.200 / R@10=0.600), where
-      README and generated/client files often outrank `.csproj` files. Several
-      misses are hit@10, which suggests reranking, metadata-aware query routing,
-      or project-file-specific retrieval could lift R@5 without changing the
-      corpus.
+      ## Steps to reproduce
+
+      1. Repeatedly mine or watch a changing multi-repo parent directory so
+         LanceDB accumulates many recent table versions.
+      2. Run `mempalace status` and confirm live rows are readable.
+      3. Compare Lance metadata `total_files_size` for the latest version with
+         `du -sh <palace>/lance/mempalace_drawers.lance`.
+
+      Current behavior: the live table can be about 117M while the on-disk Lance
+      directory is tens of gigabytes, and normal optimize does not reclaim it.
 
       ## Scope
 
-      - Analyze the 8 current R@5 misses from `benchmarks/dotnet_bench.py`.
-      - Improve retrieval for project files and architecture-oriented .NET
-        queries without hard-coding benchmark expected filenames.
-      - Keep the benchmark pinned to
-        `jasontaylordev/CleanArchitecture@5a600ab8749c110384bc3bd436b9c67f3067b489`.
-      - Raise `.github/workflows/dotnet-bench.yml` `R5_THRESHOLD` only after the
-        measured benchmark reaches the new threshold.
+      - Add a supported cleanup path for stale Lance versions/fragments after
+        successful optimize, with conservative defaults and explicit unsafe-now
+        controls for known-no-writer maintenance.
+      - Ensure the runtime dependency needed by Lance cleanup is packaged or the
+        command fails with a clear actionable error.
+      - Report live table bytes, on-disk table bytes, version count, data-file
+        count, and estimated reclaimable bytes in health/status output.
+      - Preserve current rows and current version; never instruct users to
+        delete files under `.lance/data` manually.
 
       ## Acceptance Criteria
 
-      1. `python benchmarks/dotnet_bench.py --repo-dir /tmp/CleanArchitecture`
-         reports R@5 >= 0.800 on the pinned corpus.
-      2. Project dependency category improves above the current R@5=0.200.
-      3. `.github/workflows/dotnet-bench.yml` raises `R5_THRESHOLD` to the new
-         measured baseline.
-      4. `benchmarks/README.md` records the new baseline and reproduction output.
-      5. Ruff and relevant tests pass.
+      1. A CLI or library cleanup command can reduce a test Lance table with
+         stale versions while preserving row count and current reads.
+      2. `safe_optimize()` or the new cleanup command passes configurable
+         cleanup retention values to LanceDB and tests assert those parameters.
+      3. Missing cleanup dependency produces a specific install/extra hint, not
+         a raw `ModuleNotFoundError`.
+      4. `mempalace status` or `mempalace health` shows logical table size versus
+         on-disk size and version/file counts.
+      5. Focused storage tests and Ruff pass.
+  - key: BACKUP-RETENTION-DISK-GUARDS
+    summary: Enforce backup retention and disk-space guards for scheduled and pre-optimize backups
+    type: bug
+    status: open
+    priority: highest
+    size: M
+    section_id: storage_reliability
+    labels: [backup, retention, disk, launchd, reliability]
+    description: |-
+      ## Symptom
 
+      `~/.mempalace/backups` grew to 149G across 29 full tarballs. Scheduled
+      backups had no effective retention, and pre-optimize backups copied a
+      bloated Lance table before cleanup. During the incident, deleting older
+      archives and keeping only the newest scheduled backup reclaimed about
+      128G immediately.
+
+      ## Steps to reproduce
+
+      1. Enable a scheduled backup launchd/cron job.
+      2. Run repeated mine/watch cycles against a palace whose Lance table has
+         stale retained fragments.
+      3. Inspect `~/.mempalace/backups` with `du -sh` and `ls -lhtr`.
+
+      Current behavior: scheduled and pre-optimize archives can grow without a
+      retention cap and can copy already-bloated Lance storage.
+
+      ## Scope
+
+      - Apply retention to scheduled, manual, and pre-optimize backup archives,
+        not only `pre_optimize_*.tar.gz`.
+      - Add disk-space guards before creating a full tarball, with a clear
+        message when the projected backup would leave too little free space.
+      - Make `backup list` show total bytes by kind and flag oversized/stale
+        archives.
+      - Update launchd/cron schedule output so scheduled backups invoke the same
+        retention path.
+
+      ## Acceptance Criteria
+
+      1. Creating a scheduled backup prunes older scheduled backups according to
+         configured retention.
+      2. Pre-optimize backups cannot accumulate unbounded archives across repeated
+         mine/watch cycles.
+      3. Backup creation refuses or warns before consuming disk below a configured
+         free-space threshold.
+      4. Tests cover retention across backup kinds and disk-guard behavior.
+      5. README/docs describe the default retention and emergency cleanup path.
+  - key: WATCHER-DISK-BUDGET-GUARD
+    summary: Add disk-budget and cleanup guardrails to long-running watch daemons
+    type: bug
+    status: open
+    priority: high
+    size: S
+    section_id: storage_reliability
+    labels: [watcher, launchd, disk, mining, reliability]
+    description: |-
+      ## Symptom
+
+      `com.mempalace.watch` was running `mempalace watch /Users/rerg/dev` as a
+      LaunchAgent while the disk was 98% full. The watcher can keep generating
+      Lance versions and trigger optimize/backup behavior during active
+      development or autopilot runs, making storage growth look spontaneous.
+
+      ## Steps to reproduce
+
+      1. Install the watch LaunchAgent for a busy parent directory.
+      2. Let autopilot or normal development create commits/changes across
+         initialized repos.
+      3. Inspect `launchctl print gui/$UID/com.mempalace.watch` and palace disk
+         size while the daemon is running.
+
+      Current behavior: the daemon keeps running under low disk conditions and
+      has no disk-budget gate before additional mine/optimize/backup work.
+
+      ## Scope
+
+      - Before each watch re-mine/optimize cycle, check palace/backups size and
+        free disk budget.
+      - Pause or skip non-essential optimize/backup work when disk is below the
+        configured threshold, while logging an actionable message.
+      - Add a `watch status` or health note that identifies active launchd
+        watcher state and the watched root.
+      - Keep MCP read/search behavior independent from the watcher being paused.
+
+      ## Acceptance Criteria
+
+      1. Watcher tests cover low-disk skip behavior without requiring a real
+         full disk.
+      2. A running watch daemon does not create a full backup when free space is
+         below the configured threshold.
+      3. Status/health output identifies configured watch launch agent state when
+         available on macOS.
+      4. Docs explain how to pause/re-enable the watcher safely.
+      5. Ruff and focused watcher tests pass.
   - key: MCP-REQUEST-COMPAT-UPSTREAM
     summary: Harden MCP request handling using upstream compatibility fixes as examples
     type: bug
@@ -137,7 +242,6 @@ items:
       3. Unknown `notifications/*` methods return `None` / no JSON-RPC response.
       4. Existing MCP request tests still pass.
       5. Ruff clean.
-
   - key: MINE-SKIP-GENERATED-ENTITIES
     summary: Skip generated entities.json during project mining
     type: bug
@@ -179,7 +283,6 @@ items:
       3. Existing `mempalace.yaml` / `mempal.yml` skip behavior is unchanged.
       4. Focused miner tests pass.
       5. Ruff clean.
-
   - key: READ-PATH-NONE-METADATA-HARDEN
     summary: Tolerate None documents and metadata on search and graph read paths
     type: bug
@@ -222,7 +325,6 @@ items:
       3. `palace_graph.build_graph()` skips `None` metadata rows.
       4. Relevant search and graph tests pass.
       5. Ruff clean.
-
   - key: CONVO-NORMALIZE-GEMINI-CLAUDE-TOOLS
     summary: Extend conversation normalization with Gemini CLI and Claude Code tool-block cleanup
     type: feature
@@ -262,7 +364,6 @@ items:
          content.
       4. Existing normalize tests still pass.
       5. Ruff clean.
-
   - key: SEARCH-HYBRID-RERANK-EVAL
     summary: Evaluate BM25 plus vector reranking for code and project-file retrieval
     type: task
@@ -304,7 +405,6 @@ items:
       4. If no production change is kept, document why and close the item with
          measured evidence.
       5. Ruff clean.
-
   - key: CODE-TREESITTER-GO-RUST-DETACH-TEST
     summary: Add negative tests for detached-comment gap detection in Go and Rust AST chunkers
     type: task
