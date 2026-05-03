@@ -43,54 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: BACKUP-RETENTION-DISK-GUARDS
-    summary: Enforce backup retention and disk-space guards for scheduled and pre-optimize backups
-    type: bug
-    status: open
-    priority: highest
-    size: M
-    section_id: storage_reliability
-    labels: [backup, retention, disk, launchd, reliability]
-    description: |-
-      ## Symptom
-
-      `~/.mempalace/backups` grew to 149G across 29 full tarballs. Scheduled
-      backups had no effective retention, and pre-optimize backups copied a
-      bloated Lance table before cleanup. During the incident, deleting older
-      archives and keeping only the newest scheduled backup reclaimed about
-      128G immediately.
-
-      ## Steps to reproduce
-
-      1. Enable a scheduled backup launchd/cron job.
-      2. Run repeated mine/watch cycles against a palace whose Lance table has
-         stale retained fragments.
-      3. Inspect `~/.mempalace/backups` with `du -sh` and `ls -lhtr`.
-
-      Current behavior: scheduled and pre-optimize archives can grow without a
-      retention cap and can copy already-bloated Lance storage.
-
-      ## Scope
-
-      - Apply retention to scheduled, manual, and pre-optimize backup archives,
-        not only `pre_optimize_*.tar.gz`.
-      - Add disk-space guards before creating a full tarball, with a clear
-        message when the projected backup would leave too little free space.
-      - Make `backup list` show total bytes by kind and flag oversized/stale
-        archives.
-      - Update launchd/cron schedule output so scheduled backups invoke the same
-        retention path.
-
-      ## Acceptance Criteria
-
-      1. Creating a scheduled backup prunes older scheduled backups according to
-         configured retention.
-      2. Pre-optimize backups cannot accumulate unbounded archives across repeated
-         mine/watch cycles.
-      3. Backup creation refuses or warns before consuming disk below a configured
-         free-space threshold.
-      4. Tests cover retention across backup kinds and disk-guard behavior.
-      5. README/docs describe the default retention and emergency cleanup path.
   - key: WATCHER-DISK-BUDGET-GUARD
     summary: Add disk-budget and cleanup guardrails to long-running watch daemons
     type: bug
