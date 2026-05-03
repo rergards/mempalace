@@ -448,3 +448,8 @@ items:
       resolution: '2026-05-03: completed in pipeline run'
       archived_date: "2026-05-03"
       done_summary: completed in pipeline run
+    - key: STORAGE-LANCE-STALE-FRAGMENT-CLEANUP
+      summary: Reclaim stale LanceDB fragments after optimize without unsafe manual deletion
+      resolution: '2026-05-03: completed in pipeline run'
+      archived_date: "2026-05-03"
+      done_summary: completed in pipeline run

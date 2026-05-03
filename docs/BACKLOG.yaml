@@ -43,58 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: STORAGE-LANCE-STALE-FRAGMENT-CLEANUP
-    summary: Reclaim stale LanceDB fragments after optimize without unsafe manual deletion
-    type: bug
-    status: open
-    priority: highest
-    size: M
-    section_id: storage_reliability
-    labels: [storage, lancedb, cleanup, disk, reliability]
-    description: |-
-      ## Symptom
-
-      A live palace with 32,582 drawers had only one current Lance fragment
-      (`total_files_size` about 117M) but occupied 61G on disk because 3,759 old
-      table versions retained 1,188 stale data files and 1,996 deletion files.
-      `safe_optimize()` calls `Table.optimize()` with default cleanup behavior,
-      which preserves recent files; the installed runtime also lacked the
-      `pylance`/`lance` module needed for explicit `cleanup_old_versions()`.
-
-      ## Steps to reproduce
-
-      1. Repeatedly mine or watch a changing multi-repo parent directory so
-         LanceDB accumulates many recent table versions.
-      2. Run `mempalace status` and confirm live rows are readable.
-      3. Compare Lance metadata `total_files_size` for the latest version with
-         `du -sh <palace>/lance/mempalace_drawers.lance`.
-
-      Current behavior: the live table can be about 117M while the on-disk Lance
-      directory is tens of gigabytes, and normal optimize does not reclaim it.
-
-      ## Scope
-
-      - Add a supported cleanup path for stale Lance versions/fragments after
-        successful optimize, with conservative defaults and explicit unsafe-now
-        controls for known-no-writer maintenance.
-      - Ensure the runtime dependency needed by Lance cleanup is packaged or the
-        command fails with a clear actionable error.
-      - Report live table bytes, on-disk table bytes, version count, data-file
-        count, and estimated reclaimable bytes in health/status output.
-      - Preserve current rows and current version; never instruct users to
-        delete files under `.lance/data` manually.
-
-      ## Acceptance Criteria
-
-      1. A CLI or library cleanup command can reduce a test Lance table with
-         stale versions while preserving row count and current reads.
-      2. `safe_optimize()` or the new cleanup command passes configurable
-         cleanup retention values to LanceDB and tests assert those parameters.
-      3. Missing cleanup dependency produces a specific install/extra hint, not
-         a raw `ModuleNotFoundError`.
-      4. `mempalace status` or `mempalace health` shows logical table size versus
-         on-disk size and version/file counts.
-      5. Focused storage tests and Ruff pass.
   - key: BACKUP-RETENTION-DISK-GUARDS
     summary: Enforce backup retention and disk-space guards for scheduled and pre-optimize backups
     type: bug
