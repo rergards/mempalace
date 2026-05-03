@@ -43,45 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: CONVO-NORMALIZE-GEMINI-CLAUDE-TOOLS
-    summary: Extend conversation normalization with Gemini CLI and Claude Code tool-block cleanup
-    type: feature
-    status: open
-    priority: medium
-    size: M
-    section_id: cleanup
-    labels: [conversation, normalize, gemini, claude-code, upstream]
-    description: |-
-      ## Problem
-
-      Upstream vanilla MemPalace added Gemini CLI JSONL support and improved
-      Claude Code JSONL cleanup/tool-block formatting. Our normalizer supports
-      Claude.ai JSON, ChatGPT JSON, Claude Code JSONL, Codex JSONL, Slack JSON,
-      and plain text, but not Gemini CLI JSONL.
-
-      Direct port is not appropriate because this fork keeps different package
-      names, spellcheck behavior, and conversation-mining priorities. Use
-      upstream as an example only.
-
-      ## Scope
-
-      - Add a local Gemini CLI JSONL parser for the current Gemini CLI transcript
-        shape.
-      - Preserve existing Codex JSONL and spellcheck behavior.
-      - Improve Claude Code JSONL handling for tool_use/tool_result blocks and
-        line-anchored system/hook noise, without deleting user prose.
-      - Update module docs/tests for supported formats.
-
-      ## Acceptance Criteria
-
-      1. Gemini CLI JSONL fixture normalizes into `> user` / assistant-style
-         transcript text.
-      2. Claude Code tool_use/tool_result blocks are represented compactly and
-         deterministically.
-      3. Noise stripping is line/tag anchored and cannot eat neighboring user
-         content.
-      4. Existing normalize tests still pass.
-      5. Ruff clean.
   - key: SEARCH-HYBRID-RERANK-EVAL
     summary: Evaluate BM25 plus vector reranking for code and project-file retrieval
     type: task

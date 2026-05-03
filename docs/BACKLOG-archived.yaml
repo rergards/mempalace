@@ -473,3 +473,8 @@ items:
       resolution: '2026-05-03: completed in pipeline run'
       archived_date: "2026-05-03"
       done_summary: completed in pipeline run
+    - key: CONVO-NORMALIZE-GEMINI-CLAUDE-TOOLS
+      summary: Extend conversation normalization with Gemini CLI and Claude Code tool-block cleanup
+      resolution: '2026-05-03: completed in pipeline run'
+      archived_date: "2026-05-03"
+      done_summary: completed in pipeline run
