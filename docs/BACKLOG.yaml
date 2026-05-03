@@ -43,53 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: WATCHER-DISK-BUDGET-GUARD
-    summary: Add disk-budget and cleanup guardrails to long-running watch daemons
-    type: bug
-    status: open
-    priority: high
-    size: S
-    section_id: storage_reliability
-    labels: [watcher, launchd, disk, mining, reliability]
-    description: |-
-      ## Symptom
-
-      `com.mempalace.watch` was running `mempalace watch /Users/rerg/dev` as a
-      LaunchAgent while the disk was 98% full. The watcher can keep generating
-      Lance versions and trigger optimize/backup behavior during active
-      development or autopilot runs, making storage growth look spontaneous.
-
-      ## Steps to reproduce
-
-      1. Install the watch LaunchAgent for a busy parent directory.
-      2. Let autopilot or normal development create commits/changes across
-         initialized repos.
-      3. Inspect `launchctl print gui/$UID/com.mempalace.watch` and palace disk
-         size while the daemon is running.
-
-      Current behavior: the daemon keeps running under low disk conditions and
-      has no disk-budget gate before additional mine/optimize/backup work.
-
-      ## Scope
-
-      - Before each watch re-mine/optimize cycle, check palace/backups size and
-        free disk budget.
-      - Pause or skip non-essential optimize/backup work when disk is below the
-        configured threshold, while logging an actionable message.
-      - Add a `watch status` or health note that identifies active launchd
-        watcher state and the watched root.
-      - Keep MCP read/search behavior independent from the watcher being paused.
-
-      ## Acceptance Criteria
-
-      1. Watcher tests cover low-disk skip behavior without requiring a real
-         full disk.
-      2. A running watch daemon does not create a full backup when free space is
-         below the configured threshold.
-      3. Status/health output identifies configured watch launch agent state when
-         available on macOS.
-      4. Docs explain how to pause/re-enable the watcher safely.
-      5. Ruff and focused watcher tests pass.
   - key: MCP-REQUEST-COMPAT-UPSTREAM
     summary: Harden MCP request handling using upstream compatibility fixes as examples
     type: bug

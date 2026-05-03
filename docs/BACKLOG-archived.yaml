@@ -458,3 +458,8 @@ items:
       resolution: '2026-05-03: completed in pipeline run'
       archived_date: "2026-05-03"
       done_summary: completed in pipeline run
+    - key: WATCHER-DISK-BUDGET-GUARD
+      summary: Add disk-budget and cleanup guardrails to long-running watch daemons
+      resolution: '2026-05-03: completed in pipeline run'
+      archived_date: "2026-05-03"
+      done_summary: completed in pipeline run
