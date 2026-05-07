@@ -61,6 +61,7 @@ mempalace-code is a local semantic memory system exposed over MCP. Content is st
 | "How did X change over time?"                       | `mempalace_kg_timeline`              |
 | Find a function/class/symbol/file                   | `mempalace_code_search`              |
 | All indexed chunks for a specific file              | `mempalace_file_context`             |
+| Refresh/re-mine an indexed source/docs directory    | `mempalace_mine`                     |
 | Explain how a subsystem works                       | `mempalace_explain_subsystem`        |
 | Classify dependencies as core / platform / glue     | `mempalace_extract_reusable`         |
 | Inheritance chain (ancestors + descendants)         | `mempalace_show_type_dependencies`   |
@@ -85,6 +86,12 @@ Call `mempalace_search` **before substantial repo exploration** (reading many fi
 - For entity-specific facts, also call `mempalace_kg_query`.
 
 Skip search for pure mechanical operations (run tests, format files, rename within one file).
+
+## Index freshness rules
+
+MCP search only sees indexed content. If a source/docs directory is missing or stale and the tool exists, use `mempalace_mine(directory=...)` to refresh it before relying on search. For conversation/log exports, use the CLI path (`mempalace-code mine <dir> --mode convos`) or ask the human to run it; `mempalace_mine` is project-source re-mining only.
+
+For large monorepos, prefer the highest-ROI initialized subdirectory first when the human wants a trial. Do not assume unsupported extensions are indexed: normal scans skip file types outside the miner catalog unless an exact file path is force-included.
 
 ## Knowledge Graph rules
 

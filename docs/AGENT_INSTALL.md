@@ -12,6 +12,39 @@
 
 ---
 
+## Section 0 — Capability Map for Install Evaluation
+
+Use this section when the human asks whether mempalace-code is worth installing. It is a
+feature checklist, not an install step.
+
+| Surface | Current capability |
+|---------|--------------------|
+| Code/docs mining | `mempalace-code mine <dir>` indexes supported source, docs, prose, config, and data files into LanceDB |
+| Conversation/log ingest | `mempalace-code mine <dir> --mode convos` ingests Claude Code JSONL, Codex CLI JSONL, Gemini CLI JSONL, Claude.ai JSON, ChatGPT JSON, Slack JSON, and plain text transcripts |
+| Multi-project sync | `mempalace-code mine-all <parent>` assigns one wing per initialized project; `--new-only` skips already-known wings |
+| Auto-watch | `mempalace-code watch <parent>` re-mines initialized projects on commit by default; `--on-save` is available but noisier |
+| MCP tools | 28 tools: semantic search, code search, file context, manual drawers, KG, architecture retrieval, graph tunnels, diary, re-mine |
+| KG / architecture | Temporal facts plus .NET/Python architecture extraction; .NET project/type graph tools require pre-mined symbols |
+| Local-model fallback | `mempalace-code wake-up` emits memory layers for agents without MCP support |
+| Safety/ops | Local embeddings, no API key, backup/restore/export/import, health/repair/cleanup, scan excludes, disk-budget guards |
+
+Language support summary:
+- Tree-sitter AST when `[treesitter]` is installed: Python, TypeScript, JavaScript, TSX, JSX, Go, Rust.
+- Regex structural: Java, Kotlin, C#, F#, VB.NET, XAML, Swift, PHP, Scala, Dart, Terraform/HCL.
+- YAML-aware: Kubernetes manifests.
+- Prose/metadata: Markdown and plain text keep heading paths and section flags.
+- Adaptive/searchable: C/C++, Ruby, shell, SQL, HTML/CSS, JSON/YAML/TOML, CSV, Dockerfile, Make, templates, config.
+- Unsupported extensions are skipped by normal scans. Example: `.lua` is not first-class today; exact `--include-ignored path/to/file.lua` can force adaptive chunking for that file only.
+
+Evaluation output contract:
+1. Estimate token/context waste from repeated explanation and repeated file reads.
+2. Rank high-ROI indexed surfaces in the target repo.
+3. List supported and unsupported stack pieces from the table above.
+4. Recommend MCP scope: `project` for trial/tool-surface control, `global` for mature cross-project use, or skip.
+5. Give decision: install now, try scoped, wait for a named feature, or skip; include exact first commands.
+
+---
+
 ## Section 1 — Preflight
 
 Run all preflight checks before asking the human anything. Record results; they feed later branching.
@@ -159,13 +192,15 @@ Ask all five questions before acting. Record answers; they parameterize Sections
 
 ---
 
-### Q5 — Project to mine
+### Q5 — Project or corpus to mine
 
-**ASK HUMAN:** "Should I index a code project into the palace now? Reply with an absolute path to the project directory (e.g. `/home/user/projects/myapp`), or `skip` to do it later."
+**ASK HUMAN:** "Should I index something into the palace now? Reply `project:/abs/path` for code/docs, `convos:/abs/path` for conversation/log exports, a bare absolute path for code/docs, or `skip` to do it later. For large monorepos, a high-ROI docs/spec subdirectory is valid for the first trial."
 
 **Parse response:**
-- An absolute path → Set `MINE_PATH=<that path>`.
-- `skip` → Set `MINE_PATH=skip`.
+- `project:/abs/path` → Set `MINE_PATH=<path>` and `MINE_MODE=projects`.
+- `convos:/abs/path` → Set `MINE_PATH=<path>` and `MINE_MODE=convos`.
+- A bare absolute path → Set `MINE_PATH=<that path>` and `MINE_MODE=projects`.
+- `skip` → Set `MINE_PATH=skip` and `MINE_MODE=projects`.
 - Anything else → Repeat once; default to `skip`.
 
 ---
@@ -389,7 +424,7 @@ Exit code 0 = success. Set `MODEL_READY=true`. Continue to Step 4d.
 **Condition:** `MINE_PATH != skip`
 
 ```bash
-mempalace-code mine "<MINE_PATH>"
+mempalace-code mine "<MINE_PATH>" --mode "<MINE_MODE>"
 ```
 
 **Pass →** Exit code 0. Output ends with a filed-drawer count. Continue to Section 5.
@@ -653,6 +688,7 @@ mempalace-code is a local semantic memory system exposed over MCP. Content is st
 | "How did X change over time?"                       | `mempalace_kg_timeline`              |
 | Find a function/class/symbol/file                   | `mempalace_code_search`              |
 | All indexed chunks for a specific file              | `mempalace_file_context`             |
+| Refresh/re-mine an indexed source/docs directory    | `mempalace_mine`                     |
 | Explain how a subsystem works                       | `mempalace_explain_subsystem`        |
 | Classify dependencies as core / platform / glue     | `mempalace_extract_reusable`         |
 | Inheritance chain (ancestors + descendants)         | `mempalace_show_type_dependencies`   |
@@ -677,6 +713,12 @@ Call `mempalace_search` **before substantial repo exploration** (reading many fi
 - For entity-specific facts, also call `mempalace_kg_query`.
 
 Skip search for pure mechanical operations (run tests, format files, rename within one file).
+
+## Index freshness rules
+
+MCP search only sees indexed content. If a source/docs directory is missing or stale and the tool exists, use `mempalace_mine(directory=...)` to refresh it before relying on search. For conversation/log exports, use the CLI path (`mempalace-code mine <dir> --mode convos`) or ask the human to run it; `mempalace_mine` is project-source re-mining only.
+
+For large monorepos, prefer the highest-ROI initialized subdirectory first when the human wants a trial. Do not assume unsupported extensions are indexed: normal scans skip file types outside the miner catalog unless an exact file path is force-included.
 
 ## Knowledge Graph rules
 

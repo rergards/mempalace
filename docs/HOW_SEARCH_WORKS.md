@@ -98,6 +98,13 @@ Files are skipped before any embedding happens if they match:
    apply to subsequent re-mines without a watcher restart.
 3. **Gitignore rules** — applied when `respect_gitignore=True` (the default).
 
+Only files in the miner language/readability catalog are scanned by default.
+Recognized but structurally simple formats fall back to adaptive line-count
+chunks. Unrecognized extensions are skipped by normal scans; an exact
+`--include-ignored path/to/file.ext` override can force that one file through
+adaptive chunking, but it will not create a first-class language label for
+`code_search(language=...)`.
+
 Previously indexed files that now fall under an exclusion rule are **not automatically
 removed** from the palace. Run `mempalace-code mine <dir> --full` to force a clean rebuild
 that sweeps stale drawers for files no longer discovered by the scanner.

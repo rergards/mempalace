@@ -23,7 +23,7 @@ No cloud service, no API keys, no subscription. After the one-time embedding mod
 <table>
 <tr>
 <td align="center"><strong>Language-Aware Mining</strong><br><sub>AST, regex, and adaptive chunking<br>matched to each file type</sub></td>
-<td align="center"><strong>28 MCP Tools</strong><br><sub>Native Claude Code integration<br>search, store, traverse</sub></td>
+<td align="center"><strong>28 MCP Tools</strong><br><sub>Any MCP-capable agent<br>search, store, traverse</sub></td>
 <td align="center"><strong>Temporal Knowledge Graph</strong><br><sub>Facts that change over time<br>with validity windows</sub></td>
 </tr>
 <tr>
@@ -66,7 +66,8 @@ Then ask your AI to read [`docs/AGENT_INSTALL.md`](docs/AGENT_INSTALL.md) — it
 mempalace-code init ~/projects/myapp       # detect rooms, download embedding model (~80 MB)
 mempalace-code init ~/projects/myapp --detect-entities  # optional people/project detection for notes/convos
 mempalace-code mine ~/projects/myapp       # index your codebase
-claude mcp add mempalace-code -- python -m mempalace_code.mcp_server  # connect to Claude Code
+claude mcp add mempalace-code -- python -m mempalace_code.mcp_server  # connect Claude Code
+codex mcp add mempalace-code -- python -m mempalace_code.mcp_server   # connect Codex CLI
 ```
 
 **Optional: auto-sync on commit** (requires `[watch]` extra — see [Auto-Watch](#auto-watch)):
@@ -81,13 +82,20 @@ This makes the 28 tools available to your AI. For proactive search and storage (
 ### Do you need it? Ask your LLM:
 
 ```
-Read https://github.com/rergards/mempalace-code/blob/main/docs/AGENT_INSTALL.md
+Read:
+- https://github.com/rergards/mempalace-code/blob/main/README.md
+- https://github.com/rergards/mempalace-code/blob/main/docs/AGENT_INSTALL.md
+- https://github.com/rergards/mempalace-code/blob/main/docs/LLM_USAGE_RULES.md
 
-1. How much context do I re-explain to you each session? Estimate tokens wasted.
-2. Would auto-indexing this codebase as it grows save tokens over time? By how much?
-3. Is my language/stack supported? If not, what's missing?
-4. Decision: install now, wait for [feature], or skip — with reasoning.
-5. If waiting: ask me if I want to draft a feature request for GitHub.
+Evaluate mempalace-code for this repo specifically, not generic memory tooling.
+
+1. Current context burn: what do I re-explain, and how many tokens/week are spent re-reading files?
+2. Highest-ROI surfaces: rank code, docs/prose, design notes, conversation/log exports, manual decisions, KG facts, architecture relationships.
+3. Stack support: list supported languages/file types actually indexed; name unsupported extensions that are skipped by default. Distinguish tree-sitter AST, regex structural, Markdown/prose, Kubernetes YAML, and adaptive chunking.
+4. Agent workflow fit: which MCP tools should you use proactively (`mempalace_search`, `mempalace_code_search`, `mempalace_file_context`, KG, tunnels, diary, manual drawers)?
+5. Ops fit: recommend global MCP, project-scoped MCP, or no MCP; cover 28-tool prompt surface, `mine` vs `mine-all`, `watch` cadence, backup/repair, and offline/model constraints.
+6. Decision: install now, try scoped for a week, wait for a named feature, or skip. Give the first 3 commands you would run.
+7. If waiting: ask me whether to draft a GitHub feature request.
 ```
 
 ### Supported MCP Clients
@@ -95,6 +103,7 @@ Read https://github.com/rergards/mempalace-code/blob/main/docs/AGENT_INSTALL.md
 mempalace-code works with any [MCP](https://modelcontextprotocol.io/)-compatible client:
 
 - **Claude Code** (CLI, desktop, web) — `claude mcp add mempalace-code -- python -m mempalace_code.mcp_server`
+- **Codex CLI** — `codex mcp add mempalace-code -- python -m mempalace_code.mcp_server`
 - **Claude Desktop** — add to `claude_desktop_config.json`
 - **Cursor** — add as MCP server in settings
 - **Windsurf** — add as MCP server in settings
@@ -110,12 +119,13 @@ You write code. You make decisions. You debug things. Between sessions, all that
 
 mempalace-code **indexes it once** into a local vector store, then your AI finds it in milliseconds — using [595x fewer tokens](docs/BENCH_TOKEN_DELTA.md) than grep + read at measured peak (median 80x on a 19k-chunk project, and it keeps scaling). Think of it as `git log` for everything that *isn't* in the code: the *why*, the discussions, the dead ends, the decisions.
 
-**What gets indexed:**
+**What gets indexed or stored:**
 - Code files — structural chunks for Python, TypeScript/JS/TSX/JSX, Go, Rust, Java, Kotlin, C#, F#, VB.NET, XAML, Swift, PHP, Scala, Dart, Terraform/HCL, Markdown, and Kubernetes manifests; adaptive chunks for C/C++, Ruby, shell, SQL, HTML/CSS, JSON/YAML/TOML, CSV, Dockerfile, Make, templates, and config files
 - .NET solutions — `.sln`/`.csproj` project graphs, cross-project symbol relationships, interface implementations
 - Architecture facts — pattern, layer, namespace, and project membership facts for .NET and Python projects
-- Conversation exports — Claude, ChatGPT, Slack, Gemini CLI
-- Architecture notes, decisions, anything you store manually
+- Conversation/log exports — Claude Code JSONL, OpenAI Codex CLI JSONL, Gemini CLI JSONL, Claude.ai JSON, ChatGPT `conversations.json`, Slack JSON, plain text transcripts
+- MCP-saved context — manual drawers are vector-indexed; diary entries and temporal KG facts are stored in their own retrieval surfaces
+- Architecture notes, decisions, anything else you store manually
 
 Generated helper files such as `entities.json` are skipped during project
 mining by default, because they are created by init/entity detection and should
@@ -160,6 +170,11 @@ catalog as the miner. If a file type is mined with a language label, the MCP
 schema and unsupported-language hints stay aligned with that catalog.
 
 Tree-sitter is optional (`pip install "mempalace-code[treesitter]"`). When a grammar is missing, Python, TypeScript/JavaScript/TSX/JSX, Go, and Rust fall back to regex structural chunking. Other recognized formats use their regex, YAML-aware, prose, or adaptive chunker as listed above.
+
+Unsupported extensions are skipped by normal project scans. For example, Lua is
+not a first-class language today: `.lua` files are not scanned unless you
+explicitly force-include an exact path with `--include-ignored path/to/file.lua`;
+that gives an adaptive chunk, not a language-aware `lua` search label.
 
 ```bash
 mempalace-code mine ~/projects/myapp                  # all supported file types
