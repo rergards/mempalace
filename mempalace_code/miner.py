@@ -785,6 +785,13 @@ DART_BOUNDARY = re.compile(
 
 
 # Lua structural boundaries.
+# Matches:
+#   local function name(   — local-scoped function declaration
+#   function name(         — global function declaration
+#   function M.name(       — module-table function (dot notation)
+#   function obj:method(   — OOP-style colon method
+#   local M = {}           — module/table declaration (uppercase name required)
+#   M = {}                 — bare module/table declaration (uppercase name required)
 # Intentionally excludes `local x = function(...)` (anonymous assignment) and
 # inline callbacks (function appears mid-line after an argument) to avoid false positives.
 # Module table detection requires an uppercase first letter (Lua convention: M, MyMod, Renderer)
@@ -1552,7 +1559,13 @@ _DART_EXTRACT = [
     ),
 ]
 
-# Lua extraction patterns (.lua files) — most-specific first (colon/dot before plain function).
+# Lua extraction patterns (.lua files).
+# Order (most-specific first):
+#   1. local function name(     — local_function
+#   2. function obj:method(     — method (colon syntax; capture preserves `obj:method`)
+#   3. function M.name(         — method (dot syntax; capture preserves `M.name`)
+#   4. function name(           — global function
+#   5. local M = {} / M = {}   — module/table declaration
 _LUA_EXTRACT = [
     (re.compile(r"^local\s+function\s+(\w+)\s*\(", re.MULTILINE), "local_function"),
     (re.compile(r"^function\s+(\w+:\w+)\s*\(", re.MULTILINE), "method"),
