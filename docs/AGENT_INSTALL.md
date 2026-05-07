@@ -30,11 +30,11 @@ feature checklist, not an install step.
 
 Language support summary:
 - Tree-sitter AST when `[treesitter]` is installed: Python, TypeScript, JavaScript, TSX, JSX, Go, Rust.
-- Regex structural: Java, Kotlin, C#, F#, VB.NET, XAML, Swift, PHP, Scala, Dart, Terraform/HCL.
+- Regex structural: Java, Kotlin, C#, F#, VB.NET, XAML, Swift, PHP, Scala, Dart, Lua, Terraform/HCL.
 - YAML-aware: Kubernetes manifests.
 - Prose/metadata: Markdown and plain text keep heading paths and section flags.
 - Adaptive/searchable: C/C++, Ruby, shell, SQL, HTML/CSS, JSON/YAML/TOML, CSV, Dockerfile, Make, templates, config.
-- Unsupported extensions are skipped by normal scans. Example: `.lua` is not first-class today; exact `--include-ignored path/to/file.lua` can force adaptive chunking for that file only.
+- Extensions outside the miner catalog are skipped by normal scans unless an exact file path is force-included.
 
 Evaluation output contract:
 1. Estimate token/context waste from repeated explanation and repeated file reads.

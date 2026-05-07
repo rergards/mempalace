@@ -217,7 +217,7 @@ items:
       Pyright is now installed as a dev dependency and visible in CI as a non-gating
       baseline, but the baseline is still expected to fail until the existing type
       diagnostics are fixed. First local baseline with the resolved interpreter path:
-      298 errors across 74 analyzed files.
+      301 errors across 74 analyzed files.
 
       ## Scope
       - Run `python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')"`

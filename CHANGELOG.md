@@ -5,9 +5,22 @@ Current command/package names: the CLI is `mempalace-code`, the import package i
 Older historical entries may mention legacy `mempalace` names that were valid
 when those changes landed.
 
-## 2026-05-07 · MINE-LUA
+## v1.9.0 — 2026-05-07
 
-Add first-class Lua support to the code miner: `.lua` extension detection, structural chunking for `function`, `local function`, `M.method`, and `Class:method` declarations, and `code_search(language="lua")` filtering.
+### Added
+
+- First-class Lua support in the code miner: `.lua` extension detection, structural
+  chunking for `function`, `local function`, `M.method`, and `Class:method`
+  declarations, module-table detection, Lua symbol metadata, and
+  `code_search(language="lua")` filtering.
+- Pyright is now part of the dev dependency set and has a non-gating CI baseline
+  job while the existing diagnostics are worked down.
+
+### Changed
+
+- `mempalace_code_search` language and symbol-type hints now include `lua` and
+  `local_function`.
+- The collected test suite is now 1789 tests.
 
 ## v1.8.1 — 2026-05-03
 

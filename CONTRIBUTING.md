@@ -6,8 +6,8 @@ Thanks for wanting to help. mempalace-code is open source and we welcome contrib
 
 ```bash
 git clone https://github.com/rergards/mempalace-code.git
-cd mempalace
-pip install -e ".[dev]"    # installs with dev dependencies (pytest, build, twine)
+cd mempalace-code
+pip install -e ".[dev]"    # pytest, pyright, ruff, watchfiles
 ```
 
 ## Running Tests
@@ -16,7 +16,9 @@ pip install -e ".[dev]"    # installs with dev dependencies (pytest, build, twin
 pytest tests/ -v
 ```
 
-All tests must pass before submitting a PR. Tests should run without API keys or network access.
+All tests must pass before submitting a PR. Tests should run without API keys or network
+access. `pyright` is installed with the dev extra for advisory type-checking; the current
+zero-error target is tracked in the backlog.
 
 ## Running Benchmarks
 
@@ -33,7 +35,8 @@ See [benchmarks/README.md](benchmarks/README.md) for data download instructions 
 ## Project Structure
 
 ```
-mempalace/          ← core package (see mempalace/README.md for module guide)
+mempalace_code/     ← core package (see mempalace_code/README.md for module guide)
+mempalace/          ← compatibility import namespace
 benchmarks/         ← reproducible benchmark runners
 hooks/              ← Claude Code auto-save hooks
 examples/           ← usage examples
@@ -89,4 +92,4 @@ If you're planning a significant change, open an issue first to discuss the appr
 
 ## License
 
-MIT — your contributions will be released under the same license.
+Apache 2.0 — your contributions will be released under the same license.
