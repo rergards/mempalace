@@ -40,8 +40,17 @@ Evaluation output contract:
 1. Estimate token/context waste from repeated explanation and repeated file reads.
 2. Rank high-ROI indexed surfaces in the target repo.
 3. List supported and unsupported stack pieces from the table above.
-4. Recommend MCP scope: `project` for trial/tool-surface control, `global` for mature cross-project use, or skip.
-5. Give decision: install now, try scoped, wait for a named feature, or skip; include exact first commands.
+4. If the repo already has curated memory docs, recommend a complement strategy:
+   KG for volatile current facts, drawers/indexes for verbatim source material,
+   curated docs for compressed narrative and reasoning.
+5. Recommend adoption order: KG first, docs/drawers second, one scoped code project last.
+6. Recommend MCP scope: `project` for trial/tool-surface control, `global` for mature cross-project use, or skip.
+7. Name the cost: 28 MCP tools plus the injected usage rules add a prompt/tool-surface floor.
+8. Give decision: install now, try scoped, wait for a named feature, or skip; include exact first commands.
+
+Current limitation to mention when relevant: MCP exposure is all-or-nothing per
+server registration. Project-scoped MCP limits where the tools appear, but there
+is no supported `--tools search,kg,diary` subset flag yet.
 
 ---
 
@@ -719,6 +728,16 @@ Skip search for pure mechanical operations (run tests, format files, rename with
 MCP search only sees indexed content. If a source/docs directory is missing or stale and the tool exists, use `mempalace_mine(directory=...)` to refresh it before relying on search. For conversation/log exports, use the CLI path (`mempalace-code mine <dir> --mode convos`) or ask the human to run it; `mempalace_mine` is project-source re-mining only.
 
 For large monorepos, prefer the highest-ROI initialized subdirectory first when the human wants a trial. Do not assume unsupported extensions are indexed: normal scans skip file types outside the miner catalog unless an exact file path is force-included.
+
+## Existing memory systems
+
+If the repo already has curated memory docs (`MEMORY.md`, project notes, hand-written summaries), do not mirror them wholesale into drawers. Use stores by job:
+- KG = volatile current facts that need exact lookup or history.
+- Drawers = verbatim source material, decisions, root causes, and discussion excerpts.
+- Diary = this agent's own continuity notes.
+- Curated docs = compressed narrative, rationale, and human-maintained summaries.
+
+Do not turn a carefully compressed memory file into drawer content unless the human explicitly asks. Prefer adding precise KG triples for facts that drift and drawers for original verbatim evidence.
 
 ## Knowledge Graph rules
 

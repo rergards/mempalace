@@ -98,6 +98,20 @@ Evaluate mempalace-code for this repo specifically, not generic memory tooling.
 7. If waiting: ask me whether to draft a GitHub feature request.
 ```
 
+For repos that already have a hand-curated memory file, evaluate mempalace-code
+as a complement, not a replacement. A good trial order is:
+1. **KG first** — move volatile current facts (active branch, phase, owner, deadline,
+   status) into temporal triples; keep curated prose for reasoning and narrative.
+2. **Drawers + docs second** — mine design docs, specs, long decision notes, and
+   conversation/log exports where semantic retrieval beats manual grep.
+3. **Code mining last** — start with one high-value subproject, then expand if
+   agents actually use the results.
+
+Cost caveat: the MCP server currently exposes all 28 tools, and proactive use
+depends on adding the usage-rules block to agent instructions. That is a real
+prompt/tool-surface floor. Prefer project-scoped MCP for trials, and keep it only
+if searches, KG lookups, or drawer writes show up in real sessions.
+
 ### Supported MCP Clients
 
 mempalace-code works with any [MCP](https://modelcontextprotocol.io/)-compatible client:
@@ -400,6 +414,10 @@ usage rules.
 </details>
 
 MCP tools are discoverable by any MCP-capable client automatically. To teach the AI *when* and *how* to use them, paste the usage rules from [`docs/LLM_USAGE_RULES.md`](docs/LLM_USAGE_RULES.md) into your agent's instructions (CLAUDE.md, AGENTS.md, `.cursorrules`, etc.) — otherwise the tools are available but the assistant will not know the protocol.
+
+Current limitation: MCP exposure is all-or-nothing per server registration. Use
+project-scoped wiring to limit where the 28-tool surface appears; there is no
+per-registration `--tools search,kg,diary` subset flag yet.
 
 ---
 

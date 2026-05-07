@@ -93,6 +93,16 @@ MCP search only sees indexed content. If a source/docs directory is missing or s
 
 For large monorepos, prefer the highest-ROI initialized subdirectory first when the human wants a trial. Do not assume unsupported extensions are indexed: normal scans skip file types outside the miner catalog unless an exact file path is force-included.
 
+## Existing memory systems
+
+If the repo already has curated memory docs (`MEMORY.md`, project notes, hand-written summaries), do not mirror them wholesale into drawers. Use stores by job:
+- KG = volatile current facts that need exact lookup or history.
+- Drawers = verbatim source material, decisions, root causes, and discussion excerpts.
+- Diary = this agent's own continuity notes.
+- Curated docs = compressed narrative, rationale, and human-maintained summaries.
+
+Do not turn a carefully compressed memory file into drawer content unless the human explicitly asks. Prefer adding precise KG triples for facts that drift and drawers for original verbatim evidence.
+
 ## Knowledge Graph rules
 
 Use the KG for facts that **change over time** or need **exact-match lookup** — version numbers, stack choices, ownership, statuses, deadlines.
