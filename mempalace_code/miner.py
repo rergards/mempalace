@@ -790,15 +790,17 @@ DART_BOUNDARY = re.compile(
 #   function name(         — global function declaration
 #   function M.name(       — module-table function (dot notation)
 #   function obj:method(   — OOP-style colon method
-#   local M = {}           — module/table declaration
-#   M = {}                 — bare module/table declaration
+#   local M = {}           — module/table declaration (uppercase name required)
+#   M = {}                 — bare module/table declaration (uppercase name required)
 # Intentionally excludes `local x = function(...)` (anonymous assignment) and
 # inline callbacks (function appears mid-line after an argument) to avoid false positives.
+# Module table detection requires an uppercase first letter (Lua convention: M, MyMod, Renderer)
+# to avoid false boundaries on common local variable patterns like `local result = {}`.
 LUA_BOUNDARY = re.compile(
     r"^(?:"
     r"local\s+function\s+\w+\s*\("
     r"|function\s+\w[\w.]*(?::\w+)?\s*\("
-    r"|(?:local\s+)?\w+\s*=\s*\{\}"
+    r"|(?:local\s+)?[A-Z]\w*\s*=\s*\{\}"
     r")",
     re.MULTILINE,
 )
@@ -1569,7 +1571,7 @@ _LUA_EXTRACT = [
     (re.compile(r"^function\s+(\w+:\w+)\s*\(", re.MULTILINE), "method"),
     (re.compile(r"^function\s+(\w+\.\w+)\s*\(", re.MULTILINE), "method"),
     (re.compile(r"^function\s+(\w+)\s*\(", re.MULTILINE), "function"),
-    (re.compile(r"^(?:local\s+)?(\w+)\s*=\s*\{\}", re.MULTILINE), "module"),
+    (re.compile(r"^(?:local\s+)?([A-Z]\w*)\s*=\s*\{\}", re.MULTILINE), "module"),
 ]
 
 _LANG_EXTRACT_MAP = {

@@ -2796,6 +2796,37 @@ def test_chunk_code_lua_anonymous_function_not_a_boundary():
     # All content should be present (adaptive fallback preserves it)
     all_content = " ".join(c["content"] for c in chunks)
     assert "handler" in all_content
-    # No chunk should have a function/local_function symbol_type attached via boundary
-    # (we can't directly inspect symbol here, but we verify no IndexError / crash)
-    assert len(chunks) >= 1
+    # Since no structural boundary matches, chunk_code produces a single adaptive chunk.
+    assert len(chunks) == 1, (
+        f"Expected 1 adaptive chunk for anonymous function assignment, got {len(chunks)}"
+    )
+
+
+def test_chunk_code_lua_lowercase_table_not_a_module_boundary():
+    """Regression: `local result = {}` inside a function body must NOT split the function.
+
+    The module-table detection is restricted to uppercase-starting names (Lua convention:
+    M, MyModule, Renderer). Common lowercase locals like `opts`, `result`, `t` must never
+    become structural boundaries or be classified as modules.
+    """
+    long_line = "  x_var = x_var + some_long_value_computation_here\n"
+    code = (
+        "function render_scene(camera, light)\n"
+        + long_line * 60
+        + "  local opts = {}\n"
+        + long_line * 60
+        + "  return draw(opts)\n"
+        + "end\n"
+    )
+    chunks = chunk_code(code, "lua", "scene.lua")
+    # Without the false boundary, adaptive_merge_split keeps one (large) chunk.
+    # With the false boundary, chunk_code produces 2 chunks and the second one
+    # would start with `local opts = {}` (incorrectly classified as module).
+    found_false_module = any(
+        c["content"].lstrip().startswith("local opts = {}") for c in chunks
+    )
+    assert not found_false_module, (
+        "local opts = {} should not be treated as a module boundary — "
+        f"got {len(chunks)} chunks; second starts with: "
+        + repr(chunks[1]["content"][:60] if len(chunks) > 1 else "N/A")
+    )
