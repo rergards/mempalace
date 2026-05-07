@@ -6,7 +6,7 @@
 - **Storage**: LanceDB (core, crash-safe vector DB — no server required)
 - **Embeddings**: sentence-transformers (local, no API key)
 - **Config**: PyYAML
-- **Linting / formatting**: Ruff
+- **Linting / formatting / typing**: Ruff + Pyright
 - **Tests**: pytest
 - **Package manager**: uv (preferred) or pip
 
@@ -50,6 +50,9 @@ ruff check mempalace_code/ tests/
 # Format check
 ruff format --check mempalace_code/ tests/
 
+# Type check (baseline currently non-gating in CI)
+python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')"
+
 # Auto-fix lint
 ruff check --fix mempalace_code/ tests/
 
@@ -57,7 +60,7 @@ ruff check --fix mempalace_code/ tests/
 ruff format mempalace_code/ tests/
 ```
 
-Line length: 100. Target: py39. Quote style: double.
+Line length: 100. Target: py311. Quote style: double.
 
 ## Key Modules
 

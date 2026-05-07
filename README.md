@@ -722,7 +722,7 @@ curl -fsSL https://raw.githubusercontent.com/rergards/mempalace-code/main/script
 pip install "mempalace-code[treesitter]"  # AST parsing
 pip install "mempalace-code[chroma]"      # ChromaDB legacy backend (deprecated)
 pip install "mempalace-code[spellcheck]"  # autocorrect for room/wing names
-pip install "mempalace-code[dev]"         # pytest + ruff
+pip install "mempalace-code[dev]"         # pytest + ruff + pyright
 ```
 
 **Requirements:** Python 3.11+. ~80 MB embedding model downloaded once during `mempalace-code init`.
@@ -823,6 +823,7 @@ PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 python -m pytest tests/ -x -q    # full suite, all local, no network
+python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')"  # type-check baseline
 ```
 
 ## License
