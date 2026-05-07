@@ -2822,9 +2822,7 @@ def test_chunk_code_lua_lowercase_table_not_a_module_boundary():
     # Without the false boundary, adaptive_merge_split keeps one (large) chunk.
     # With the false boundary, chunk_code produces 2 chunks and the second one
     # would start with `local opts = {}` (incorrectly classified as module).
-    found_false_module = any(
-        c["content"].lstrip().startswith("local opts = {}") for c in chunks
-    )
+    found_false_module = any(c["content"].lstrip().startswith("local opts = {}") for c in chunks)
     assert not found_false_module, (
         "local opts = {} should not be treated as a module boundary — "
         f"got {len(chunks)} chunks; second starts with: "
