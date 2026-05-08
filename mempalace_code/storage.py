@@ -309,7 +309,7 @@ class LanceStore(DrawerStore):
             # Palace absent — return a stub without touching the filesystem.
             return
 
-        self._db = cast(_LanceDBConnectionProtocol, lancedb.connect(lance_dir))
+        self._db = cast("_LanceDBConnectionProtocol", lancedb.connect(lance_dir))
         self._table = self._open_or_create(create)
 
     def _get_embedder(self):
@@ -337,7 +337,7 @@ class LanceStore(DrawerStore):
         try:
             os.dup2(devnull, 1)
             os.dup2(devnull, 2)
-            self._embedder = cast(_EmbedderProtocol, self._get_embedder())
+            self._embedder = cast("_EmbedderProtocol", self._get_embedder())
         finally:
             os.dup2(old_stdout, 1)
             os.dup2(old_stderr, 2)
@@ -483,9 +483,9 @@ class LanceStore(DrawerStore):
             row["vector"] = vec
             rows.append(row)
 
-        table.merge_insert(
-            "id"
-        ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
+        table.merge_insert("id").when_matched_update_all().when_not_matched_insert_all().execute(
+            rows
+        )
 
     def get(self, ids=None, where=None, include=None, limit=10000, offset=0):
         table = self._table
@@ -606,9 +606,7 @@ class LanceStore(DrawerStore):
             return 0
         escaped_file = source_file.replace("'", "''")
         escaped_wing = wing.replace("'", "''")
-        count = table.count_rows(
-            f"source_file = '{escaped_file}' AND wing = '{escaped_wing}'"
-        )
+        count = table.count_rows(f"source_file = '{escaped_file}' AND wing = '{escaped_wing}'")
         if count == 0:
             return 0
         table.delete(f"source_file = '{escaped_file}' AND wing = '{escaped_wing}'")
@@ -777,9 +775,7 @@ class LanceStore(DrawerStore):
                     if fn is not None:
                         parts.append(fn(col, operand))
                     elif op == "$in":
-                        parts.append(
-                            _f("is_in")(col, value_set=pa.array(operand, type=col.type))
-                        )
+                        parts.append(_f("is_in")(col, value_set=pa.array(operand, type=col.type)))
         if not parts:
             return None
         result = parts[0]
