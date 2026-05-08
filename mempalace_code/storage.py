@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, cast, runtime_checkable
 
@@ -194,7 +194,6 @@ class OptimizeResult:
 
     ok: bool
     supported: bool
-    message: str = field(default="")
 
 
 @runtime_checkable

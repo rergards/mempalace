@@ -28,7 +28,9 @@ def test_convo_mining():
 
 
 def test_mine_convos_calls_optimize_once():
-    """mine_convos() calls collection.optimize() exactly once after all batches flush."""
+    """mine_convos() routes optimization through optimize_store() exactly once after all batches flush."""
+    from unittest.mock import MagicMock
+
     tmpdir = tempfile.mkdtemp()
     try:
         with open(os.path.join(tmpdir, "chat.txt"), "w") as f:
@@ -39,15 +41,16 @@ def test_mine_convos_calls_optimize_once():
 
         palace_path = os.path.join(tmpdir, "palace")
         with patch("mempalace_code.convo_miner.get_collection") as mock_get_collection:
-            from unittest.mock import MagicMock
-
             mock_store = MagicMock()
             mock_store.add.return_value = None
             mock_get_collection.return_value = mock_store
-            mine_convos(tmpdir, palace_path, wing="test_convos")
+            with patch("mempalace_code.convo_miner.optimize_store") as mock_adapt:
+                from mempalace_code.storage import OptimizeResult
 
-        # Either safe_optimize (LanceDB) or optimize (legacy) should be called
-        assert mock_store.safe_optimize.called or mock_store.optimize.called
+                mock_adapt.return_value = OptimizeResult(ok=True, supported=True)
+                mine_convos(tmpdir, palace_path, wing="test_convos")
+
+        mock_adapt.assert_called_once()
     finally:
         shutil.rmtree(tmpdir)
 
