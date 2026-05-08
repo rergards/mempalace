@@ -54,8 +54,9 @@ def test_mine_convos_calls_optimize_once():
 
 def test_mine_convos_default_calls_safe_optimize_backup_first():
     """mine_convos() with default MempalaceConfig() calls optimize_store(backup_first=True)."""
-    from mempalace_code.storage import OptimizeResult
     from unittest.mock import MagicMock
+
+    from mempalace_code.storage import OptimizeResult
 
     tmpdir = tempfile.mkdtemp()
     try:
@@ -87,8 +88,9 @@ def test_mine_convos_default_calls_safe_optimize_backup_first():
 
 def test_mine_convos_default_calls_optimize_store_backup_first():
     """AC-4: mine_convos() with default config routes optimization through optimize_store(backup_first=True)."""
-    from mempalace_code.storage import OptimizeResult
     from unittest.mock import MagicMock
+
+    from mempalace_code.storage import OptimizeResult
 
     tmpdir = tempfile.mkdtemp()
     try:
