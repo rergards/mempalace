@@ -363,10 +363,7 @@ class LanceStore(DrawerStore):
         return table
 
     def _embedder_handle(self) -> _EmbedderProtocol:
-        """Return the initialized embedder or raise RuntimeError.
-
-        Always call _ensure_embedder() before this method.
-        """
+        """Return the initialized embedder; caller must have called _ensure_embedder() first."""
         embedder = self._embedder
         if embedder is None:
             raise RuntimeError("Embedder not initialized — call _ensure_embedder() first")
