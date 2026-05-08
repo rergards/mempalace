@@ -22,6 +22,9 @@ acceptance:
   - id: AC-5
     when: "`python -m pytest tests/test_storage.py::TestLanceHealth::test_health_check_uses_projected_scan_for_metadata_probe tests/test_storage.py::TestLanceHealth::test_recover_dry_run_uses_projected_scan_for_version_probe tests/test_storage.py::TestCleanupStaleFragments::test_none_table_returns_ok_false -q` is run"
     then: "health/recovery still use projected scans, dry-run recovery still checks out and returns latest, and cleanup on a None table still returns ok=False without raising"
+  - id: AC-6
+    when: "`python -m pyright mempalace_code/storage.py --pythonpath \"$(python -c 'import sys; print(sys.executable)')\"` is run"
+    then: "0 errors are reported for `mempalace_code/storage.py`. Scope is `mempalace_code/storage.py` only; tests/ are explicitly out of scope (matches the non-gating CI baseline noted in CLAUDE.md)."
 out_of_scope:
   - "Changing LanceStore persistence, schema migration, cleanup, health, or recovery behavior beyond typed handle narrowing."
   - "Replacing LanceDB or sentence-transformers APIs."
@@ -46,7 +49,8 @@ out_of_scope:
 - Keep read methods that already tolerate absent tables returning current empty/zero results. Use local variables after guards:
   - `table = self._table`; `if table is None: return ...`; then use `table`.
   - For write paths, use `_require_table()` so current error text remains compatible with tests.
-- In `_open_or_create`, bind `db = self._require_db()` before non-read-only open/create calls. In read-only mode, keep the current `None` return for absent `_db`.
+- Apply `_require_db()` at every non-read-only `self._db` access site — including `_open_or_create` and `recover_to_last_working_version`'s post-restore `self._db.open_table(...)` reopen (storage.py:1147). Bind `db = self._require_db()` before non-read-only open/create calls. In read-only mode, keep the current `None` return for absent `_db`.
+- External callers in `mempalace_code/mcp_server.py` access `_table` / `_db` only via `is None` checks (mcp_server.py:88-89). Optional[Protocol] typing keeps these checks valid; no cross-module changes required.
 - In `_embed`, bind `embedder = self._embedder_handle()` and return a concrete `list[list[float]]`. If the LanceDB embedder returns a sequence-like value, normalize with `list(...)` at the boundary rather than widening the public return type.
 - In `_scan_columns`, pass or bind a non-optional table handle first. Use `getattr(table, "scanner", None)` for LanceDB versions that expose `scanner()` but whose stubs do not know it; keep the existing `search().select(...).to_arrow()` fallback.
 - Current targeted Pyright output also reports PyArrow compute functions (`pc.equal`, `pc.and_`, `pc.is_in`, etc.) as unknown. Contain that dynamic-stub gap behind a tiny helper such as `_pc(name: str)` / local `getattr(pc, name)` map inside `_where_to_arrow_mask`; do not add global ignores.
