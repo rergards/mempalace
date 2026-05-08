@@ -15,9 +15,11 @@ from mempalace_code.storage import (
     _META_KEYS,
     DrawerStore,
     LanceStore,
+    OptimizeResult,
     _sql_default_for_arrow_type,
     _target_drawer_schema,
     open_store,
+    optimize_store,
 )
 
 
@@ -1255,6 +1257,81 @@ class TestSafeOptimize:
             result = store.safe_optimize(palace_path, backup_first=False)
 
         assert result is False
+
+
+class TestOptimizeStoreAdapter:
+    """Adapter tests for optimize_store() — separate from direct safe_optimize() tests."""
+
+    def test_adapter_lance_happy_path_returns_supported_result(self, palace_path):
+        """AC-1 adapter: optimize_store() on a healthy LanceStore returns ok=True, supported=True."""
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["ad1"],
+            documents=["adapter happy path test"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+        pre_count = store.count()
+
+        result = optimize_store(store, palace_path, backup_first=False)
+
+        assert isinstance(result, OptimizeResult)
+        assert result.ok is True
+        assert result.supported is True
+        assert store.count() == pre_count
+        rows = store.get(limit=1)
+        assert len(rows["ids"]) == 1
+
+    def test_adapter_backup_failure_returns_failed_result_and_skips_optimize(self, palace_path):
+        """AC-2 adapter: backup_first=True with create_backup raising OSError returns ok=False, supported=True; table.optimize not called."""
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["ad2"],
+            documents=["adapter backup failure test"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+
+        with patch("mempalace_code.backup.create_backup", side_effect=OSError("no space")):
+            with patch.object(store._table, "optimize") as mock_optimize:
+                result = optimize_store(store, palace_path, backup_first=True)
+
+        assert isinstance(result, OptimizeResult)
+        assert result.ok is False
+        assert result.supported is True
+        mock_optimize.assert_not_called()
+
+
+class TestDrawerStoreBaseDefaults:
+    """Tests for DrawerStore base-class default methods and the no-op optimize path."""
+
+    def test_optimize_store_unsupported_store_returns_noop_status(self):
+        """AC-3: optimize_store() on a store without safe_optimize returns ok=True, supported=False."""
+
+        class _MinimalStore(DrawerStore):
+            def count(self):
+                return 0
+            def add(self, ids, documents, metadatas): ...
+            def upsert(self, ids, documents, metadatas): ...
+            def get(self, ids=None, where=None, include=None, limit=10000, offset=0):
+                return {}
+            def query(self, query_texts, n_results=5, where=None, include=None):
+                return {}
+            def delete(self, ids): ...
+            def delete_wing(self, wing):
+                return 0
+            def count_by(self, column):
+                return {}
+            def count_by_pair(self, col_a, col_b):
+                return {}
+
+        store = _MinimalStore()
+
+        with patch.object(_MinimalStore, "optimize") as mock_opt:
+            result = optimize_store(store, "/fake/path")
+
+        assert isinstance(result, OptimizeResult)
+        assert result.ok is True
+        assert result.supported is False
+        mock_opt.assert_called_once()
 
 
 class TestMetaFieldSpec:

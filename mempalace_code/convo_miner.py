@@ -20,7 +20,7 @@ from typing import Iterable, Optional
 from .config import MempalaceConfig
 from .miner import add_drawers_batch, get_batch_size
 from .normalize import normalize
-from .storage import open_store
+from .storage import open_store, optimize_store
 from .version import __version__
 
 # File types that might contain conversations
@@ -392,6 +392,7 @@ def mine_convos(
 
     if not dry_run:
         flush_batch()
+        assert collection is not None
         config = MempalaceConfig()
         if config.optimize_after_mine:
             t0 = time.time()
@@ -399,18 +400,14 @@ def mine_convos(
             if backup_first:
                 print("  >> Backing up before optimize...", flush=True)
             print("  >> Optimizing storage...", end="", flush=True)
-            if hasattr(collection, "safe_optimize"):
-                success = collection.safe_optimize(palace_path, backup_first=backup_first)
-                if success:
-                    print(f" done ({time.time() - t0:.1f}s)", flush=True)
-                else:
-                    print(
-                        f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
-                        flush=True,
-                    )
-            else:
-                collection.optimize()
+            result = optimize_store(collection, palace_path, backup_first=backup_first)
+            if result.ok:
                 print(f" done ({time.time() - t0:.1f}s)", flush=True)
+            else:
+                print(
+                    f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
+                    flush=True,
+                )
         else:
             print("  >> Skipping optimize (disabled in config)", flush=True)
 

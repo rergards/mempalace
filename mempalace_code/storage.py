@@ -27,8 +27,9 @@ from __future__ import annotations
 import logging
 import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, cast
+from typing import Any, Dict, List, Optional, Protocol, cast, runtime_checkable
 
 from mempalace_code.retrieval_rerank import overfetch_limit, rerank, should_overfetch
 
@@ -182,6 +183,40 @@ class DrawerStore(ABC):
 
     def warmup(self) -> None:
         """Force embedding model init so HuggingFace output appears before batch processing."""
+
+
+# ─── Optimize capability contract ─────────────────────────────────────────────
+
+
+@dataclass
+class OptimizeResult:
+    """Result returned by optimize_store()."""
+
+    ok: bool
+    supported: bool
+    message: str = field(default="")
+
+
+@runtime_checkable
+class SafeOptimizeStore(Protocol):
+    """Optional protocol for stores that support fail-safe compaction."""
+
+    def safe_optimize(self, palace_path: str, backup_first: bool = False) -> bool: ...
+
+
+def optimize_store(
+    store: DrawerStore, palace_path: str, backup_first: bool = False
+) -> OptimizeResult:
+    """Route optimization through safe_optimize when supported, otherwise use optimize().
+
+    Returns OptimizeResult(ok, supported) so callers can distinguish failure from
+    an unsupported/no-op path without relying on hasattr checks.
+    """
+    if isinstance(store, SafeOptimizeStore):
+        ok = store.safe_optimize(palace_path, backup_first=backup_first)
+        return OptimizeResult(ok=ok, supported=True)
+    store.optimize()
+    return OptimizeResult(ok=True, supported=False)
 
 
 # ─── LanceDB backend ──────────────────────────────────────────────────────────

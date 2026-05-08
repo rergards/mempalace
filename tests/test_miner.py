@@ -1844,7 +1844,9 @@ def test_process_file_dry_run_matches_chunk_count():
 
 
 def test_mine_backup_before_optimize_env(monkeypatch):
-    """AC-5: mine() with MEMPALACE_BACKUP_BEFORE_OPTIMIZE=1 calls safe_optimize(backup_first=True)."""
+    """mine() with MEMPALACE_BACKUP_BEFORE_OPTIMIZE=1 calls optimize_store(backup_first=True)."""
+    from mempalace_code.storage import OptimizeResult
+
     tmpdir = tempfile.mkdtemp()
     try:
         project_root = Path(tmpdir).resolve()
@@ -1858,13 +1860,15 @@ def test_mine_backup_before_optimize_env(monkeypatch):
         with patch("mempalace_code.miner.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
-            mine(str(project_root), palace_path)
+            with patch(
+                "mempalace_code.miner.optimize_store",
+                return_value=OptimizeResult(ok=True, supported=True),
+            ) as mock_adapter:
+                mine(str(project_root), palace_path)
 
-        mock_store.safe_optimize.assert_called_once()
-        call_kwargs = mock_store.safe_optimize.call_args
-        # backup_first must be True — check positional or keyword arg
-        args, kwargs = call_kwargs
-        backup_first_val = kwargs.get("backup_first", args[1] if len(args) > 1 else None)
+        mock_adapter.assert_called_once()
+        _, call_kwargs = mock_adapter.call_args
+        backup_first_val = call_kwargs.get("backup_first")
         assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
     finally:
         shutil.rmtree(tmpdir)
@@ -2092,7 +2096,9 @@ def test_process_file_csharp_roundtrip():
 
 
 def test_mine_default_calls_safe_optimize_backup_first():
-    """AC-9: mine() with default MempalaceConfig() calls safe_optimize(backup_first=True)."""
+    """mine() with default MempalaceConfig() calls optimize_store(backup_first=True)."""
+    from mempalace_code.storage import OptimizeResult
+
     tmpdir = tempfile.mkdtemp()
     try:
         project_root = Path(tmpdir).resolve()
@@ -2106,18 +2112,49 @@ def test_mine_default_calls_safe_optimize_backup_first():
 
             mock_store = MagicMock()
             mock_store.add.return_value = None
-            # Return True from safe_optimize so miner doesn't fall back
-            mock_store.safe_optimize.return_value = True
             mock_get_collection.return_value = mock_store
-            # No env overrides — default config has backup_before_optimize=True
-            mine(str(project_root), palace_path)
+            with patch(
+                "mempalace_code.miner.optimize_store",
+                return_value=OptimizeResult(ok=True, supported=True),
+            ) as mock_adapter:
+                # No env overrides — default config has backup_before_optimize=True
+                mine(str(project_root), palace_path)
 
-        mock_store.safe_optimize.assert_called_once()
-        call_args, call_kwargs = mock_store.safe_optimize.call_args
-        backup_first_val = call_kwargs.get(
-            "backup_first", call_args[1] if len(call_args) > 1 else None
-        )
+        mock_adapter.assert_called_once()
+        _, call_kwargs = mock_adapter.call_args
+        backup_first_val = call_kwargs.get("backup_first")
         assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_mine_default_calls_optimize_store_backup_first():
+    """AC-4: mine() with default config routes optimization through optimize_store(backup_first=True)."""
+    import tempfile
+
+    from mempalace_code.storage import OptimizeResult
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        project_root = Path(tmpdir).resolve()
+        write_file(project_root / "hello.py", "# placeholder\ndef foo():\n    pass\n")
+        _make_palace_config(project_root)
+        palace_path = os.path.join(tmpdir, "palace")
+
+        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+            mock_store = _make_mock_store()
+            mock_get_collection.return_value = mock_store
+            with patch(
+                "mempalace_code.miner.optimize_store",
+                return_value=OptimizeResult(ok=True, supported=True),
+            ) as mock_adapter:
+                mine(str(project_root), palace_path)
+
+        mock_adapter.assert_called_once()
+        _, call_kwargs = mock_adapter.call_args
+        assert call_kwargs.get("backup_first") is True or (
+            len(mock_adapter.call_args.args) > 2 and mock_adapter.call_args.args[2] is True
+        ), f"Expected backup_first=True, got {mock_adapter.call_args!r}"
     finally:
         shutil.rmtree(tmpdir)
 

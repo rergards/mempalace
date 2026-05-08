@@ -960,36 +960,36 @@ class TestOptimizeOnce:
     """
 
     def test_backup_gate_rejected_skips_optimize(self, capsys):
-        """safe_optimize returns False → output reports skipped, optimize() not called."""
+        """optimize_store() returning ok=False → output reports skipped."""
+        from mempalace_code.storage import OptimizeResult
         from mempalace_code.watcher import _optimize_once
 
-        mock_store = MagicMock()
-        mock_store.safe_optimize.return_value = False
-        mock_open = MagicMock(return_value=mock_store)
+        mock_open = MagicMock()
+        with patch(
+            "mempalace_code.watcher.optimize_store",
+            return_value=OptimizeResult(ok=False, supported=True),
+        ):
+            with patch("mempalace_code.config.MempalaceConfig") as mock_cfg_cls:
+                mock_cfg_cls.return_value.backup_before_optimize = True
+                _optimize_once("/fake/palace", mock_open)
 
-        with patch("mempalace_code.config.MempalaceConfig") as mock_cfg_cls:
-            mock_cfg_cls.return_value.backup_before_optimize = True
-            _optimize_once("/fake/palace", mock_open)
-
-        mock_store.safe_optimize.assert_called_once_with("/fake/palace", backup_first=True)
-        mock_store.optimize.assert_not_called()
         captured = capsys.readouterr()
         assert "skipped (backup gate failed)" in captured.out
 
     def test_backup_gate_success_prints_done(self, capsys):
-        """safe_optimize returns True → optimize completes, output shows done."""
+        """optimize_store() returning ok=True → output shows done."""
+        from mempalace_code.storage import OptimizeResult
         from mempalace_code.watcher import _optimize_once
 
-        mock_store = MagicMock()
-        mock_store.safe_optimize.return_value = True
-        mock_open = MagicMock(return_value=mock_store)
+        mock_open = MagicMock()
+        with patch(
+            "mempalace_code.watcher.optimize_store",
+            return_value=OptimizeResult(ok=True, supported=True),
+        ):
+            with patch("mempalace_code.config.MempalaceConfig") as mock_cfg_cls:
+                mock_cfg_cls.return_value.backup_before_optimize = True
+                _optimize_once("/fake/palace", mock_open)
 
-        with patch("mempalace_code.config.MempalaceConfig") as mock_cfg_cls:
-            mock_cfg_cls.return_value.backup_before_optimize = True
-            _optimize_once("/fake/palace", mock_open)
-
-        mock_store.safe_optimize.assert_called_once()
-        mock_store.optimize.assert_not_called()
         captured = capsys.readouterr()
         assert "done" in captured.out
 
@@ -1007,6 +1007,38 @@ class TestOptimizeOnce:
         _optimize_once("/fake/palace", mock_open)
 
         mock_store.optimize.assert_called_once()
+        captured = capsys.readouterr()
+        assert "done" in captured.out
+
+    def test_adapter_failure_prints_skipped(self, capsys):
+        """AC-5: optimize_store() returning ok=False causes _optimize_once to print skipped."""
+        from mempalace_code.storage import OptimizeResult
+        from mempalace_code.watcher import _optimize_once
+
+        mock_open = MagicMock()
+        with patch(
+            "mempalace_code.watcher.optimize_store",
+            return_value=OptimizeResult(ok=False, supported=True),
+        ):
+            with patch("mempalace_code.config.MempalaceConfig") as mock_cfg_cls:
+                mock_cfg_cls.return_value.backup_before_optimize = True
+                _optimize_once("/fake/palace", mock_open)
+
+        captured = capsys.readouterr()
+        assert "skipped" in captured.out
+
+    def test_unsupported_store_prints_done(self, capsys):
+        """AC-5: optimize_store() returning ok=True, supported=False causes _optimize_once to print done."""
+        from mempalace_code.storage import OptimizeResult
+        from mempalace_code.watcher import _optimize_once
+
+        mock_open = MagicMock()
+        with patch(
+            "mempalace_code.watcher.optimize_store",
+            return_value=OptimizeResult(ok=True, supported=False),
+        ):
+            _optimize_once("/fake/palace", mock_open)
+
         captured = capsys.readouterr()
         assert "done" in captured.out
 

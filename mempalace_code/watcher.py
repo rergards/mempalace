@@ -20,6 +20,7 @@ from typing import Optional
 
 from .config import MempalaceConfig
 from .disk_budget import DiskBudgetStatus, check_watch_budget, format_bytes
+from .storage import optimize_store
 from .miner import (
     KNOWN_FILENAMES,
     READABLE_EXTENSIONS,
@@ -387,28 +388,18 @@ def watch_and_mine(
 
 
 def _optimize_once(palace_path: str, open_store_fn) -> None:
-    """Run a single optimize pass on the palace store.
-
-    Prefers ``safe_optimize`` when the store exposes it, routing the optional
-    pre-backup through the shared disk-guard and retention policy.  Falls back
-    to raw ``optimize()`` for stores that do not implement ``safe_optimize``.
-    If the backup gate rejects the backup, the optimize is reported as skipped
-    and the function returns without modifying the store.
-    """
+    """Run a single optimize pass on the palace store via the optimize_store adapter."""
     from .config import MempalaceConfig
 
     try:
         t0 = time.time()
         print("  >> Optimizing storage...", end="", flush=True)
         store = open_store_fn(palace_path, create=False)
-        if hasattr(store, "safe_optimize"):
-            config = MempalaceConfig()
-            ok = store.safe_optimize(palace_path, backup_first=config.backup_before_optimize)
-            if not ok:
-                print(" skipped (backup gate failed)", flush=True)
-                return
-        else:
-            store.optimize()
+        config = MempalaceConfig()
+        result = optimize_store(store, palace_path, backup_first=config.backup_before_optimize)
+        if not result.ok:
+            print(" skipped (backup gate failed)", flush=True)
+            return
         print(f" done ({time.time() - t0:.1f}s)", flush=True)
     except Exception as exc:
         print(f" skipped ({exc})", flush=True)

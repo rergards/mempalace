@@ -53,7 +53,10 @@ def test_mine_convos_calls_optimize_once():
 
 
 def test_mine_convos_default_calls_safe_optimize_backup_first():
-    """AC-13: mine_convos() with default MempalaceConfig() calls safe_optimize(backup_first=True)."""
+    """mine_convos() with default MempalaceConfig() calls optimize_store(backup_first=True)."""
+    from mempalace_code.storage import OptimizeResult
+    from unittest.mock import MagicMock
+
     tmpdir = tempfile.mkdtemp()
     try:
         with open(os.path.join(tmpdir, "chat.txt"), "w") as f:
@@ -64,21 +67,53 @@ def test_mine_convos_default_calls_safe_optimize_backup_first():
 
         palace_path = os.path.join(tmpdir, "palace")
         with patch("mempalace_code.convo_miner.get_collection") as mock_get_collection:
-            from unittest.mock import MagicMock
-
             mock_store = MagicMock()
             mock_store.add.return_value = None
-            mock_store.safe_optimize.return_value = True
             mock_get_collection.return_value = mock_store
-            # No env overrides — default config has backup_before_optimize=True
-            mine_convos(tmpdir, palace_path, wing="test_convos")
+            with patch(
+                "mempalace_code.convo_miner.optimize_store",
+                return_value=OptimizeResult(ok=True, supported=True),
+            ) as mock_adapter:
+                # No env overrides — default config has backup_before_optimize=True
+                mine_convos(tmpdir, palace_path, wing="test_convos")
 
-        mock_store.safe_optimize.assert_called_once()
-        call_args, call_kwargs = mock_store.safe_optimize.call_args
-        backup_first_val = call_kwargs.get(
-            "backup_first", call_args[1] if len(call_args) > 1 else None
-        )
+        mock_adapter.assert_called_once()
+        _, call_kwargs = mock_adapter.call_args
+        backup_first_val = call_kwargs.get("backup_first")
         assert backup_first_val is True, f"Expected backup_first=True, got {backup_first_val!r}"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_mine_convos_default_calls_optimize_store_backup_first():
+    """AC-4: mine_convos() with default config routes optimization through optimize_store(backup_first=True)."""
+    from mempalace_code.storage import OptimizeResult
+    from unittest.mock import MagicMock
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(tmpdir, "chat.txt"), "w") as f:
+            f.write(
+                "> What is memory?\nMemory is persistence.\n\n"
+                "> Why does it matter?\nIt enables continuity.\n"
+            )
+
+        palace_path = os.path.join(tmpdir, "palace")
+        with patch("mempalace_code.convo_miner.get_collection") as mock_get_collection:
+            mock_store = MagicMock()
+            mock_store.add.return_value = None
+            mock_get_collection.return_value = mock_store
+            with patch(
+                "mempalace_code.convo_miner.optimize_store",
+                return_value=OptimizeResult(ok=True, supported=True),
+            ) as mock_adapter:
+                mine_convos(tmpdir, palace_path, wing="test_convos")
+
+        mock_adapter.assert_called_once()
+        _, call_kwargs = mock_adapter.call_args
+        assert call_kwargs.get("backup_first") is True or (
+            len(mock_adapter.call_args.args) > 2 and mock_adapter.call_args.args[2] is True
+        ), f"Expected backup_first=True, got {mock_adapter.call_args!r}"
     finally:
         shutil.rmtree(tmpdir)
 

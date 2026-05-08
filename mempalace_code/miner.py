@@ -26,7 +26,7 @@ from .language_catalog import (
     readable_extensions,
     shebang_patterns,
 )
-from .storage import open_store
+from .storage import open_store, optimize_store
 from .treesitter import get_parser
 from .version import __version__
 
@@ -3678,18 +3678,14 @@ def mine(
                 if backup_first:
                     print("  >> Backing up before optimize...", flush=True)
                 print("  >> Optimizing storage...", end="", flush=True)
-                if hasattr(collection, "safe_optimize"):
-                    success = collection.safe_optimize(palace_path, backup_first=backup_first)
-                    if success:
-                        print(f" done ({time.time() - t0:.1f}s)", flush=True)
-                    else:
-                        print(
-                            f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
-                            flush=True,
-                        )
-                else:
-                    collection.optimize()
+                result = optimize_store(collection, palace_path, backup_first=backup_first)
+                if result.ok:
                     print(f" done ({time.time() - t0:.1f}s)", flush=True)
+                else:
+                    print(
+                        f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
+                        flush=True,
+                    )
             else:
                 print("  >> Skipping optimize (disabled in config)", flush=True)
     except KeyboardInterrupt:
