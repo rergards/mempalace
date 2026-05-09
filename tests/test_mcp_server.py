@@ -2538,6 +2538,283 @@ print("OK")
         assert "OK" in result.stdout, f"unexpected output: {result.stdout}"
 
 
+# ── MCP Tool Profiles — Dispatch Tests (MCP-TOOL-PROFILES) ───────────────────
+
+
+class TestMCPToolProfiles:
+    """JSON-RPC dispatch tests for startup-time tool profile filtering.
+
+    These tests pass active_registry directly to handle_request so they do not
+    depend on the module-level _active_registry set by main().
+    """
+
+    def _build_registry(self, profile=None, tools=None, include=None, exclude=None):
+        from mempalace_code.mcp_server import TOOLS
+        from mempalace_code.mcp_tool_profiles import resolve_active_tools
+
+        all_names = frozenset(TOOLS)
+        active = resolve_active_tools(
+            all_names,
+            profile=profile or "full",
+            tools=tools,
+            include=include,
+            exclude=exclude,
+        )
+        return {k: v for k, v in TOOLS.items() if k in active}
+
+    # AC-1: default (no flags) exposes all 28 tools via handle_request with no registry override.
+    def test_ac1_default_full_toolset(self):
+        from mempalace_code.mcp_server import TOOLS, handle_request
+
+        resp = handle_request({"method": "tools/list", "id": 1, "params": {}})
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert names == frozenset(TOOLS)
+        # Spot-check tools that must be present per AC-1
+        for name in (
+            "mempalace_delete_wing",
+            "mempalace_mine",
+            "mempalace_extract_reusable",
+            "mempalace_diary_read",
+        ):
+            assert name in names, f"{name} missing from default tools/list"
+
+    # AC-2: --profile=minimal exposes exactly the 4 minimal tools.
+    def test_ac2_minimal_profile_tools_list(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(profile="minimal")
+        resp = handle_request(
+            {"method": "tools/list", "id": 2, "params": {}}, active_registry=registry
+        )
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert names == frozenset(
+            {
+                "mempalace_status",
+                "mempalace_search",
+                "mempalace_check_duplicate",
+                "mempalace_add_drawer",
+            }
+        )
+
+    # AC-3: --profile=code exposes code tools and omits write/diary tools.
+    def test_ac3_code_profile_includes_code_tools(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(profile="code")
+        resp = handle_request(
+            {"method": "tools/list", "id": 3, "params": {}}, active_registry=registry
+        )
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert "mempalace_code_search" in names
+        assert "mempalace_file_context" in names
+        assert "mempalace_explain_subsystem" in names
+        assert "mempalace_extract_reusable" in names
+
+    def test_ac3_code_profile_omits_write_and_diary(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(profile="code")
+        resp = handle_request(
+            {"method": "tools/list", "id": 4, "params": {}}, active_registry=registry
+        )
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert "mempalace_add_drawer" not in names
+        assert "mempalace_diary_write" not in names
+
+    # AC-4: minimal + include=kg_query, exclude=search.
+    def test_ac4_include_exclude_precedence(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(profile="minimal", include=["kg_query"], exclude=["search"])
+        resp = handle_request(
+            {"method": "tools/list", "id": 5, "params": {}}, active_registry=registry
+        )
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert "mempalace_kg_query" in names
+        assert "mempalace_search" not in names
+
+    # AC-5: --tools=search,add_drawer,diary_* exposes exactly those 4 tools.
+    def test_ac5_tools_with_wildcard(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(tools=["search", "add_drawer", "diary_*"])
+        resp = handle_request(
+            {"method": "tools/list", "id": 6, "params": {}}, active_registry=registry
+        )
+        names = {t["name"] for t in resp["result"]["tools"]}
+        assert names == frozenset(
+            {
+                "mempalace_search",
+                "mempalace_add_drawer",
+                "mempalace_diary_write",
+                "mempalace_diary_read",
+            }
+        )
+
+    # AC-6: calling a hidden tool returns -32601 with the "not enabled by the active MCP profile" message.
+    def test_ac6_hidden_tool_call_returns_profile_error(self):
+        from mempalace_code.mcp_server import handle_request
+
+        registry = self._build_registry(profile="minimal")
+        resp = handle_request(
+            {
+                "method": "tools/call",
+                "id": 7,
+                "params": {"name": "mempalace_delete_wing", "arguments": {"wing": "test"}},
+            },
+            active_registry=registry,
+        )
+        assert resp["error"]["code"] == -32601
+        assert "not enabled by the active MCP profile" in resp["error"]["message"]
+
+    def test_hidden_tool_is_distinct_from_unknown_tool(self):
+        from mempalace_code.mcp_server import handle_request
+
+        # A truly unknown tool still returns -32601 but with different wording
+        registry = self._build_registry(profile="minimal")
+        resp = handle_request(
+            {
+                "method": "tools/call",
+                "id": 8,
+                "params": {"name": "totally_nonexistent_tool", "arguments": {}},
+            },
+            active_registry=registry,
+        )
+        assert resp["error"]["code"] == -32601
+        assert "Unknown tool" in resp["error"]["message"]
+        assert "not enabled" not in resp["error"]["message"]
+
+    # AC-7 (startup validation) — tested via main() with sys.exit.
+    def test_ac7_invalid_profile_exits_before_loop(self):
+        import subprocess
+        import sys
+
+        script = """
+import sys
+import tempfile, os
+_tmp = tempfile.mkdtemp()
+os.environ["HOME"] = _tmp
+os.environ["USERPROFILE"] = _tmp
+
+from mempalace_code.mcp_server import main
+try:
+    main(["--profile", "not_a_real_profile"])
+except SystemExit as e:
+    print("EXIT:" + str(e.code))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert "EXIT:1" in result.stdout, f"Expected SystemExit(1), got: {result.stdout!r}"
+        assert "Invalid MCP tool profile" in result.stderr, f"stderr: {result.stderr!r}"
+
+    def test_ac7_unknown_tool_selector_exits(self):
+        import subprocess
+        import sys
+
+        script = """
+import sys, tempfile, os
+_tmp = tempfile.mkdtemp()
+os.environ["HOME"] = _tmp
+os.environ["USERPROFILE"] = _tmp
+
+from mempalace_code.mcp_server import main
+try:
+    main(["--tools", "definitely_not_a_tool"])
+except SystemExit as e:
+    print("EXIT:" + str(e.code))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert "EXIT:1" in result.stdout
+        assert "Unknown MCP tool selector" in result.stderr
+
+    def test_ac7_tools_and_include_conflict_exits(self):
+        import subprocess
+        import sys
+
+        script = """
+import sys, tempfile, os
+_tmp = tempfile.mkdtemp()
+os.environ["HOME"] = _tmp
+os.environ["USERPROFILE"] = _tmp
+
+from mempalace_code.mcp_server import main
+try:
+    main(["--tools", "search", "--include", "kg_query"])
+except SystemExit as e:
+    print("EXIT:" + str(e.code))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert "EXIT:1" in result.stdout
+        assert "cannot be combined" in result.stderr
+
+    # AC-1b (lazy startup): profile-filtered startup must not import miner/torch.
+    def test_ac1b_minimal_profile_lazy_startup(self):
+        import subprocess
+        import sys
+
+        script = """
+import sys
+
+class _Blocker:
+    _BLOCKED = frozenset({"torch", "sentence_transformers", "mempalace_code.miner"})
+    def find_spec(self, name, path=None, target=None):
+        if name in self._BLOCKED:
+            raise ImportError("Blocked by test: " + name)
+        return None
+
+sys.meta_path.insert(0, _Blocker())
+
+import tempfile, os
+_tmp = tempfile.mkdtemp()
+os.environ["HOME"] = _tmp
+os.environ["USERPROFILE"] = _tmp
+
+from mempalace_code.mcp_server import handle_request, TOOLS
+from mempalace_code.mcp_tool_profiles import resolve_active_tools
+
+all_names = frozenset(TOOLS)
+active = resolve_active_tools(all_names, profile="minimal")
+registry = {k: v for k, v in TOOLS.items() if k in active}
+
+resp1 = handle_request({"method": "initialize", "id": 1, "params": {}})
+assert resp1["result"]["serverInfo"]["name"] == "mempalace-code", resp1
+
+resp2 = handle_request({"method": "tools/list", "id": 2, "params": {}}, active_registry=registry)
+names = {t["name"] for t in resp2["result"]["tools"]}
+assert "mempalace_status" in names
+assert "mempalace_mine" not in names  # excluded by minimal profile
+
+for mod in ("torch", "sentence_transformers", "mempalace_code.miner"):
+    assert mod not in sys.modules, mod + " was imported during minimal-profile init/tools-list"
+
+print("OK")
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, (
+            f"subprocess failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "OK" in result.stdout
+
+
 class TestLuaMCPSchema:
     """AC-8: MCP tools/list exposes lua in language description and local_function in symbol_type."""
 

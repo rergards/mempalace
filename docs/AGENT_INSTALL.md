@@ -23,7 +23,7 @@ feature checklist, not an install step.
 | Conversation/log ingest | `mempalace-code mine <dir> --mode convos` ingests Claude Code JSONL, Codex CLI JSONL, Gemini CLI JSONL, Claude.ai JSON, ChatGPT JSON, Slack JSON, and plain text transcripts |
 | Multi-project sync | `mempalace-code mine-all <parent>` assigns one wing per initialized project; `--new-only` skips already-known wings |
 | Auto-watch | `mempalace-code watch <parent>` re-mines initialized projects on commit by default; `--on-save` is available but noisier |
-| MCP tools | 28 tools: semantic search, code search, file context, manual drawers, KG, architecture retrieval, graph tunnels, diary, re-mine |
+| MCP tools | 28 tools (default `full` profile): semantic search, code search, file context, manual drawers, KG, architecture retrieval, graph tunnels, diary, re-mine; named profiles (`minimal`, `kg`, `code`, `notes`) reduce the exposed subset at startup |
 | KG / architecture | Temporal facts plus .NET/Python architecture extraction; .NET project/type graph tools require pre-mined symbols |
 | Local-model fallback | `mempalace-code wake-up` emits memory layers for agents without MCP support |
 | Safety/ops | Local embeddings, no API key, backup/restore/export/import, health/repair/cleanup, scan excludes, disk-budget guards |
@@ -45,12 +45,8 @@ Evaluation output contract:
    curated docs for compressed narrative and reasoning.
 5. Recommend adoption order: KG first, docs/drawers second, one scoped code project last.
 6. Recommend MCP scope: `project` for trial/tool-surface control, `global` for mature cross-project use, or skip.
-7. Name the cost: 28 MCP tools plus the injected usage rules add a prompt/tool-surface floor.
-8. Give decision: install now, try scoped, wait for a named feature, or skip; include exact first commands.
-
-Current limitation to mention when relevant: MCP exposure is all-or-nothing per
-server registration. Project-scoped MCP limits where the tools appear, but there
-is no supported `--tools search,kg,diary` subset flag yet.
+7. Name the cost: 28 MCP tools (default `full` profile) plus the injected usage rules add a prompt/tool-surface floor. Mention that `--profile=minimal` reduces this to 4 tools.
+8. Give decision: install now, try scoped, wait for a named feature, or skip; include exact first commands. If recommending a trial, suggest `--profile=minimal` or `--profile=code` to limit tool surface.
 
 ---
 
@@ -823,7 +819,7 @@ A successful install produces:
 |-------|--------|
 | Palace path config | `mempalace_code/config.py:93–98` — env → config.json → default |
 | All CLI flags | `mempalace-code --help` / `mempalace-code <cmd> --help` |
-| MCP tool list (28 tools) | `README.md` → MCP Server section |
+| MCP tool list and profiles | `README.md` → MCP Server section and MCP Tool Profiles table |
 | Auto-save hooks | `hooks/README.md` |
 | Airgapped / offline setup | `docs/OFFLINE_USAGE.md` |
 | Manual MCP setup examples | `examples/mcp_setup.md` |

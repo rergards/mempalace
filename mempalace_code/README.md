@@ -20,7 +20,7 @@ The Python package that powers mempalace-code. All modules, all logic.
 | `dialect.py` | AAAK lossy summary dialect — entity codes, topic markers, and token-saving estimates |
 | `knowledge_graph.py` | Temporal entity-relationship graph — SQLite, time-filtered queries, fact invalidation |
 | `palace_graph.py` | Room-based navigation graph — BFS traversal, tunnel detection across wings |
-| `mcp_server.py` | MCP server — 28 tools, AAAK auto-teach, Palace Protocol, agent diary |
+| `mcp_server.py` | MCP server — 28-tool full default; startup `--profile`/`--tools`/`--include`/`--exclude` flags for static subsetting; AAAK auto-teach, Palace Protocol, agent diary |
 | `onboarding.py` | Guided first-run setup — asks about people/projects, generates AAAK bootstrap + wing config |
 | `entity_registry.py` | Entity code registry — maps names to AAAK codes, handles ambiguous names |
 | `entity_detector.py` | Auto-detect people and projects from file content |
@@ -41,4 +41,4 @@ User → MCP Server → searcher → results
                   → diary    → agent journal
 ```
 
-The palace (LanceDB) stores verbatim drawer content and vector metadata. The knowledge graph (SQLite) stores structured relationships. The MCP server exposes both to any AI tool. ChromaDB is a deprecated optional legacy backend only.
+The palace (LanceDB) stores verbatim drawer content and vector metadata. The knowledge graph (SQLite) stores structured relationships. The MCP server exposes both to any AI tool with 28 tools by default; startup profiles reduce the surface. ChromaDB is a deprecated optional legacy backend only.

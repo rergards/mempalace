@@ -157,6 +157,106 @@ Diary ≠ drawer. Diary is for the same agent's next run; drawer is for the team
 
 ---
 
+## Profile-specific routing
+
+The MCP server can be started with a named tool profile to reduce prompt/tool-surface cost
+(see [README — MCP tool profiles](../README.md#mcp-tool-profiles) and GitHub issue #6).
+Each profile exposes a subset of the 28 tools. Use only the tools listed in the active profile;
+all others will return a "not enabled" error if called.
+
+<!-- mcp-profile:minimal start -->
+### Profile: minimal
+
+Active tools: `mempalace_status`, `mempalace_search`, `mempalace_check_duplicate`, `mempalace_add_drawer`.
+
+| Task | Tool |
+|------|------|
+| Palace health check | `mempalace_status` |
+| Semantic search | `mempalace_search` |
+| Duplicate check before filing | `mempalace_check_duplicate` |
+| Save a decision or note | `mempalace_add_drawer` |
+
+The `minimal` profile is ideal for agents that only need to search and write notes. It does not
+include KG, code search, diary, or graph navigation tools.
+<!-- mcp-profile:minimal end -->
+
+<!-- mcp-profile:kg start -->
+### Profile: kg
+
+Active tools: `mempalace_status`, `mempalace_search`, `mempalace_check_duplicate`,
+`mempalace_add_drawer`, `mempalace_kg_query`, `mempalace_kg_add`,
+`mempalace_kg_invalidate`, `mempalace_kg_timeline`.
+
+| Task | Tool |
+|------|------|
+| Palace health check | `mempalace_status` |
+| Semantic search | `mempalace_search` |
+| Duplicate check before filing | `mempalace_check_duplicate` |
+| Save a decision or note | `mempalace_add_drawer` |
+| Query an entity's current facts | `mempalace_kg_query` |
+| Add a temporal fact | `mempalace_kg_add` |
+| Retire an outdated fact | `mempalace_kg_invalidate` |
+| See how facts changed over time | `mempalace_kg_timeline` |
+
+The `kg` profile is a superset of `minimal` with the four core KG tools added. Suitable when
+tracking evolving facts (versions, assignments, deadlines) alongside drawer notes.
+<!-- mcp-profile:kg end -->
+
+<!-- mcp-profile:code start -->
+### Profile: code
+
+Active tools: `mempalace_status`, `mempalace_code_search`, `mempalace_file_context`,
+`mempalace_find_implementations`, `mempalace_find_references`, `mempalace_show_project_graph`,
+`mempalace_show_type_dependencies`, `mempalace_explain_subsystem`, `mempalace_extract_reusable`,
+`mempalace_mine`.
+
+| Task | Tool |
+|------|------|
+| Palace health check | `mempalace_status` |
+| Find a function/class/symbol | `mempalace_code_search` |
+| All indexed chunks for a file | `mempalace_file_context` |
+| Find types implementing an interface | `mempalace_find_implementations` |
+| Find all usages of a type | `mempalace_find_references` |
+| Project dependency graph (.NET) | `mempalace_show_project_graph` |
+| Inheritance/implementation chain | `mempalace_show_type_dependencies` |
+| Explain how a subsystem works | `mempalace_explain_subsystem` |
+| Classify deps as core/platform/glue | `mempalace_extract_reusable` |
+| Re-mine a project directory | `mempalace_mine` |
+
+The `code` profile omits drawer-write and diary tools. Use it when
+the agent's role is read-only code archaeology and architecture review.
+<!-- mcp-profile:code end -->
+
+<!-- mcp-profile:notes start -->
+### Profile: notes
+
+Active tools: `mempalace_status`, `mempalace_search`, `mempalace_add_drawer`,
+`mempalace_check_duplicate`, `mempalace_list_wings`, `mempalace_list_rooms`,
+`mempalace_get_taxonomy`, `mempalace_traverse`, `mempalace_find_tunnels`,
+`mempalace_graph_stats`, `mempalace_diary_write`, `mempalace_diary_read`.
+
+| Task | Tool |
+|------|------|
+| Palace health check | `mempalace_status` |
+| Semantic search | `mempalace_search` |
+| Save a decision or note | `mempalace_add_drawer` |
+| Duplicate check before filing | `mempalace_check_duplicate` |
+| List all wings | `mempalace_list_wings` |
+| List rooms in a wing | `mempalace_list_rooms` |
+| Full wing/room taxonomy | `mempalace_get_taxonomy` |
+| Walk the palace graph | `mempalace_traverse` |
+| Find cross-wing connections | `mempalace_find_tunnels` |
+| Graph connectivity overview | `mempalace_graph_stats` |
+| Write a session diary entry | `mempalace_diary_write` |
+| Read recent diary entries | `mempalace_diary_read` |
+
+The `notes` profile is for agents focused on knowledge management — recording decisions,
+navigating the graph, and maintaining session continuity via diary — without code-search
+or KG mutation tools.
+<!-- mcp-profile:notes end -->
+
+---
+
 # Appendix A — Drawer template (recommended)
 
 ```

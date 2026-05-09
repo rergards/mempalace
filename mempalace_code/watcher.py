@@ -20,7 +20,6 @@ from typing import Optional
 
 from .config import MempalaceConfig
 from .disk_budget import DiskBudgetStatus, check_watch_budget, format_bytes
-from .storage import optimize_store
 from .miner import (
     KNOWN_FILENAMES,
     READABLE_EXTENSIONS,
@@ -37,6 +36,7 @@ from .miner import (
     normalize_include_paths,
     should_skip_dir,
 )
+from .storage import optimize_store
 
 _UNSET: object = object()  # sentinel for _ScanRulesSnapshot._bad_mtime
 
