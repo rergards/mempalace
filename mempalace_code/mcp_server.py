@@ -1750,7 +1750,6 @@ def handle_request(request, active_registry=None):
 
 
 def _parse_comma_list(value: str) -> list[str]:
-    """Split a comma-separated selector string into a non-empty list of stripped tokens."""
     return [tok.strip() for tok in value.split(",") if tok.strip()]
 
 

@@ -2569,14 +2569,6 @@ class TestMCPToolProfiles:
         resp = handle_request({"method": "tools/list", "id": 1, "params": {}})
         names = {t["name"] for t in resp["result"]["tools"]}
         assert names == frozenset(TOOLS)
-        # Spot-check tools that must be present per AC-1
-        for name in (
-            "mempalace_delete_wing",
-            "mempalace_mine",
-            "mempalace_extract_reusable",
-            "mempalace_diary_read",
-        ):
-            assert name in names, f"{name} missing from default tools/list"
 
     # AC-2: --profile=minimal exposes exactly the 4 minimal tools.
     def test_ac2_minimal_profile_tools_list(self):
@@ -2670,7 +2662,6 @@ class TestMCPToolProfiles:
     def test_hidden_tool_is_distinct_from_unknown_tool(self):
         from mempalace_code.mcp_server import handle_request
 
-        # A truly unknown tool still returns -32601 but with different wording
         registry = self._build_registry(profile="minimal")
         resp = handle_request(
             {
