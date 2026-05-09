@@ -5,6 +5,10 @@ Current command/package names: the CLI is `mempalace-code`, the import package i
 Older historical entries may mention legacy `mempalace` names that were valid
 when those changes landed.
 
+## 2026-05-09 · MCP-TOOL-PROFILES
+
+Add static MCP tool profiles (`full`, `search`, `write`, `graph`, `kg`, `diary`, `code`) and `--tools`/`--exclude-tools` CLI flags for per-client tool subsetting at server startup.
+
 ## v1.9.0 — 2026-05-07
 
 ### Added
