@@ -667,3 +667,8 @@ items:
       resolution: '2026-05-09: completed in pipeline run'
       archived_date: "2026-05-09"
       done_summary: completed in pipeline run
+    - key: STORE-OPTIMIZE-CONTRACT
+      summary: Replace safe_optimize hasattr shim with an explicit storage contract
+      resolution: '2026-05-09: completed in pipeline run'
+      archived_date: "2026-05-09"
+      done_summary: completed in pipeline run

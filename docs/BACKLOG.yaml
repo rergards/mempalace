@@ -288,31 +288,6 @@ items:
         touch a smaller file set.
       - Ruff and targeted miner tests pass.
     size: L
-  - key: STORE-OPTIMIZE-CONTRACT
-    summary: Replace safe_optimize hasattr shim with an explicit storage contract
-    type: task
-    status: open
-    priority: medium
-    section_id: storage_reliability
-    labels: [storage, api, cleanup, review]
-    description: |-
-      ## Problem
-      Review flagged the `safe_optimize` compatibility path as an implicit `hasattr`
-      shim. The behavior may be valid for legacy stores, but the contract is not visible
-      enough for type checking or future storage backends.
-
-      ## Scope
-      - Decide whether optimization is part of the storage interface or an explicitly
-        optional capability.
-      - Replace ad hoc probing with a typed method/protocol or a documented capability
-        adapter.
-      - Keep legacy behavior for stores that cannot compact/optimize.
-
-      ## Acceptance Criteria
-      - Callers do not need untyped `hasattr` checks for normal optimize paths.
-      - Unsupported stores return a clear no-op/status result.
-      - Storage tests cover LanceDB support and a no-optimize backend.
-    size: S
   - key: MCP-SERVER-MODULE-SPLIT
     summary: Split mcp_server.py by tool family
     type: task
