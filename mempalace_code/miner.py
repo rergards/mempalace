@@ -108,3 +108,4 @@ from .mining.symbols import (
     _extract_k8s_symbol,
     extract_symbol,
 )
+from .treesitter import get_parser
