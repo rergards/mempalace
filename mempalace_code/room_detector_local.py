@@ -100,7 +100,7 @@ def _rooms_from_csproj(proj_files: list) -> list:
 
     De-duplicates by normalized name, returns room dicts with a "general" fallback.
     """
-    from .miner import _normalize_room_name
+    from .mining.projects import _normalize_room_name
 
     seen: dict = {}
     for pf in proj_files:
@@ -324,7 +324,7 @@ def detect_rooms_local(project_dir: str, yes: bool = False, interactive: bool = 
         sys.exit(1)
 
     # Count files
-    from .miner import scan_project
+    from .mining.scanner import scan_project
 
     files = scan_project(project_dir)
 

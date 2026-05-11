@@ -326,7 +326,7 @@ class TestInitNonInteractiveOnboarding:
 
 class TestMineSpellcheckFlags:
     def test_project_mode_defaults_spellcheck_false(self, tmp_path):
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             run_mine_cli(["mempalace", "mine", str(tmp_path)])
 
         assert mock_mine.call_args.kwargs["spellcheck"] is False
@@ -338,7 +338,7 @@ class TestMineSpellcheckFlags:
         assert mock_mine_convos.call_args.kwargs["spellcheck"] is True
 
     def test_spellcheck_flag_overrides_project_default(self, tmp_path):
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             run_mine_cli(["mempalace", "mine", str(tmp_path), "--spellcheck"])
 
         assert mock_mine.call_args.kwargs["spellcheck"] is True
@@ -1126,7 +1126,7 @@ class TestMineCommand:
     def test_mine_full_flag(self, tmp_path):
         """AC-1: --full wires incremental=False to mine()."""
         palace = str(tmp_path / "palace")
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             with patch.object(
                 sys,
                 "argv",
@@ -1138,7 +1138,7 @@ class TestMineCommand:
     def test_mine_default_incremental(self, tmp_path):
         """AC-2: omitting --full wires incremental=True to mine()."""
         palace = str(tmp_path / "palace")
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             with patch.object(
                 sys,
                 "argv",
@@ -1210,7 +1210,7 @@ class TestMineAllCommand:
         dev.mkdir()
         _make_initialized_project(dev, "proj_a")
 
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             with patch("mempalace_code.storage.open_store") as mock_open_store:
                 self._run_mine_all(palace, str(dev), ["--dry-run"])
 
@@ -1268,7 +1268,7 @@ class TestMineAllCommand:
         dev = tmp_path / "dev"
         dev.mkdir()
 
-        with patch("mempalace_code.miner.mine"):
+        with patch("mempalace_code.mining.orchestrator.mine"):
             with patch("mempalace_code.storage.open_store"):
                 self._run_mine_all(palace, str(dev))
 
@@ -1305,7 +1305,7 @@ class TestMineAllCommand:
         dev.mkdir()
         _make_uninit_project(dev, "uninit")
 
-        with patch("mempalace_code.miner.mine") as mock_mine:
+        with patch("mempalace_code.mining.orchestrator.mine") as mock_mine:
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(palace, str(dev))
@@ -1321,7 +1321,7 @@ class TestMineAllCommand:
         dev.mkdir()
         _make_initialized_project(dev, "proj")
 
-        with patch("mempalace_code.miner.mine"):
+        with patch("mempalace_code.mining.orchestrator.mine"):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 # Should not raise SystemExit

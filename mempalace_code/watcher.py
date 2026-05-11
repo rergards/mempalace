@@ -20,7 +20,8 @@ from typing import Optional
 
 from .config import MempalaceConfig
 from .disk_budget import DiskBudgetStatus, check_watch_budget, format_bytes
-from .miner import (
+from .mining.orchestrator import mine
+from .mining.scanner import (
     KNOWN_FILENAMES,
     READABLE_EXTENSIONS,
     SKIP_FILENAMES,
@@ -32,7 +33,6 @@ from .miner import (
     is_gitignored,
     is_scan_excluded,
     load_gitignore_matcher,
-    mine,
     normalize_include_paths,
     should_skip_dir,
 )
@@ -472,7 +472,7 @@ def watch_all(
         sys.exit(1)
 
     from .knowledge_graph import KnowledgeGraph
-    from .miner import detect_projects, resolve_wing_for_project
+    from .mining.projects import detect_projects, resolve_wing_for_project
     from .storage import open_store
 
     parent_path = Path(parent_dir).expanduser().resolve()

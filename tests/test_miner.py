@@ -451,7 +451,7 @@ def test_scan_project_prunes_subtree_skip_globs_at_walk_time():
                 walked_roots.append(Path(root))
                 yield root, dirs, files
 
-        with patch("mempalace_code.miner.os.walk", _tracking_walk):
+        with patch("mempalace_code.mining.scanner.os.walk", _tracking_walk):
             result = scanned_files(
                 project_root, respect_gitignore=False, scan_rules=_SUBTREE_PRUNE_RULES
             )
@@ -1248,30 +1248,30 @@ def test_get_batch_size_returns_int():
 
 def test_get_batch_size_cached():
     """get_batch_size() returns the same value on repeated calls (caching)."""
-    import mempalace_code.miner as miner_mod
+    import mempalace_code.mining.batching as batching_mod
     from mempalace_code.miner import get_batch_size
 
     # Reset the cache so we get a clean call
-    original = miner_mod._batch_size
-    miner_mod._batch_size = None
+    original = batching_mod._batch_size
+    batching_mod._batch_size = None
     try:
         v1 = get_batch_size()
         v2 = get_batch_size()
         assert v1 == v2
     finally:
-        miner_mod._batch_size = original
+        batching_mod._batch_size = original
 
 
 def test_ac6_get_batch_size_fallback_when_torch_unavailable():
     """AC-6: get_batch_size() returns fallback 128 when torch import fails."""
     import sys
 
-    import mempalace_code.miner as miner_mod
+    import mempalace_code.mining.batching as batching_mod
     from mempalace_code.miner import get_batch_size
 
     # Reset the lazy cache so detection runs fresh
-    original_cache = miner_mod._batch_size
-    miner_mod._batch_size = None
+    original_cache = batching_mod._batch_size
+    batching_mod._batch_size = None
     # Make torch appear unimportable inside _detect_batch_size
     original_torch = sys.modules.get("torch")
     sys.modules["torch"] = None  # type: ignore[assignment]  # reason: signals ImportError on import for torch-missing fallback path
@@ -1279,7 +1279,7 @@ def test_ac6_get_batch_size_fallback_when_torch_unavailable():
         result = get_batch_size()
         assert result == 128, f"Expected fallback 128 when torch unavailable, got {result}"
     finally:
-        miner_mod._batch_size = original_cache
+        batching_mod._batch_size = original_cache
         if original_torch is None:
             sys.modules.pop("torch", None)
         else:
@@ -1300,7 +1300,7 @@ def test_mine_calls_warmup_once():
         _make_palace_config(project_root)
         palace_path = str(project_root / "palace")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
             mine(str(project_root), palace_path)
@@ -1319,7 +1319,7 @@ def test_mine_calls_optimize_once():
         _make_palace_config(project_root)
         palace_path = str(project_root / "palace")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
             mine(str(project_root), palace_path)
@@ -1341,7 +1341,7 @@ def test_mine_get_source_file_hashes_called_once():
         _make_palace_config(project_root)
         palace_path = str(project_root / "palace")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
             mine(str(project_root), palace_path)
@@ -1795,7 +1795,7 @@ def test_mine_optimize_disabled_via_env(monkeypatch):
 
         monkeypatch.setenv("MEMPALACE_OPTIMIZE_AFTER_MINE", "0")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
             mine(str(project_root), palace_path)
@@ -1857,11 +1857,11 @@ def test_mine_backup_before_optimize_env(monkeypatch):
         monkeypatch.setenv("MEMPALACE_OPTIMIZE_AFTER_MINE", "1")
         monkeypatch.setenv("MEMPALACE_BACKUP_BEFORE_OPTIMIZE", "1")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             mock_store = _make_mock_store()
             mock_get_collection.return_value = mock_store
             with patch(
-                "mempalace_code.miner.optimize_store",
+                "mempalace_code.mining.orchestrator.optimize_store",
                 return_value=OptimizeResult(ok=True, supported=True),
             ) as mock_adapter:
                 mine(str(project_root), palace_path)
@@ -2107,14 +2107,14 @@ def test_mine_default_calls_safe_optimize_backup_first():
 
         palace_path = os.path.join(tmpdir, "palace")
 
-        with patch("mempalace_code.miner.get_collection") as mock_get_collection:
+        with patch("mempalace_code.mining.orchestrator.get_collection") as mock_get_collection:
             from unittest.mock import MagicMock
 
             mock_store = MagicMock()
             mock_store.add.return_value = None
             mock_get_collection.return_value = mock_store
             with patch(
-                "mempalace_code.miner.optimize_store",
+                "mempalace_code.mining.orchestrator.optimize_store",
                 return_value=OptimizeResult(ok=True, supported=True),
             ) as mock_adapter:
                 # No env overrides — default config has backup_before_optimize=True

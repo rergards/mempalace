@@ -707,8 +707,8 @@ class TestWatchAll:
         with (
             patch("mempalace_code.watcher.mine", side_effect=fake_mine),
             patch("watchfiles.watch", side_effect=fake_watch),
-            patch("mempalace_code.miner.detect_projects", return_value=fake_projects),
-            patch("mempalace_code.miner.derive_wing_name", return_value="test_wing"),
+            patch("mempalace_code.mining.projects.detect_projects", return_value=fake_projects),
+            patch("mempalace_code.mining.projects.derive_wing_name", return_value="test_wing"),
             patch("mempalace_code.knowledge_graph.KnowledgeGraph"),
             patch("mempalace_code.storage.open_store"),
         ):
@@ -738,7 +738,7 @@ class TestWatchAll:
 
         with (
             patch("mempalace_code.watcher.mine", side_effect=mine_calls.append),
-            patch("mempalace_code.miner.detect_projects", return_value=fake_projects),
+            patch("mempalace_code.mining.projects.detect_projects", return_value=fake_projects),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 watch_all(str(tmp_path), str(tmp_path / "palace"))
@@ -781,7 +781,7 @@ class TestWatchAll:
         with (
             patch("mempalace_code.watcher.mine", side_effect=fake_mine),
             patch("watchfiles.watch", side_effect=fake_watch),
-            patch("mempalace_code.miner.detect_projects", return_value=fake_projects),
+            patch("mempalace_code.mining.projects.detect_projects", return_value=fake_projects),
             patch("mempalace_code.knowledge_graph.KnowledgeGraph"),
             patch("mempalace_code.storage.open_store"),
         ):

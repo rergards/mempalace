@@ -301,7 +301,7 @@ def cmd_mine(args):
         )
     else:
         from .knowledge_graph import KnowledgeGraph
-        from .miner import mine
+        from .mining.orchestrator import mine
 
         kg = KnowledgeGraph()
         mine(
@@ -335,7 +335,8 @@ def _resolve_spellcheck(args, config: MempalaceConfig) -> bool:
 def cmd_mine_all(args):
     """Mine all detected projects in a parent directory."""
     from .knowledge_graph import KnowledgeGraph
-    from .miner import detect_projects, mine, resolve_wing_for_project
+    from .mining.orchestrator import mine
+    from .mining.projects import detect_projects, resolve_wing_for_project
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
 
@@ -529,7 +530,7 @@ def cmd_split(args):
 
 
 def cmd_status(args):
-    from .miner import status
+    from .mining.orchestrator import status
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
     status(palace_path=palace_path)
