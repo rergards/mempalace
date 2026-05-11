@@ -9,9 +9,12 @@ import inspect
 
 def test_miner_compatibility_exports_existing_import_surface():
     """AC-1: All CLI/watcher/test-facing names remain importable from mempalace_code.miner."""
+    import re
+
     from mempalace_code.miner import (
-        # chunkers — boundary regexes
+        # chunkers — boundary regexes and helpers
         EXTENSION_LANG_MAP,
+        GO_BOUNDARY,
         HARD_MAX,
         INIT_MARKERS,
         KNOWN_FILENAMES,
@@ -20,12 +23,23 @@ def test_miner_compatibility_exports_existing_import_surface():
         READABLE_EXTENSIONS,
         SKIP_DIRS,
         SKIP_FILENAMES,
+        SWIFT_BOUNDARY,
         TARGET_MAX,
         TARGET_MIN,
+        TS_BOUNDARY,
         GitignoreMatcher,
         ScanFilterRules,
+        _build_csproj_room_map,
+        _chunk_k8s_manifest,
+        _detect_batch_size,
+        _detect_sln_wing,
+        _subtree_glob_prefix,
+        adaptive_merge_split,
         add_drawers_batch,
+        chunk_adaptive_lines,
+        chunk_code,
         chunk_file,
+        chunk_prose,
         derive_wing_name,
         detect_language,
         detect_projects,
@@ -37,6 +51,7 @@ def test_miner_compatibility_exports_existing_import_surface():
         get_batch_size,
         load_config,
         mine,
+        parse_dotnet_project_file,
         parse_sln_file,
         parse_xaml_file,
         process_file,
@@ -52,6 +67,10 @@ def test_miner_compatibility_exports_existing_import_surface():
         ("detect_room", detect_room),
         ("detect_language", detect_language),
         ("chunk_file", chunk_file),
+        ("chunk_code", chunk_code),
+        ("chunk_prose", chunk_prose),
+        ("chunk_adaptive_lines", chunk_adaptive_lines),
+        ("adaptive_merge_split", adaptive_merge_split),
         ("extract_symbol", extract_symbol),
         ("get_batch_size", get_batch_size),
         ("add_drawers_batch", add_drawers_batch),
@@ -63,7 +82,13 @@ def test_miner_compatibility_exports_existing_import_surface():
         ("load_config", load_config),
         ("parse_sln_file", parse_sln_file),
         ("parse_xaml_file", parse_xaml_file),
+        ("parse_dotnet_project_file", parse_dotnet_project_file),
         ("extract_type_relationships", extract_type_relationships),
+        ("_detect_batch_size", _detect_batch_size),
+        ("_detect_sln_wing", _detect_sln_wing),
+        ("_build_csproj_room_map", _build_csproj_room_map),
+        ("_chunk_k8s_manifest", _chunk_k8s_manifest),
+        ("_subtree_glob_prefix", _subtree_glob_prefix),
     ]:
         assert callable(obj), f"miner.{name} must be callable"
 
@@ -79,6 +104,9 @@ def test_miner_compatibility_exports_existing_import_surface():
     assert isinstance(EXTENSION_LANG_MAP, dict)
     assert isinstance(KNOWN_FILENAMES, (set, frozenset))
     assert isinstance(READABLE_EXTENSIONS, (set, frozenset))
+    assert isinstance(SWIFT_BOUNDARY, re.Pattern)
+    assert isinstance(TS_BOUNDARY, re.Pattern)
+    assert isinstance(GO_BOUNDARY, re.Pattern)
 
     # ScanFilterRules must be a NamedTuple-like class
     assert inspect.isclass(GitignoreMatcher)
