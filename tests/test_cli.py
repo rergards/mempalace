@@ -1233,7 +1233,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {"existing": 10}
                 self._run_mine_all(palace, str(dev), ["--new-only"])
@@ -1254,7 +1254,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {"existing": 10}
                 self._run_mine_all(palace, str(dev), ["--force"])
@@ -1290,7 +1290,7 @@ class TestMineAllCommand:
             if kwargs["wing_override"] == "bad":
                 raise RuntimeError("oops")
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 with pytest.raises(SystemExit) as exc_info:
@@ -1334,7 +1334,7 @@ class TestMineAllCommand:
         dev.mkdir()
         _make_initialized_project(dev, "boom")
 
-        with patch("mempalace_code.miner.mine", side_effect=RuntimeError("fail")):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=RuntimeError("fail")):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 with pytest.raises(SystemExit) as exc_info:
@@ -1348,7 +1348,7 @@ class TestMineAllCommand:
         dev.mkdir()
         _make_initialized_project(dev, "proj")
 
-        with patch("mempalace_code.miner.mine", side_effect=SystemExit(1)):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=SystemExit(1)):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 with pytest.raises(SystemExit) as exc_info:
@@ -1376,7 +1376,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 with pytest.raises(SystemExit) as exc_info:
@@ -1397,7 +1397,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(
@@ -1423,7 +1423,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 # Pretend wing 'alpha' already exists in palace
                 mock_store.return_value.count_by.return_value = {"alpha": 10}
@@ -1450,7 +1450,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {"alpha": 5}
                 self._run_mine_all(palace, str(dev), ["--new-only"])
@@ -1485,7 +1485,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 with pytest.raises(SystemExit) as exc_info:
@@ -1529,7 +1529,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(palace, str(dev))
@@ -1564,7 +1564,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(palace, str(dev))
@@ -1607,7 +1607,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(palace, str(dev))
