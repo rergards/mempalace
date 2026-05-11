@@ -1192,7 +1192,7 @@ class TestMineAllCommand:
         def fake_mine(**kwargs):
             mine_calls.append(kwargs)
 
-        with patch("mempalace_code.miner.mine", side_effect=fake_mine):
+        with patch("mempalace_code.mining.orchestrator.mine", side_effect=fake_mine):
             with patch("mempalace_code.storage.open_store") as mock_store:
                 mock_store.return_value.count_by.return_value = {}
                 self._run_mine_all(palace, str(dev))
