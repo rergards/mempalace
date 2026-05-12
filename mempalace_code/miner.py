@@ -26,6 +26,10 @@ from .mining.chunkers import (
     VBNET_BOUNDARY,
     _chunk_dotnet_project_xml,
     _chunk_go_treesitter,
+    _chunk_helm,
+    _chunk_helm_chart,
+    _chunk_helm_template,
+    _chunk_helm_values,
     _chunk_k8s_manifest,
     _chunk_python_treesitter,
     _chunk_rust_treesitter,
@@ -51,6 +55,7 @@ from .mining.languages import (
     EXTENSION_LANG_MAP,
     FILENAME_LANG_MAP,
     SHEBANG_PATTERNS,
+    _is_helm_chart_file,
     _is_k8s_manifest,
     detect_language,
 )
@@ -105,6 +110,8 @@ from .mining.scanner import (
 from .mining.symbols import (
     _LANG_EXTRACT_MAP,
     _TS_IMPORT_RE,
+    _extract_helm_chart_symbol,
+    _extract_helm_template_symbol,
     _extract_k8s_symbol,
     extract_symbol,
 )

@@ -712,6 +712,43 @@ def _extract_k8s_symbol(content: str) -> tuple:
     return (kind, kind.lower())
 
 
+# Matches a line consisting entirely of a Go template expression (with optional surrounding whitespace)
+_GO_TEMPLATE_ONLY_LINE = re.compile(r"^\s*\{\{.*?\}\}\s*$")
+
+
+def _extract_helm_chart_symbol(content: str) -> tuple:
+    """Extract chart name from Chart.yaml content. Returns (HelmChart/<name>, helm_chart)."""
+    m = re.search(r"^name:\s*(\S+)", content, re.MULTILINE)
+    if not m:
+        return ("", "helm_chart")
+    name = m.group(1).strip("'\"")
+    return (f"HelmChart/{name}", "helm_chart")
+
+
+def _extract_helm_template_symbol(content: str) -> tuple:
+    """Extract kind and name from a Helm template document, tolerating Go template expressions.
+
+    Lines that are purely Go template control blocks (e.g. {{- if ... }}) are filtered out
+    before scanning. If metadata.name contains {{ it is considered templated and the symbol
+    falls back to kind-only.
+    """
+    visible_lines = [line for line in content.splitlines() if not _GO_TEMPLATE_ONLY_LINE.match(line)]
+    visible = "\n".join(visible_lines)
+
+    kind_m = re.search(r"^kind:\s*(\w+)", visible, re.MULTILINE)
+    if not kind_m:
+        return ("", "")
+    kind = kind_m.group(1)
+
+    name_m = re.search(r"^\s{2}name:\s*(\S+)", visible, re.MULTILINE)
+    if name_m:
+        name_val = name_m.group(1)
+        if "{{" not in name_val:
+            return (f"{kind}/{name_val}", kind.lower())
+
+    return (kind, kind.lower())
+
+
 def extract_symbol(content: str, language: str) -> tuple:
     """
     Extract the primary symbol defined in a code chunk.

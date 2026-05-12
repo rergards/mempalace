@@ -1,6 +1,7 @@
 """mining.languages — Language detection for mined files."""
 
 import re
+from pathlib import Path
 
 from ..language_catalog import (
     extension_language_map,
@@ -11,6 +12,41 @@ from ..language_catalog import (
 EXTENSION_LANG_MAP = extension_language_map()
 FILENAME_LANG_MAP = filename_language_map()
 SHEBANG_PATTERNS = list(shebang_patterns())
+
+_HELM_VALUES_NAME_RE = re.compile(r"^values.*\.ya?ml$")
+
+
+def _is_helm_chart_file(filepath) -> bool:
+    """Return True if filepath is part of a Helm chart (path-context detection).
+
+    Chart.yaml is always Helm. values*.yaml requires Chart.yaml in the same directory.
+    Files under a templates/ directory require Chart.yaml in the templates/ parent.
+    """
+    p = Path(filepath)
+    name = p.name
+
+    if name == "Chart.yaml":
+        return True
+
+    ext = p.suffix.lower()
+    if ext not in (".yaml", ".yml", ".tpl"):
+        return False
+
+    # values*.yaml: Chart.yaml must be in the same directory (chart root)
+    if _HELM_VALUES_NAME_RE.match(name):
+        return (p.parent / "Chart.yaml").is_file()
+
+    # Template files: walk up to find a directory named "templates"; its parent is the chart root
+    current = p.parent
+    while True:
+        if current.name == "templates":
+            return (current.parent / "Chart.yaml").is_file()
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+
+    return False
 
 
 def _is_k8s_manifest(content: str) -> bool:
@@ -56,6 +92,10 @@ def detect_language(filepath, content: str = "") -> str:
 
     if lang is None:
         return "unknown"
+
+    # Helm override: chart-context files take precedence over YAML and gotemplate detection
+    if lang in ("yaml", "gotemplate") and _is_helm_chart_file(filepath):
+        return "helm"
 
     # Content-based K8s override: YAML files that are K8s manifests
     if lang == "yaml" and content and _is_k8s_manifest(content):

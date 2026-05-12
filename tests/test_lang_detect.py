@@ -1,5 +1,7 @@
 """Unit tests for detect_language() in miner.py."""
 
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -240,3 +242,92 @@ def test_k8s_detection_requires_both_fields():
 def test_k8s_detection_non_yaml_extension_unaffected():
     """A .json file is never detected as kubernetes regardless of content."""
     assert detect_language(Path("manifest.json"), _K8S_DEPLOYMENT) == "json"
+
+
+# =============================================================================
+# Helm — path-context detection (AC-1, AC-4)
+# =============================================================================
+
+
+def test_chart_yaml_detects_helm():
+    """Chart.yaml is always detected as helm regardless of content or location."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        chart_file = Path(tmpdir) / "Chart.yaml"
+        chart_file.write_text("apiVersion: v2\nname: my-chart\nversion: 0.1.0\n", encoding="utf-8")
+        assert detect_language(chart_file) == "helm"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_values_yaml_with_chart_root_detects_helm():
+    """values.yaml next to Chart.yaml is detected as helm."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        chart_root = Path(tmpdir)
+        (chart_root / "Chart.yaml").write_text("apiVersion: v2\nname: my-chart\n", encoding="utf-8")
+        values_file = chart_root / "values.yaml"
+        values_file.write_text("replicaCount: 1\nimage:\n  repository: nginx\n", encoding="utf-8")
+        assert detect_language(values_file) == "helm"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_template_yaml_with_chart_root_detects_helm():
+    """A YAML file under templates/ with a sibling Chart.yaml is detected as helm."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        chart_root = Path(tmpdir)
+        (chart_root / "Chart.yaml").write_text("apiVersion: v2\nname: my-chart\n", encoding="utf-8")
+        templates_dir = chart_root / "templates"
+        templates_dir.mkdir()
+        tpl_file = templates_dir / "deployment.yaml"
+        tpl_file.write_text(
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: {{ .Release.Name }}\n",
+            encoding="utf-8",
+        )
+        assert detect_language(tpl_file) == "helm"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_tpl_file_in_templates_with_chart_root_detects_helm():
+    """A .tpl file under templates/ with a sibling Chart.yaml is detected as helm."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        chart_root = Path(tmpdir)
+        (chart_root / "Chart.yaml").write_text("apiVersion: v2\nname: my-chart\n", encoding="utf-8")
+        templates_dir = chart_root / "templates"
+        templates_dir.mkdir()
+        tpl_file = templates_dir / "_helpers.tpl"
+        tpl_file.write_text(
+            "{{- define \"mychart.labels\" -}}\napp: {{ .Chart.Name }}\n{{- end }}\n",
+            encoding="utf-8",
+        )
+        assert detect_language(tpl_file) == "helm"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_non_chart_values_yaml_remains_yaml():
+    """A values.yaml not next to a Chart.yaml stays language='yaml' (AC-4 guard)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        values_file = Path(tmpdir) / "values.yaml"
+        values_file.write_text("replicaCount: 1\nimage:\n  repository: nginx\n", encoding="utf-8")
+        # No Chart.yaml in the same directory
+        assert detect_language(values_file) == "yaml"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_non_chart_kubernetes_yaml_still_detects_kubernetes():
+    """A Kubernetes manifest not inside a Helm chart is still detected as kubernetes (AC-4 guard)."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        deploy_file = Path(tmpdir) / "deploy.yaml"
+        deploy_file.write_text(_K8S_DEPLOYMENT, encoding="utf-8")
+        # No Chart.yaml → deploy.yaml is NOT a helm file, K8s detection applies
+        assert detect_language(deploy_file, _K8S_DEPLOYMENT) == "kubernetes"
+    finally:
+        shutil.rmtree(tmpdir)

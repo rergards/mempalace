@@ -126,3 +126,17 @@ def test_lua_in_catalog():
     assert ".lua" in catalog.readable_extensions()
     assert "lua" in catalog.searchable_languages()
     assert "lua" in catalog.detected_languages()
+
+
+def test_helm_in_catalog():
+    """helm is a synthetic detected/searchable language; extension maps are unchanged (VER-7)."""
+    extension_map = catalog.extension_language_map()
+    # helm is detectable and searchable
+    assert "helm" in catalog.detected_languages()
+    assert "helm" in catalog.searchable_languages()
+    # helm is NOT in the extension map (it's path-context detected, not extension-based)
+    assert "helm" not in extension_map.values()
+    # .yaml, .yml, .tpl extensions remain unchanged
+    assert extension_map.get(".yaml") == "yaml"
+    assert extension_map.get(".yml") == "yaml"
+    assert extension_map.get(".tpl") == "gotemplate"

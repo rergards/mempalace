@@ -168,7 +168,8 @@ TOOL_SPECS = {
                         "object, case_class, case_object, "
                         "mixin, extension_type, constructor, "
                         "local_function, "
-                        "deployment, service, configmap, secret, ingress, customresourcedefinition)"
+                        "deployment, service, configmap, secret, ingress, customresourcedefinition, "
+                        "helm_chart, helm_values)"
                     ),
                 },
                 "file_glob": {

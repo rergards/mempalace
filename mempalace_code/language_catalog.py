@@ -131,7 +131,7 @@ _READABLE_EXTENSIONS = frozenset(
     }
 )
 
-_SYNTHETIC_DETECTED_LANGUAGES = frozenset({"kubernetes"})
+_SYNTHETIC_DETECTED_LANGUAGES = frozenset({"kubernetes", "helm"})
 
 _SEARCHABLE_LANGUAGES = frozenset(
     {
@@ -175,6 +175,7 @@ _SEARCHABLE_LANGUAGES = frozenset(
         "json",
         "toml",
         "kubernetes",
+        "helm",
         # devops / infrastructure
         "terraform",
         "hcl",

@@ -1044,3 +1044,67 @@ class TestLuaLanguageSupport:
         assert "local_function" in result["valid_symbol_types"], (
             "'local_function' missing from valid_symbol_types hint"
         )
+
+
+class TestHelmLanguageSupport:
+    """AC-5: helm language and helm_chart/helm_values symbol filters pass code_search validation."""
+
+    @pytest.fixture
+    def helm_palace_path(self, tmp_path):
+        palace_dir = str(tmp_path / "palace")
+        store = open_store(palace_dir, create=True)
+        store.add(
+            ids=["helm_chart_mychart"],
+            documents=[
+                "apiVersion: v2\nname: my-chart\ndescription: A test chart\nversion: 0.1.0\n"
+            ],
+            metadatas=[
+                {
+                    "wing": "infra",
+                    "room": "general",
+                    "source_file": "/charts/my-chart/Chart.yaml",
+                    "language": "helm",
+                    "symbol_name": "HelmChart/my-chart",
+                    "symbol_type": "helm_chart",
+                    "chunk_index": 0,
+                    "added_by": "miner",
+                    "filed_at": "2026-01-01T00:00:00",
+                }
+            ],
+        )
+        return palace_dir
+
+    def test_code_search_helm_language(self, helm_palace_path):
+        """code_search(language='helm') does not return an 'unsupported language' error."""
+        result = code_search(helm_palace_path, "chart", language="helm")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+        assert len(result["results"]) > 0
+
+    def test_code_search_helm_chart_symbol_type(self, helm_palace_path):
+        """code_search(symbol_type='helm_chart') does not return 'invalid symbol_type' error."""
+        result = code_search(helm_palace_path, "chart", symbol_type="helm_chart")
+        assert "error" not in result, f"Unexpected error: {result.get('error')}"
+        assert "results" in result
+
+    def test_code_search_helm_values_symbol_type(self, helm_palace_path):
+        """code_search(symbol_type='helm_values') does not return 'invalid symbol_type' error."""
+        result = code_search(helm_palace_path, "values", symbol_type="helm_values")
+        assert "invalid symbol_type" not in result.get("error", "").lower(), (
+            f"symbol_type 'helm_values' should be valid, got: {result.get('error')}"
+        )
+
+    def test_helm_in_supported_languages_hint(self, helm_palace_path):
+        """'helm' appears in the supported_languages hint on an invalid language query."""
+        result = code_search(helm_palace_path, "something", language="notareallangnnn")
+        assert "supported_languages" in result
+        assert "helm" in result["supported_languages"], "'helm' missing from supported_languages hint"
+
+    def test_helm_symbol_types_in_valid_hint(self, helm_palace_path):
+        """helm_chart and helm_values appear in valid_symbol_types hint on an invalid type query."""
+        result = code_search(helm_palace_path, "something", symbol_type="notarealtype")
+        assert "valid_symbol_types" in result
+        for sym in ("helm_chart", "helm_values"):
+            assert sym in result["valid_symbol_types"], (
+                f"Symbol type {sym!r} missing from valid_symbol_types hint"
+            )

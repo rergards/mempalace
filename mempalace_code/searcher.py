@@ -220,6 +220,9 @@ VALID_SYMBOL_TYPES = {
     "secret",
     "ingress",
     "customresourcedefinition",
+    # Helm-specific
+    "helm_chart",
+    "helm_values",
 }
 
 

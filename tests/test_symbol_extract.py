@@ -2,7 +2,13 @@
 
 import pytest
 
-from mempalace_code.miner import SWIFT_BOUNDARY, chunk_code, extract_symbol
+from mempalace_code.miner import (
+    SWIFT_BOUNDARY,
+    _extract_helm_chart_symbol,
+    _extract_helm_template_symbol,
+    chunk_code,
+    extract_symbol,
+)
 
 # =============================================================================
 # PYTHON
@@ -2161,3 +2167,62 @@ def test_dart_nullable_return_type_primitive():
 
 def test_dart_nullable_return_type_generic():
     assert extract_symbol("List<String>? getAll() => null;\n", "dart") == ("getAll", "function")
+
+
+# =============================================================================
+# HELM — symbol extraction helpers (VER-6)
+# =============================================================================
+
+
+def test_extract_helm_chart_symbol():
+    content = (
+        "apiVersion: v2\n"
+        "name: my-chart\n"
+        "description: A test Helm chart for unit testing symbol extraction\n"
+        "version: 0.1.0\n"
+        "appVersion: \"1.0\"\n"
+    )
+    assert _extract_helm_chart_symbol(content) == ("HelmChart/my-chart", "helm_chart")
+
+
+def test_extract_helm_chart_symbol_no_name_returns_empty_with_type():
+    content = "apiVersion: v2\nversion: 0.1.0\ndescription: unnamed chart\n"
+    name, sym_type = _extract_helm_chart_symbol(content)
+    assert name == ""
+    assert sym_type == "helm_chart"
+
+
+def test_extract_helm_template_visible_name():
+    content = (
+        "apiVersion: apps/v1\n"
+        "kind: Deployment\n"
+        "metadata:\n"
+        "  name: my-app\n"
+        "spec:\n"
+        "  replicas: 1\n"
+    )
+    assert _extract_helm_template_symbol(content) == ("Deployment/my-app", "deployment")
+
+
+def test_extract_helm_template_templated_name_falls_back_to_kind():
+    content = (
+        "apiVersion: apps/v1\n"
+        "kind: Deployment\n"
+        "metadata:\n"
+        "  name: {{ .Release.Name }}-app\n"
+        "spec:\n"
+        "  replicas: {{ .Values.replicaCount }}\n"
+    )
+    assert _extract_helm_template_symbol(content) == ("Deployment", "deployment")
+
+
+def test_extract_helm_template_no_kind_returns_empty():
+    content = (
+        "{{- if .Values.enabled }}\n"
+        "apiVersion: v1\n"
+        "metadata:\n"
+        "  name: my-resource\n"
+        "{{- end }}\n"
+    )
+    # kind: line is missing → ("", "")
+    assert _extract_helm_template_symbol(content) == ("", "")

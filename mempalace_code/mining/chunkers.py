@@ -1,12 +1,17 @@
 """mining.chunkers — Boundary regexes and chunking strategies for all supported languages."""
 
 import re
+from pathlib import Path
+
+import yaml
 
 from ..language_catalog import extension_language_map
 from ..treesitter import get_parser
-from .symbols import _extract_k8s_symbol
+from .symbols import _extract_helm_chart_symbol, _extract_helm_template_symbol, _extract_k8s_symbol
 
 EXTENSION_LANG_MAP = extension_language_map()
+
+_HELM_VALUES_NAME_RE = re.compile(r"^values.*\.ya?ml$")
 
 MIN_CHUNK = 100  # chars — skip tiny fragments
 TARGET_MIN = 400  # chars — merge threshold for small chunks
@@ -386,6 +391,118 @@ def _chunk_k8s_manifest(content: str, source_file: str) -> list:
     ]
 
 
+def _chunk_helm_chart(content: str, source_file: str) -> list:
+    """Chunk a Helm Chart.yaml as a single metadata chunk."""
+    stripped = content.strip()
+    if len(stripped) < MIN_CHUNK:
+        return []
+    symbol_name, symbol_type = _extract_helm_chart_symbol(stripped)
+    sub_chunks = adaptive_merge_split([stripped], source_file)
+    for chunk in sub_chunks:
+        chunk["symbol_name"] = symbol_name
+        chunk["symbol_type"] = symbol_type
+    return [
+        {
+            "content": c["content"],
+            "chunk_index": i,
+            "symbol_name": c["symbol_name"],
+            "symbol_type": c["symbol_type"],
+        }
+        for i, c in enumerate(sub_chunks)
+    ]
+
+
+def _chunk_helm_values(content: str, source_file: str) -> list:
+    """Chunk a Helm values YAML by top-level key sections."""
+    try:
+        parsed = yaml.safe_load(content)
+        if not isinstance(parsed, dict) or not parsed:
+            raise ValueError("Not a non-empty YAML mapping")
+        top_keys = list(parsed.keys())
+    except Exception:
+        top_keys = None
+
+    if top_keys is None:
+        fallback = chunk_adaptive_lines(content, source_file)
+        for chunk in fallback:
+            chunk["symbol_type"] = "helm_values"
+            chunk["symbol_name"] = ""
+        return fallback
+
+    # Find line positions of each top-level key (at column 0)
+    lines = content.splitlines(keepends=True)
+    boundaries: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        if not line or line[0].isspace() or line.startswith("#"):
+            continue
+        m = re.match(r"^([a-zA-Z_][a-zA-Z0-9_\-]*)\s*:", line)
+        if m and m.group(1) in top_keys:
+            boundaries.append((i, m.group(1)))
+
+    if not boundaries:
+        stripped = content.strip()
+        if len(stripped) >= MIN_CHUNK:
+            return [{"content": stripped, "chunk_index": 0, "symbol_type": "helm_values", "symbol_name": ""}]
+        return []
+
+    all_chunks: list[dict] = []
+    for idx, (start_line, key) in enumerate(boundaries):
+        end_line = boundaries[idx + 1][0] if idx + 1 < len(boundaries) else len(lines)
+        section = "".join(lines[start_line:end_line]).strip()
+        if len(section) < MIN_CHUNK:
+            continue
+        sub_chunks = adaptive_merge_split([section], source_file)
+        for chunk in sub_chunks:
+            chunk["symbol_name"] = f"values.{key}"
+            chunk["symbol_type"] = "helm_values"
+        all_chunks.extend(sub_chunks)
+
+    return [
+        {
+            "content": c["content"],
+            "chunk_index": i,
+            "symbol_name": c["symbol_name"],
+            "symbol_type": c["symbol_type"],
+        }
+        for i, c in enumerate(all_chunks)
+    ]
+
+
+def _chunk_helm_template(content: str, source_file: str) -> list:
+    """Chunk a Helm template file, tolerating Go template delimiters."""
+    raw_docs = _split_yaml_documents(content)
+    all_chunks: list[dict] = []
+    for doc in raw_docs:
+        doc = doc.strip()
+        if len(doc) < MIN_CHUNK:
+            continue
+        symbol_name, symbol_type = _extract_helm_template_symbol(doc)
+        sub_chunks = adaptive_merge_split([doc], source_file)
+        for chunk in sub_chunks:
+            chunk["symbol_name"] = symbol_name
+            chunk["symbol_type"] = symbol_type
+        all_chunks.extend(sub_chunks)
+    return [
+        {
+            "content": c["content"],
+            "chunk_index": i,
+            "symbol_name": c["symbol_name"],
+            "symbol_type": c["symbol_type"],
+        }
+        for i, c in enumerate(all_chunks)
+    ]
+
+
+def _chunk_helm(content: str, source_file: str) -> list:
+    """Route a Helm chart file to the appropriate chunker based on filename."""
+    name = Path(source_file).name
+    if name == "Chart.yaml":
+        return _chunk_helm_chart(content, source_file)
+    if _HELM_VALUES_NAME_RE.match(name):
+        return _chunk_helm_values(content, source_file)
+    return _chunk_helm_template(content, source_file)
+
+
 def chunk_file(content: str, ext: str, source_file: str, language: str | None = None) -> list:
     """Dispatcher — route to the right chunking strategy based on language."""
     # .csproj/.fsproj/.vbproj: verbatim project-XML chunker (ext-based, before language lookup
@@ -422,6 +539,8 @@ def chunk_file(content: str, ext: str, source_file: str, language: str | None = 
         return chunk_prose(content, source_file)
     elif language == "kubernetes":
         return _chunk_k8s_manifest(content, source_file)
+    elif language == "helm":
+        return _chunk_helm(content, source_file)
     else:
         return chunk_adaptive_lines(content, source_file)
 
