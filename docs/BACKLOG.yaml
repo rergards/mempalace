@@ -42,4 +42,33 @@ sections:
 # ============================================================
 # OPEN ITEMS
 # ============================================================
-items: []
+items:
+  - key: FORMAT-MINING-RUFF-DRIFT
+    summary: Reformat mining chunker/symbol files after backlog drain
+    type: task
+    status: open
+    priority: medium
+    size: XS
+    section_id: quality
+    labels: [formatting, ruff, mining]
+    description: |-
+      ## Problem
+
+      After the curated backlog drain, the integrated main-worktree verification found
+      that `ruff format --check .` would reformat:
+      - mempalace_code/mining/chunkers.py
+      - mempalace_code/mining/symbols.py
+
+      The same broad check also reports older benchmark/script lint findings under
+      `ruff check .`; those are outside this item and must not be fixed here.
+
+      ## Scope
+
+      Format only the two mining files listed above. Do not make semantic code changes
+      and do not touch benchmark or script lint findings.
+
+      ## Acceptance Criteria
+
+      1. `ruff format --check mempalace_code/mining/chunkers.py mempalace_code/mining/symbols.py` passes.
+      2. `ruff check mempalace_code/mining/chunkers.py mempalace_code/mining/symbols.py` passes.
+      3. Relevant tests still pass.
