@@ -1513,6 +1513,61 @@ func standalone() string {
 }
 """
 
+# Padded variant: func standalone body exceeds TARGET_MAX so adaptive_merge_split
+# cannot fold it into the preceding chunk, keeping the detached-comment boundary
+# visible in the final output.
+GO_AST_COMMENT_ATTACHED_PADDED = """\
+package util
+
+// computeHash computes a hash of the input string.
+// It uses a simple FNV-1a algorithm for speed.
+func computeHash(s string) uint64 {
+\tvar h uint64 = 14695981039346656037
+\tfor _, c := range s {
+\t\th ^= uint64(c)
+\t\th *= 1099511628211
+\t}
+\treturn h
+}
+
+// Detached comment — blank line separates it.
+
+func standalone() string {
+\tstep01 := "validate input parameters and check all preconditions before any processing"
+\tstep02 := "initialize the primary data structures required by the algorithm to run"
+\tstep03 := "iterate over the input collection and apply the transformation function"
+\tstep04 := "accumulate intermediate results in a temporary buffer for later assembly"
+\tstep05 := "apply secondary filtering rules to remove invalid or duplicate entries"
+\tstep06 := "sort the filtered results according to the configured ordering criteria"
+\tstep07 := "merge overlapping ranges and collapse adjacent entries into single records"
+\tstep08 := "compute aggregate statistics such as the total count and average value"
+\tstep09 := "format the final output according to the serialization schema requirements"
+\tstep10 := "write results to the output stream and flush any pending buffered data"
+\tstep11 := "update the internal state cache to reflect the newly processed records"
+\tstep12 := "log a summary of processing steps and record the elapsed wall-clock time"
+\tstep13 := "release any acquired resources including file handles and network sockets"
+\tstep14 := "notify downstream consumers that new results are available for consumption"
+\tstep15 := "return the final assembled result list for the caller to inspect or store"
+\tstep16 := "validate output schema compliance before dispatching to downstream systems"
+\tstep17 := "emit telemetry events for observability pipelines to capture throughput"
+\tstep18 := "perform idempotency checks to guard against duplicate processing runs"
+\tstep19 := "checkpoint progress to durable storage so restarts can resume correctly"
+\tstep20 := "clean up temporary files and intermediate artifacts created during the run"
+\tstep21 := "increment global operation counters used by health check endpoints"
+\tstep22 := "signal the event loop that all pending callbacks have been dispatched"
+\tstep23 := "flush in-memory write buffers before closing the underlying file handle"
+\tstep24 := "propagate cancellation tokens to any spawned background worker threads"
+\tstep25 := "confirm the distributed lock was released after the critical section ended"
+\tstep26 := "archive processed records to cold storage for long-term audit retention"
+\tstep27 := "purge expired entries from the least-recently-used eviction cache layer"
+\tstep28 := "broadcast the completion event to all registered notification subscribers"
+\treturn step01 + step02 + step03 + step04 + step05 + step06 + step07 +
+\t\tstep08 + step09 + step10 + step11 + step12 + step13 + step14 +
+\t\tstep15 + step16 + step17 + step18 + step19 + step20 + step21 +
+\t\tstep22 + step23 + step24 + step25 + step26 + step27 + step28
+}
+"""
+
 GO_AST_PACKAGE_ONLY = """\
 package main
 """
@@ -1605,6 +1660,19 @@ def test_ast_go_comment_attached():
             break
     else:
         pytest.fail("func computeHash not found in any chunk")
+
+
+def test_ast_go_detached_comment_not_absorbed():
+    """AC-1/AC-3: comment separated from func standalone by a blank line is not in that chunk."""
+    _skip_if_no_go_ast()
+    chunks = chunk_code(GO_AST_COMMENT_ATTACHED_PADDED, "go", "util.go")
+    standalone_chunk = next((c for c in contents(chunks) if "func standalone" in c), None)
+    assert standalone_chunk is not None, "func standalone not found in any chunk"
+    assert "Detached comment" not in standalone_chunk
+    compute_chunk = next((c for c in contents(chunks) if "func computeHash" in c), None)
+    assert compute_chunk is not None, "func computeHash not found in any chunk"
+    assert "Detached comment" in compute_chunk
+    assert compute_chunk is not standalone_chunk
 
 
 def test_ast_go_no_definitions_falls_back():
@@ -1706,6 +1774,57 @@ pub struct Config {
 pub fn default_config() -> Config {
     Config {
         host: "localhost".to_string(),
+        port: 8080,
+    }
+}
+"""
+
+# Padded variant: fn default_config body exceeds TARGET_MAX so adaptive_merge_split
+# cannot fold it into the preceding chunk, keeping the detached-comment boundary
+# visible in the final output.
+RUST_AST_ATTRIBUTE_ATTACHED_PADDED = """\
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Config {
+    pub host: String,
+    pub port: u16,
+}
+
+// Standalone comment with blank line above.
+
+pub fn default_config() -> Config {
+    let step01 = "validate input parameters and check all preconditions before any processing";
+    let step02 = "initialize the primary data structures required by the algorithm to run";
+    let step03 = "iterate over the input collection and apply the transformation function";
+    let step04 = "accumulate intermediate results in a temporary buffer for later assembly";
+    let step05 = "apply secondary filtering rules to remove invalid or duplicate entries";
+    let step06 = "sort the filtered results according to the configured ordering criteria";
+    let step07 = "merge overlapping ranges and collapse adjacent entries into single records";
+    let step08 = "compute aggregate statistics such as the total count and average value";
+    let step09 = "format the final output according to the serialization schema requirements";
+    let step10 = "write results to the output stream and flush any pending buffered data";
+    let step11 = "update the internal state cache to reflect the newly processed records";
+    let step12 = "log a summary of processing steps and record the elapsed wall-clock time";
+    let step13 = "release any acquired resources including file handles and network sockets";
+    let step14 = "notify downstream consumers that new results are available for consumption";
+    let step15 = "return the final assembled result list for the caller to inspect or store";
+    let step16 = "validate output schema compliance before dispatching to downstream systems";
+    let step17 = "emit telemetry events for observability pipelines to capture throughput";
+    let step18 = "perform idempotency checks to guard against duplicate processing runs";
+    let step19 = "checkpoint progress to durable storage so restarts can resume correctly";
+    let step20 = "clean up temporary files and intermediate artifacts created during the run";
+    let step21 = "increment global operation counters used by health check endpoints";
+    let step22 = "signal the event loop that all pending callbacks have been dispatched";
+    let step23 = "flush in-memory write buffers before closing the underlying file handle";
+    let step24 = "propagate cancellation tokens to any spawned background worker threads";
+    let step25 = "confirm the distributed lock was released after the critical section ended";
+    let step26 = "archive processed records to cold storage for long-term audit retention";
+    let step27 = "purge expired entries from the least-recently-used eviction cache layer";
+    let step28 = "broadcast the completion event to all registered notification subscribers";
+    Config {
+        host: step01.to_string(),
         port: 8080,
     }
 }
@@ -1827,6 +1946,19 @@ def test_ast_rust_attribute_attached():
             break
     else:
         pytest.fail("struct Config not found in any chunk")
+
+
+def test_ast_rust_detached_comment_not_absorbed():
+    """AC-2/AC-3: comment separated from fn default_config by a blank line is not in that chunk."""
+    _skip_if_no_rust_ast()
+    chunks = chunk_code(RUST_AST_ATTRIBUTE_ATTACHED_PADDED, "rust", "config.rs")
+    config_fn_chunk = next((c for c in contents(chunks) if "fn default_config" in c), None)
+    assert config_fn_chunk is not None, "fn default_config not found in any chunk"
+    assert "Standalone comment" not in config_fn_chunk
+    struct_chunk = next((c for c in contents(chunks) if "pub struct Config" in c), None)
+    assert struct_chunk is not None, "pub struct Config not found in any chunk"
+    assert "Standalone comment" in struct_chunk
+    assert struct_chunk is not config_fn_chunk
 
 
 def test_ast_rust_chunker_strategy_tag():
