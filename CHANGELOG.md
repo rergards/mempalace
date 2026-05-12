@@ -5,6 +5,10 @@ Current command/package names: the CLI is `mempalace-code`, the import package i
 Older historical entries may mention legacy `mempalace` names that were valid
 when those changes landed.
 
+## 2026-05-12 · CLI-OPT-IN-VERSION-CHECK
+
+Add strictly opt-in PyPI new-version checks: `mempalace-code version-check --enable/--disable/--status/--check-now`, with TTY prompt on first interactive run, interval throttling, stderr-only automatic hints, and zero network calls by default.
+
 ## 2026-05-09 · MCP-TOOL-PROFILES
 
 Add static MCP tool profiles (`full`, `search`, `write`, `graph`, `kg`, `diary`, `code`) and `--tools`/`--exclude-tools` CLI flags for per-client tool subsetting at server startup.
