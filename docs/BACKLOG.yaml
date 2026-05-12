@@ -59,6 +59,8 @@ items:
       Without a negative test, removing the gap check would not break any existing assertion. This is the same gap identified in CODE-TREESITTER-PYTHON-DETACH-TEST for Python.
 
       ## Scope
+      Clarified first-pass scope: test-plus-fixture change. Production chunker helper changes are only in scope if the new negative tests expose an actual current regression.
+
       tests/test_chunking.py — add negative AST chunking tests for Go and Rust detached comments, with fixtures large enough to avoid adaptive merge masking the assertion.
 
       ## Deliverable
@@ -76,11 +78,7 @@ items:
       3. Both tests skip when the respective grammar is absent
       4. Both tests would FAIL if the b'\n\n' gap check were removed from the respective chunker
       5. ruff clean
-
       Identified in CODE-TREESITTER-EXPAND harden round-1 (F-2).
-    links:
-      - type: is-blocked-by
-        key: CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST
   - key: MINE-RUBY-SMART
     summary: Add smart symbol extraction for Ruby
     type: feature
@@ -93,18 +91,18 @@ items:
       Ruby is listed in miner but has no symbol extraction - only basic chunking.
 
       ## Scope
+      Clarified first-pass scope: regex/catalog-level Ruby symbol extraction for ordinary Ruby source. Rails DSLs and broad metaprogramming inference are out of scope for this item unless they are represented by the basic constructs below.
+
       - Upgrade existing .rb support
       - Extract: classes, modules, methods, attr_accessors, constants
-      - Handle: metaprogramming patterns, DSLs, blocks
+      - Handle: nested class/module scopes and common attr_* declarations
+      - Out of scope: Rails route/ActiveRecord DSL semantics, dynamic define_method inference, block-local semantic extraction
 
       ## Acceptance Criteria
       - [ ] Ruby added to _LANG_EXTRACT_MAP
-      - [ ] Works on Rails projects
+      - [ ] Basic Ruby files expose class/module/method/constant/attr symbols
       - [ ] Tests for: classes, modules, methods, attr_accessor
     size: S
-    links:
-      - type: is-blocked-by
-        key: CLARIFY-MINE-RUBY-SMART
   - key: MINE-HELM
     summary: Add Helm chart support to code miner
     type: feature
@@ -117,18 +115,18 @@ items:
       Helm charts parsed as generic YAML without understanding template structure.
 
       ## Scope
+      Clarified first-pass scope: raw Helm chart indexing without rendering templates or evaluating Go template expressions.
+
       - Detect Chart.yaml, values.yaml, templates/
-      - Extract: chart metadata, values schema, template resources
-      - Handle: Go template syntax in YAML
+      - Extract: chart metadata, top-level values paths, template resource kind/name when visible in raw YAML
+      - Handle: Go template delimiters as tolerated raw text so templated manifests do not fall back to useless generic chunks
+      - Out of scope: helm template rendering, values substitution, schema validation
 
       ## Acceptance Criteria
       - [ ] Helm charts indexed with chart name, version, dependencies
-      - [ ] Template resources extracted despite {{ }} syntax
+      - [ ] Template resources extracted on a best-effort basis despite {{ }} syntax
       - [ ] Tests for: Chart.yaml, values.yaml, templated Deployment
     size: S
-    links:
-      - type: is-blocked-by
-        key: CLARIFY-MINE-HELM
   - key: MINE-ANSIBLE
     summary: Add Ansible support to code miner
     type: feature
@@ -141,91 +139,15 @@ items:
       Ansible playbooks/roles parsed as generic YAML.
 
       ## Scope
-      - Detect playbooks, roles, inventory
-      - Extract: plays, tasks, handlers, variables, roles
-      - Handle: Jinja2 templating in YAML
+      Clarified first-pass scope: static YAML structure indexing for playbooks and roles without executing or resolving Ansible/Jinja semantics.
+
+      - Detect playbooks and role directory structure
+      - Extract: play names/hosts, task and handler names/modules, role names, vars file paths
+      - Handle: Jinja2 delimiters as tolerated raw text so templated YAML remains indexable
+      - Out of scope: inventory parsing beyond file detection, variable resolution, Jinja evaluation, collection/plugin semantics
 
       ## Acceptance Criteria
       - [ ] Playbooks indexed by play name, hosts, tasks
       - [ ] Roles indexed by role name and structure
       - [ ] Tests for: playbook, role, inventory file
     size: S
-    links:
-      - type: is-blocked-by
-        key: CLARIFY-MINE-ANSIBLE
-  - key: CLARIFY-MINE-RUBY-SMART
-    summary: "Clarify scope for MINE-RUBY-SMART before planning can proceed"
-    type: task
-    status: open
-    priority: highest
-    size: XS
-    section_id: immediate
-    assignee: owner
-    description: |-
-      ## Problem
-      Clarification is required before MINE-RUBY-SMART can be planned.
-
-      ## Scope
-      Owner should clarify the expected Ruby support level, especially Rails DSL coverage, metaprogramming expectations, and the minimum symbol set required for a first pass.
-
-      ## Acceptance criteria
-      - Owner answers the scope questions or narrows MINE-RUBY-SMART to a first-pass deliverable.
-      - CLARIFY-MINE-RUBY-SMART is marked done, or its is-blocked-by link is removed from MINE-RUBY-SMART.
-      - Autopilot can re-run MINE-RUBY-SMART planning without timing out on ambiguous scope.
-  - key: CLARIFY-MINE-HELM
-    summary: "Clarify scope for MINE-HELM before planning can proceed"
-    type: task
-    status: open
-    priority: highest
-    size: XS
-    section_id: immediate
-    assignee: owner
-    description: |-
-      ## Problem
-      Clarification is required before MINE-HELM can be planned.
-
-      ## Scope
-      Owner should clarify whether Helm support means chart metadata only, rendered-template-aware extraction, raw Go-template YAML parsing, or a smaller first-pass subset.
-
-      ## Acceptance criteria
-      - Owner defines the Helm first-pass scope and explicit out-of-scope behavior.
-      - CLARIFY-MINE-HELM is marked done, or its is-blocked-by link is removed from MINE-HELM.
-      - Autopilot can re-run MINE-HELM planning without timing out on ambiguous scope.
-  - key: CLARIFY-MINE-ANSIBLE
-    summary: "Clarify scope for MINE-ANSIBLE before planning can proceed"
-    type: task
-    status: open
-    priority: highest
-    size: XS
-    section_id: immediate
-    assignee: owner
-    description: |-
-      ## Problem
-      Clarification is required before MINE-ANSIBLE can be planned.
-
-      ## Scope
-      Owner should clarify whether Ansible support covers playbooks only, roles and inventories, Jinja-templated YAML, or a smaller first-pass subset.
-
-      ## Acceptance criteria
-      - Owner defines the Ansible first-pass scope and explicit out-of-scope behavior.
-      - CLARIFY-MINE-ANSIBLE is marked done, or its is-blocked-by link is removed from MINE-ANSIBLE.
-      - Autopilot can re-run MINE-ANSIBLE planning without timing out on ambiguous scope.
-  - key: CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST
-    summary: "Clarify scope for CODE-TREESITTER-GO-RUST-DETACH-TEST before planning can proceed"
-    type: task
-    status: open
-    priority: highest
-    size: XS
-    section_id: immediate
-    assignee: owner
-    description: |-
-      ## Problem
-      Clarification is required before CODE-TREESITTER-GO-RUST-DETACH-TEST can be planned.
-
-      ## Scope
-      Owner should confirm whether this task should only add regression tests, or may also adjust fixtures and chunking helper code if needed to make the tests meaningful.
-
-      ## Acceptance criteria
-      - Owner confirms test-only versus test-plus-fixture scope.
-      - CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST is marked done, or its is-blocked-by link is removed from CODE-TREESITTER-GO-RUST-DETACH-TEST.
-      - Autopilot can re-run CODE-TREESITTER-GO-RUST-DETACH-TEST planning without timing out on ambiguous scope.

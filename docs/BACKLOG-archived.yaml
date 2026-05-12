@@ -786,3 +786,23 @@ items:
       resolution: '2026-05-12: completed in pipeline run'
       archived_date: "2026-05-12"
       done_summary: completed in pipeline run
+    - key: CLARIFY-MINE-RUBY-SMART
+      summary: Clarify scope for MINE-RUBY-SMART before planning can proceed
+      resolution: '2026-05-12: Narrowed Ruby support to first-pass static symbol extraction'
+      archived_date: "2026-05-12"
+      done_summary: Narrowed Ruby support to first-pass static symbol extraction
+    - key: CLARIFY-MINE-HELM
+      summary: Clarify scope for MINE-HELM before planning can proceed
+      resolution: '2026-05-12: Narrowed Helm support to raw chart/template indexing without rendering'
+      archived_date: "2026-05-12"
+      done_summary: Narrowed Helm support to raw chart/template indexing without rendering
+    - key: CLARIFY-MINE-ANSIBLE
+      summary: Clarify scope for MINE-ANSIBLE before planning can proceed
+      resolution: '2026-05-12: Narrowed Ansible support to static playbook and role YAML indexing'
+      archived_date: "2026-05-12"
+      done_summary: Narrowed Ansible support to static playbook and role YAML indexing
+    - key: CLARIFY-CODE-TREESITTER-GO-RUST-DETACH-TEST
+      summary: Clarify scope for CODE-TREESITTER-GO-RUST-DETACH-TEST before planning can proceed
+      resolution: '2026-05-12: Confirmed test-plus-fixture scope with production fixes only if exposed'
+      archived_date: "2026-05-12"
+      done_summary: Confirmed test-plus-fixture scope with production fixes only if exposed
