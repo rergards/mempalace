@@ -566,17 +566,11 @@ def _chunk_ansible_playbook(content: str, source_file: str) -> list:
             return [{"content": stripped, "chunk_index": 0, "symbol_name": sym_name, "symbol_type": sym_type}]
         return []
 
-    return [
-        {
-            "content": play_text,
-            "chunk_index": i,
-            "symbol_name": sym_name,
-            "symbol_type": sym_type,
-        }
-        for i, play_text in enumerate(play_texts)
-        if play_text
-        for sym_name, sym_type in [_extract_ansible_play_symbol(play_text)]
-    ]
+    chunks = []
+    for i, play_text in enumerate(play_texts):
+        sym_name, sym_type = _extract_ansible_play_symbol(play_text)
+        chunks.append({"content": play_text, "chunk_index": i, "symbol_name": sym_name, "symbol_type": sym_type})
+    return chunks
 
 
 def _chunk_ansible_role_tasks(content: str, source_file: str, role_name: str, role_dir: str) -> list:
@@ -592,8 +586,6 @@ def _chunk_ansible_role_tasks(content: str, source_file: str, role_name: str, ro
 
     chunks = []
     for i, task_text in enumerate(task_texts):
-        if not task_text:
-            continue
         if role_dir == "handlers":
             sym_name, sym_type = _extract_ansible_handler_symbol(task_text)
         else:
