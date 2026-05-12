@@ -254,28 +254,6 @@ items:
       - Docs explicitly state that the feature is opt-in and contacts PyPI only for package
         metadata.
     size: M
-  - key: GRAPH-TYPED-PAYLOADS
-    summary: Add typed payloads for palace graph state
-    type: task
-    status: open
-    priority: medium
-    section_id: quality
-    labels: [typing, graph, pyright, cleanup, review]
-    description: |-
-      ## Problem
-      Review flagged `palace_graph.py` for mixed `defaultdict` payload shapes. The current
-      dynamic dictionaries work at runtime but make type-checking and maintenance noisy.
-
-      ## Scope
-      - Introduce `TypedDict`, dataclass, or another small typed structure for graph payloads.
-      - Keep JSON/result shapes returned by public graph helpers compatible.
-      - Use the typed structure to simplify Pyright diagnostics instead of adding casts.
-
-      ## Acceptance Criteria
-      - Pyright understands the graph payload structure.
-      - Existing palace graph and MCP graph tests pass.
-      - Public response dictionaries are unchanged unless docs/tests are updated.
-    size: S
   - key: CLARIFY-MINE-RUBY-SMART
     summary: "Clarify scope for MINE-RUBY-SMART before planning can proceed"
     type: task
