@@ -4,7 +4,7 @@ test_cli_command_modules.py — Import contract tests for the cli_commands packa
 Verifies:
   - mempalace_code.cli still exports the stable public symbols
   - Each command module can be imported without eagerly loading heavy runtime deps
-  - The dispatch mapping covers all expected command names
+  - Each expected command name maps to a callable handler in the owning module
 """
 
 import sys
@@ -174,3 +174,48 @@ def test_main_alias_is_same_object_as_in_alias_module():
     from mempalace_code.cli_commands import alias
 
     assert cli.main_alias is alias.main_alias
+
+
+def test_dispatch_keys_cover_all_expected_commands():
+    """Every expected CLI subcommand must map to a callable handler in its owning module.
+
+    A missing or misnamed handler would cause a KeyError at dispatch time.
+    """
+    from mempalace_code.cli_commands import (
+        alias,
+        backup_restore,
+        diary,
+        export_import,
+        ingest,
+        maintenance,
+        model,
+        query,
+        watch,
+    )
+
+    expected: dict = {
+        "init": ingest.cmd_init,
+        "onboarding": ingest.cmd_onboarding,
+        "mine": ingest.cmd_mine,
+        "mine-all": ingest.cmd_mine_all,
+        "watch": watch.cmd_watch,
+        "split": ingest.cmd_split,
+        "search": query.cmd_search,
+        "compress": query.cmd_compress,
+        "wake-up": query.cmd_wakeup,
+        "migrate-storage": maintenance.cmd_migrate_storage,
+        "health": maintenance.cmd_health,
+        "cleanup": maintenance.cmd_cleanup,
+        "repair": maintenance.cmd_repair,
+        "status": ingest.cmd_status,
+        "diary": diary.cmd_diary,
+        "fetch-model": model.cmd_fetch_model,
+        "install-alias": alias.cmd_install_alias,
+        "backup": backup_restore.cmd_backup,
+        "restore": backup_restore.cmd_restore,
+        "export": export_import.cmd_export,
+        "import": export_import.cmd_import,
+    }
+
+    for cmd_name, handler in expected.items():
+        assert callable(handler), f"Handler for '{cmd_name}' must be callable"
