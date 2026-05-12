@@ -11,7 +11,7 @@ files:
   - path: tests/test_config.py
     change: "Cover fresh-config pre_optimize bounded retention, unchanged global/manual default, explicit zero keep-all, and env/file override precedence."
   - path: tests/test_storage.py
-    change: "Update safe_optimize retention tests to assert the new implicit pre_optimize bound and the explicit zero keep-all boundary."
+    change: "Update safe_optimize retention tests to assert the new implicit pre_optimize bound and the explicit zero keep-all boundary. Rename/rewrite the legacy `test_retention_default_zero_keeps_all_archives` (and any sibling whose docstring still claims `default backup_retain_count=0 disables pruning`) so naming and docstrings reflect the new implicit bound, or replace it outright with the new `test_default_pre_optimize_retention_prunes_to_bound` and `test_explicit_zero_retention_keeps_all_pre_optimize_archives` methods."
   - path: tests/test_backup.py
     change: "Add backup-level regression tests that manual/explicit archives are unaffected and disk-budget refusal happens before any retention prune."
   - path: README.md
@@ -157,6 +157,10 @@ task_contract:
         command: "python -m pytest tests/test_backup.py::test_pre_optimize_default_retention_does_not_prune_manual_or_explicit_out tests/test_backup.py::test_pre_optimize_budget_refusal_does_not_prune_existing_archives -q"
         proves: "Archive-class boundaries and disk-budget fail-closed behavior do not regress."
         acceptance_ids: [AC-4, AC-5]
+      - id: REG-4
+        command: "rg 'pre-optimize|backup_retain_count|MEMPALACE_BACKUP_RETAIN_COUNT' README.md docs/BACKUP_RESTORE.md docs/AGENT_INSTALL.md"
+        proves: "Docs continue to surface the bounded implicit pre-optimize default and the explicit keep-all opt-out, so future doc edits cannot silently regress the user-facing safety guidance."
+        acceptance_ids: [AC-6]
 ---
 
 ## Design Notes
@@ -168,3 +172,4 @@ task_contract:
 - Do not prune anything before `check_backup_budget()` passes and the temp archive is atomically moved into place. The disk-budget regression should place old `pre_optimize_*.tar.gz` files in `backups/`, force projected free space below the floor, and assert all old files remain.
 - The default-bound tests should patch `mempalace_code.backup.datetime` to produce six unique archive names in stable order. Keep the existing explicit-zero keep-all coverage by setting `MEMPALACE_BACKUP_RETAIN_COUNT=0` or a file config with `backup_retain_count: 0`.
 - Documentation should phrase this as "implicit pre-optimize retention is bounded; explicit `backup_retain_count: 0` is a deliberate keep-all opt-out." Avoid implying that manual `backup create` archives are now pruned by default.
+- Disk floor scope: keep the existing 1 GiB `DEFAULT_DISK_MIN_FREE_BYTES` (`mempalace_code/config.py:29`) and the `backup_disk_min_free_bytes` fallback to `disk_min_free_bytes` unchanged. The backlog item "default disk floors leave enough room for a temporary backup before prune" is satisfied by the existing floor plus the fail-closed budget check; AC-5/VER-5/REG-3 are the regressions that prove projected free-space violations refuse before any write or prune. Do not bump the floor or add an install-time `backup_disk_min_free_bytes` write in this task — raising the floor is out of scope and would be a separate change.
