@@ -1062,3 +1062,103 @@ class TestCreateBackupDiskBudget:
         meta, returned_out = create_backup(palace_path, out_path=out_path)
         assert os.path.isfile(returned_out)
         assert meta["drawer_count"] == 4
+
+
+# ── TestBoundedPreOptimizeRetention ────────────────────────────────────────────
+
+
+class TestBoundedPreOptimizeRetention:
+    """AC-4, AC-5: Implicit pre_optimize retention boundary and disk-budget fail-closed behavior."""
+
+    def test_pre_optimize_default_retention_does_not_prune_manual_or_explicit_out(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-4: implicit pre_optimize pruning leaves manual, scheduled, and unrelated archives intact.
+
+        Creates one manual and one scheduled sentinel archive, then triggers
+        implicit pre_optimize retention by running six pre_optimize creates
+        (default bound = 5).  Only the oldest pre_optimize is pruned; the
+        sentinels must survive.
+        """
+        from datetime import datetime as _dt
+        from unittest.mock import MagicMock
+
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+        # Disable disk budget so the test is about retention only
+        monkeypatch.setenv("MEMPALACE_BACKUP_DISK_MIN_FREE_BYTES", "0")
+
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+
+        # Sentinel archives — written via explicit out_path so retention never runs on them
+        manual_path = os.path.join(backups_dir, "mempalace_backup_sentinel.tar.gz")
+        scheduled_path = os.path.join(backups_dir, "scheduled_sentinel.tar.gz")
+        create_backup(palace_path, out_path=manual_path, kg_path=kg_path)
+        create_backup(palace_path, out_path=scheduled_path, kg_path=kg_path)
+
+        # Six pre_optimize creates via managed path — default bound of 5 prunes the oldest
+        fake_dt = MagicMock()
+        fake_dt.now.side_effect = [
+            _dt(2026, 1, 1, 12, 0, 0),
+            _dt(2026, 1, 1, 12, 0, 0),
+            _dt(2026, 1, 1, 12, 0, 1),
+            _dt(2026, 1, 1, 12, 0, 1),
+            _dt(2026, 1, 1, 12, 0, 2),
+            _dt(2026, 1, 1, 12, 0, 2),
+            _dt(2026, 1, 1, 12, 0, 3),
+            _dt(2026, 1, 1, 12, 0, 3),
+            _dt(2026, 1, 1, 12, 0, 4),
+            _dt(2026, 1, 1, 12, 0, 4),
+            _dt(2026, 1, 1, 12, 0, 5),
+            _dt(2026, 1, 1, 12, 0, 5),
+        ]
+        with patch("mempalace_code.backup.datetime", fake_dt):
+            for _ in range(6):
+                create_backup(palace_path, kind="pre_optimize", kg_path=kg_path)
+
+        files = os.listdir(backups_dir)
+        pre_opt = sorted(f for f in files if f.startswith("pre_optimize_"))
+        manual = [f for f in files if f.startswith("mempalace_backup_")]
+        scheduled = [f for f in files if f.startswith("scheduled_")]
+
+        # Oldest pre_optimize pruned; newest five kept
+        assert len(pre_opt) == 5
+        assert "pre_optimize_20260101_120000.tar.gz" not in pre_opt
+        # Sentinels untouched
+        assert len(manual) == 1
+        assert len(scheduled) == 1
+
+    def test_pre_optimize_budget_refusal_does_not_prune_existing_archives(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-5: DiskBudgetError is raised before any archive is written or pruned.
+
+        Places two pre_optimize archives in the managed backups directory, then
+        forces a disk-budget refusal on the next create_backup call.  Both
+        existing archives must remain intact afterward.
+        """
+        from mempalace_code.disk_budget import DiskBudgetError
+
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+        # Ensure the budget guard is active (non-zero floor)
+        monkeypatch.setenv("MEMPALACE_BACKUP_DISK_MIN_FREE_BYTES", str(1 * 1024**3))
+        monkeypatch.delenv("MEMPALACE_BACKUP_MIN_FREE_BYTES", raising=False)
+
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+
+        existing = []
+        for name in ("pre_optimize_20260101_110000.tar.gz", "pre_optimize_20260101_110001.tar.gz"):
+            p = os.path.join(backups_dir, name)
+            create_backup(palace_path, out_path=p, kg_path=kg_path)
+            existing.append(name)
+
+        # Now force a budget refusal — free_bytes returns 0 so projected free < floor
+        with patch("mempalace_code.disk_budget.free_bytes", return_value=0):
+            with pytest.raises(DiskBudgetError, match="disk budget"):
+                create_backup(palace_path, kind="pre_optimize", kg_path=kg_path)
+
+        after = sorted(os.listdir(backups_dir))
+        assert sorted(existing) == after

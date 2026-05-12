@@ -1163,29 +1163,75 @@ class TestSafeOptimize:
             "pre_optimize_20260101_120002.tar.gz",
         ]
 
-    def test_retention_default_zero_keeps_all_archives(self, palace_path, tmp_dir):
-        """AC-2: default backup_retain_count=0 disables pruning."""
-        store = open_store(palace_path, create=True)
-        self._add_optimize_fixture(store, "retain_default")
+    def test_default_pre_optimize_retention_prunes_to_bound(self, palace_path, tmp_dir, monkeypatch):
+        """AC-2: six default safe_optimize(backup_first=True) cycles leave only the newest five archives."""
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
 
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain_default_bound")
+
+        # Two datetime.now() calls per cycle (filename + metadata), six cycles = 12 calls.
         fake_datetime = MagicMock()
         fake_datetime.now.side_effect = [
             datetime(2026, 1, 1, 12, 1, 0),
-            datetime(2026, 1, 1, 12, 1, 0),  # metadata timestamp
+            datetime(2026, 1, 1, 12, 1, 0),
             datetime(2026, 1, 1, 12, 1, 1),
-            datetime(2026, 1, 1, 12, 1, 1),  # metadata timestamp
+            datetime(2026, 1, 1, 12, 1, 1),
+            datetime(2026, 1, 1, 12, 1, 2),
+            datetime(2026, 1, 1, 12, 1, 2),
+            datetime(2026, 1, 1, 12, 1, 3),
+            datetime(2026, 1, 1, 12, 1, 3),
+            datetime(2026, 1, 1, 12, 1, 4),
+            datetime(2026, 1, 1, 12, 1, 4),
+            datetime(2026, 1, 1, 12, 1, 5),
+            datetime(2026, 1, 1, 12, 1, 5),
         ]
 
         with patch("mempalace_code.backup.datetime", fake_datetime):
-            first = store.safe_optimize(palace_path, backup_first=True)  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
-            second = store.safe_optimize(palace_path, backup_first=True)  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
+            results = [store.safe_optimize(palace_path, backup_first=True) for _ in range(6)]  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
 
-        assert (first, second) == (True, True)
+        assert results == [True] * 6
         archives = self._pre_optimize_archives(tmp_dir)
+        # Oldest (cycle 0) pruned; newest five remain.
         assert archives == [
-            "pre_optimize_20260101_120100.tar.gz",
             "pre_optimize_20260101_120101.tar.gz",
+            "pre_optimize_20260101_120102.tar.gz",
+            "pre_optimize_20260101_120103.tar.gz",
+            "pre_optimize_20260101_120104.tar.gz",
+            "pre_optimize_20260101_120105.tar.gz",
         ]
+
+    def test_explicit_zero_retention_keeps_all_pre_optimize_archives(
+        self, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-3: explicit backup_retain_count=0 (keep-all) leaves all pre_optimize archives intact."""
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "0")
+
+        store = open_store(palace_path, create=True)
+        self._add_optimize_fixture(store, "retain_explicit_zero")
+
+        fake_datetime = MagicMock()
+        fake_datetime.now.side_effect = [
+            datetime(2026, 1, 1, 12, 2, 0),
+            datetime(2026, 1, 1, 12, 2, 0),
+            datetime(2026, 1, 1, 12, 2, 1),
+            datetime(2026, 1, 1, 12, 2, 1),
+            datetime(2026, 1, 1, 12, 2, 2),
+            datetime(2026, 1, 1, 12, 2, 2),
+            datetime(2026, 1, 1, 12, 2, 3),
+            datetime(2026, 1, 1, 12, 2, 3),
+            datetime(2026, 1, 1, 12, 2, 4),
+            datetime(2026, 1, 1, 12, 2, 4),
+            datetime(2026, 1, 1, 12, 2, 5),
+            datetime(2026, 1, 1, 12, 2, 5),
+        ]
+
+        with patch("mempalace_code.backup.datetime", fake_datetime):
+            results = [store.safe_optimize(palace_path, backup_first=True) for _ in range(6)]  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
+
+        assert results == [True] * 6
+        archives = self._pre_optimize_archives(tmp_dir)
+        assert len(archives) == 6
 
     def test_retention_preserves_non_pre_optimize_files(self, palace_path, tmp_dir, monkeypatch):
         """AC-3: retention only removes old pre_optimize_*.tar.gz files."""

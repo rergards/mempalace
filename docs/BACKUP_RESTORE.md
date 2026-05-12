@@ -187,16 +187,26 @@ To disable: set `auto_backup_before_optimize: false` in `~/.mempalace/config.jso
 
 ### Retention (automatic pruning)
 
-By default retention is disabled (`backup_retain_count: 0`). To enable, set a per-kind limit:
+**`pre_optimize` archives are bounded by default** to the newest 5.  A long-running
+`mempalace watch` daemon creates one archive before every compaction, so without a
+bound the `backups/` directory can fill the local volume even when the palace itself
+is small.
+
+**`manual` and `scheduled` archives are unbounded by default** — they are never
+pruned unless you set `backup_retain_count` explicitly.
 
 ```bash
-# Keep only the 5 newest backups of each kind
-export MEMPALACE_BACKUP_RETAIN_COUNT=5
+# Override the implicit pre_optimize bound and set an explicit limit for all kinds:
+export MEMPALACE_BACKUP_RETAIN_COUNT=10
 # Or in ~/.mempalace/config.json:
-# {"backup_retain_count": 5}
+# {"backup_retain_count": 10}
+
+# Deliberate keep-all opt-out — disables pruning for every kind, including pre_optimize:
+export MEMPALACE_BACKUP_RETAIN_COUNT=0
 ```
 
-Retention prunes **only the managed backups directory** (`<palace_parent>/backups/`). Archives written with explicit `--out` paths are never pruned.
+Retention prunes **only the managed backups directory** (`<palace_parent>/backups/`).
+Archives written with explicit `--out` paths are never pruned.
 
 `backup list` annotates stale (would-be-pruned) archives with `[stale]` and oversized ones with `[oversized]`.
 

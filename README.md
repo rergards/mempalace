@@ -561,10 +561,15 @@ mempalace-code backup schedule --freq daily
 # → 0 3 * * * /usr/local/bin/mempalace-code backup create --kind scheduled --palace /path/to/palace
 ```
 
-**Retention (automatic pruning, disabled by default):**
+**Retention (automatic pruning):**
+
+`pre_optimize` archives are **bounded by default** to the newest 5 (implicit safe default for watcher daemons).
+`manual` and `scheduled` archives are **unbounded by default** (retain all, no pruning).
 
 ```bash
-export MEMPALACE_BACKUP_RETAIN_COUNT=5   # keep newest 5 of each kind; 0 = disabled (default)
+export MEMPALACE_BACKUP_RETAIN_COUNT=5   # explicit limit for all kinds; overrides implicit pre_optimize bound
+# Deliberate keep-all opt-out (including pre_optimize):
+export MEMPALACE_BACKUP_RETAIN_COUNT=0   # 0 disables pruning for every kind
 ```
 
 Or in `~/.mempalace/config.json`: `{"backup_retain_count": 5}`. Retention only affects archives in the managed `backups/` directory; explicit `--out` archives are never pruned.

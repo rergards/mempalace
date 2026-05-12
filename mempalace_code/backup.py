@@ -241,7 +241,7 @@ def create_backup(
         raise
 
     if _managed_dir is not None:
-        retain_count = config.backup_retain_count
+        retain_count = config.retain_count_for_kind(kind)
         if retain_count > 0:
             prune_managed_backups(_managed_dir, kind, retain_count)
 
