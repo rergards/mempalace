@@ -655,6 +655,26 @@ _LUA_EXTRACT = [
     (re.compile(r"^(?:local\s+)?([A-Z]\w*)\s*=\s*\{\}", re.MULTILINE), "module"),
 ]
 
+_RB_EXTRACT = [
+    (re.compile(r"^\s*module\s+([A-Z]\w*(?:::[A-Z]\w*)*)", re.MULTILINE), "module"),
+    # class follows module so nested scopes still surface the outer namespace first.
+    (re.compile(r"^\s*class\s+([A-Z]\w*(?:::[A-Z]\w*)*)", re.MULTILINE), "class"),
+    # Methods: regular, singleton, predicate, and bang forms.
+    (
+        re.compile(r"^\s*def\s+(?:self\.)?([a-z_]\w*[!?=]?)", re.MULTILINE),
+        "method",
+    ),
+    (
+        re.compile(r"^\s*attr_(?:reader|writer|accessor)\s+(?::)?([a-z_]\w*)", re.MULTILINE),
+        "attr",
+    ),
+    (re.compile(r"^\s*attr\b\s+(?::)?([a-z_]\w*)", re.MULTILINE), "attr"),
+    (
+        re.compile(r"^\s*([A-Z]\w*(?:::[A-Z]\w*)*)\s*=", re.MULTILINE),
+        "constant",
+    ),
+]
+
 _LANG_EXTRACT_MAP = {
     "python": _PY_EXTRACT,
     "typescript": _TS_EXTRACT,
@@ -676,6 +696,7 @@ _LANG_EXTRACT_MAP = {
     "scala": _SCALA_EXTRACT,
     "dart": _DART_EXTRACT,
     "lua": _LUA_EXTRACT,
+    "ruby": _RB_EXTRACT,
 }
 
 

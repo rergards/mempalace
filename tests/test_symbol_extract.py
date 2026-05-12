@@ -437,7 +437,7 @@ def test_c_pointer_return():
 
 @pytest.mark.parametrize(
     "language",
-    ["markdown", "text", "json", "yaml", "shell", "ruby", "unknown", "html", "css", "sql"],
+    ["markdown", "text", "json", "yaml", "shell", "unknown", "html", "css", "sql"],
 )
 def test_non_code_language_returns_empty(language):
     content = "Some content that might look like def foo() { return 1; }\n"
@@ -613,9 +613,52 @@ def test_java_unknown_returns_empty():
     assert extract_symbol("int x = 42;\n", "java") == ("", "")
 
 
-def test_java_ruby_still_returns_empty():
-    content = "def foo\n  puts 'hello'\nend\n"
-    assert extract_symbol(content, "ruby") == ("", "")
+def test_ruby_class():
+    assert extract_symbol("class UserService\nend\n", "ruby") == ("UserService", "class")
+
+
+def test_ruby_nested_module_class():
+    content = "module Admin\n  class User\n  end\nend\n"
+    assert extract_symbol(content, "ruby") == ("Admin", "module")
+
+
+def test_ruby_method():
+    assert extract_symbol("def fetch_user(id)\n  id\nend\n", "ruby") == (
+        "fetch_user",
+        "method",
+    )
+
+
+def test_ruby_singleton_method():
+    content = "def self.build\n  new\nend\n"
+    assert extract_symbol(content, "ruby") == ("build", "method")
+
+
+def test_ruby_attr_accessor():
+    assert extract_symbol("attr_accessor :name, :email\n", "ruby") == ("name", "attr")
+
+
+def test_ruby_constant():
+    assert extract_symbol("MAX_RETRIES = 3\n", "ruby") == ("MAX_RETRIES", "constant")
+
+
+def test_ruby_attr_reader():
+    assert extract_symbol("attr_reader :name\n", "ruby") == ("name", "attr")
+
+
+def test_ruby_attr_writer():
+    assert extract_symbol("attr_writer :email\n", "ruby") == ("email", "attr")
+
+
+def test_ruby_dsl_call_not_extracted():
+    # Out-of-scope DSL calls like has_many must not produce a symbol.
+    assert extract_symbol("has_many :posts\n", "ruby") == ("", "")
+
+
+def test_ruby_dsl_call_ignored_class_wins():
+    # AC-3: when a DSL call and a real declaration coexist, the real declaration is returned.
+    content = "class User\n  has_many :posts\n  before_action :authenticate\nend\n"
+    assert extract_symbol(content, "ruby") == ("User", "class")
 
 
 # =============================================================================
