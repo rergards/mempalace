@@ -42,40 +42,4 @@ sections:
 # ============================================================
 # OPEN ITEMS
 # ============================================================
-items:
-  - key: CODE-TREESITTER-GO-RUST-DETACH-TEST
-    summary: Add negative tests for detached-comment gap detection in Go and Rust AST chunkers
-    type: task
-    status: open
-    priority: low
-    size: S
-    section_id: coding_first
-    labels: [testing, chunking, ast, go, rust]
-    description: |-
-      ## Problem
-
-      _chunk_go_treesitter and _chunk_rust_treesitter use a blank-line gap check (b'\n\n' in source_bytes[prev.end_byte:next_sibling.start_byte]) to decide whether a leading comment/attribute is attached to the following declaration. The existing tests only verify the POSITIVE case (comment IS attached). There is no test asserting that a comment separated by a blank line is NOT absorbed into the following declaration's chunk.
-
-      Without a negative test, removing the gap check would not break any existing assertion. This is the same gap identified in CODE-TREESITTER-PYTHON-DETACH-TEST for Python.
-
-      ## Scope
-      Clarified first-pass scope: test-plus-fixture change. Production chunker helper changes are only in scope if the new negative tests expose an actual current regression.
-
-      tests/test_chunking.py — add negative AST chunking tests for Go and Rust detached comments, with fixtures large enough to avoid adaptive merge masking the assertion.
-
-      ## Deliverable
-
-      Add two test functions to tests/test_chunking.py:
-      1. test_ast_go_detached_comment_not_absorbed — uses GO_AST_COMMENT_ATTACHED fixture, asserts that the chunk containing 'func standalone' does NOT contain 'Detached comment'.
-      2. test_ast_rust_detached_comment_not_absorbed — uses RUST_AST_ATTRIBUTE_ATTACHED fixture, asserts that the chunk containing 'fn default_config' does NOT contain 'Standalone comment'.
-
-      Both tests require large enough function bodies that adaptive_merge_split does not merge them. May need fixture extensions (>=400 char bodies) similar to the approach planned for CODE-TREESITTER-PYTHON-DETACH-TEST.
-
-      ## Acceptance Criteria
-
-      1. test_ast_go_detached_comment_not_absorbed passes when tree-sitter-go is installed
-      2. test_ast_rust_detached_comment_not_absorbed passes when tree-sitter-rust is installed
-      3. Both tests skip when the respective grammar is absent
-      4. Both tests would FAIL if the b'\n\n' gap check were removed from the respective chunker
-      5. ruff clean
-      Identified in CODE-TREESITTER-EXPAND harden round-1 (F-2).
+items: []
