@@ -38,6 +38,8 @@ files:
     change: "Add focused import-contract tests for miner shim exports and internal module ownership boundaries"
   - path: tests/test_miner.py
     change: "Update monkeypatch targets and focused mining/scanner expectations to the new module owners while preserving existing behavior assertions"
+  - path: tests/test_cli.py
+    change: "Update CLI mine command monkeypatch targets to the new orchestrator owner so command wiring tests still intercept mine() calls after the refactor"
   - path: tests/test_chunking.py
     change: "Update chunker imports or compatibility assertions for moved chunking functions and boundary regex constants"
   - path: tests/test_symbol_extract.py
@@ -139,7 +141,7 @@ task_contract:
       expected_behavior: "CLI/watch/convo callers reach the same mine, process, batch, status, and project-resolution behavior through the new module owners"
     - name: "Regression coverage"
       kind: "internal"
-      paths: ["tests/test_miner_modules.py", "tests/test_miner.py", "tests/test_chunking.py", "tests/test_symbol_extract.py", "tests/test_lang_detect.py", "tests/test_kg_extract.py", "tests/test_treesitter.py", "tests/test_watcher.py", "tests/test_convo_miner.py"]
+      paths: ["tests/test_miner_modules.py", "tests/test_miner.py", "tests/test_cli.py", "tests/test_chunking.py", "tests/test_symbol_extract.py", "tests/test_lang_detect.py", "tests/test_kg_extract.py", "tests/test_treesitter.py", "tests/test_watcher.py", "tests/test_convo_miner.py"]
       expected_behavior: "Tests update only import/patch seams and add a compatibility contract without narrowing existing mining coverage"
   invariants:
     - id: INV-1
