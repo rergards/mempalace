@@ -23,10 +23,10 @@ from .storage import open_store
 
 
 class _RoomData(TypedDict):
-    wings: set
-    halls: set
+    wings: set[str]
+    halls: set[str]
     count: int
-    dates: set
+    dates: set[str]
 
 
 def _get_store(config=None):
@@ -114,7 +114,7 @@ def traverse(start_room: str, col=None, config=None, max_hops: int = 2):
 
     Returns list of paths: [{room, wing, hall, hop_distance}]
     """
-    nodes, edges = build_graph(col, config)
+    nodes, _ = build_graph(col, config)
 
     if start_room not in nodes:
         return {
@@ -174,7 +174,7 @@ def find_tunnels(wing_a: str | None = None, wing_b: str | None = None, col=None,
     Find rooms that connect two wings (or all tunnel rooms if no wings specified).
     These are the "hallways" — same named idea appearing in multiple domains.
     """
-    nodes, edges = build_graph(col, config)
+    nodes, _ = build_graph(col, config)
 
     tunnels = []
     for room, data in nodes.items():

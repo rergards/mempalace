@@ -1,8 +1,8 @@
 """
-Regression tests for None-metadata robustness in palace_graph.build_graph().
+Regression tests for palace_graph typed payload shapes.
 """
 
-from mempalace_code.palace_graph import build_graph
+from mempalace_code.palace_graph import build_graph, find_tunnels, graph_stats, traverse
 
 
 class _FakeGraphStore:
@@ -80,3 +80,230 @@ class TestBuildGraphNoneMetadata:
 
         assert nodes == {}
         assert edges == []
+
+
+class TestBuildGraphOutputShape:
+    """AC-1: build_graph() returns JSON-friendly sorted list payloads."""
+
+    def test_node_payload_has_sorted_lists(self):
+        """Node values use sorted lists, not sets, for wings/halls/dates."""
+        store = _FakeGraphStore(
+            metadatas=[
+                {"wing": "zeta", "room": "api", "hall": "http", "date": "2026-03-01"},
+                {"wing": "alpha", "room": "api", "hall": "grpc", "date": "2026-01-01"},
+            ]
+        )
+
+        nodes, _ = build_graph(col=store)
+
+        assert "api" in nodes
+        node = nodes["api"]
+        assert node["wings"] == ["alpha", "zeta"]
+        assert node["halls"] == ["grpc", "http"]
+        assert node["count"] == 2
+        assert isinstance(node["dates"], list)
+
+    def test_edge_payload_keys_present(self):
+        """Edges include room, wing_a, wing_b, hall, count keys."""
+        store = _FakeGraphStore(
+            metadatas=[
+                {"wing": "alpha", "room": "design", "hall": "shared", "date": ""},
+                {"wing": "beta", "room": "design", "hall": "shared", "date": ""},
+            ]
+        )
+
+        _, edges = build_graph(col=store)
+
+        assert len(edges) == 1
+        edge = edges[0]
+        assert edge["room"] == "design"
+        assert {edge["wing_a"], edge["wing_b"]} == {"alpha", "beta"}
+        assert edge["hall"] == "shared"
+        assert edge["count"] == 2
+
+    def test_no_edge_when_room_has_no_hall(self):
+        """A tunnel room with empty hall produces no edges."""
+        store = _FakeGraphStore(
+            metadatas=[
+                {"wing": "alpha", "room": "schema", "hall": "", "date": ""},
+                {"wing": "beta", "room": "schema", "hall": "", "date": ""},
+            ]
+        )
+
+        nodes, edges = build_graph(col=store)
+
+        assert "schema" in nodes
+        assert set(nodes["schema"]["wings"]) == {"alpha", "beta"}
+        assert edges == []
+
+    def test_dates_limited_to_five_most_recent(self):
+        """dates field keeps only the last 5 sorted date strings."""
+        metadatas = [
+            {"wing": "w", "room": "room1", "hall": "", "date": f"2026-0{i}-01"}
+            for i in range(1, 8)
+        ]
+        store = _FakeGraphStore(metadatas=metadatas)
+
+        nodes, _ = build_graph(col=store)
+
+        assert len(nodes["room1"]["dates"]) == 5
+
+
+class TestTraverseOutputShape:
+    """AC-2: traverse() returns hop paths with correct observable shape."""
+
+    def _make_store(self):
+        return _FakeGraphStore(
+            metadatas=[
+                {"wing": "alpha", "room": "backend", "hall": "rest", "date": ""},
+                {"wing": "alpha", "room": "architecture", "hall": "rest", "date": ""},
+                {"wing": "beta", "room": "architecture", "hall": "rest", "date": ""},
+                {"wing": "beta", "room": "frontend", "hall": "rest", "date": ""},
+            ]
+        )
+
+    def test_traverse_start_room_is_hop_zero(self):
+        """Starting room is included at hop 0 with its wings and halls."""
+        result = traverse("backend", col=self._make_store())
+
+        assert isinstance(result, list)
+        start = result[0]
+        assert start["room"] == "backend"
+        assert start["hop"] == 0
+        assert "wings" in start
+        assert "halls" in start
+        assert "count" in start
+
+    def test_traverse_finds_connected_rooms(self):
+        """Rooms sharing a wing with backend are found within max_hops."""
+        result = traverse("backend", col=self._make_store(), max_hops=2)
+
+        assert isinstance(result, list)
+        rooms = {r["room"] for r in result}
+        assert "architecture" in rooms
+
+    def test_traverse_unknown_room_returns_error_dict(self):
+        """traverse() returns an error dict for a room not in the graph."""
+        result = traverse("nonexistent", col=self._make_store())
+
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "nonexistent" in result["error"]
+        assert "suggestions" in result
+
+    def test_traverse_empty_store_returns_error(self):
+        """traverse() on an empty store returns an error dict."""
+        result = traverse("any", col=_FakeGraphStore([]))
+
+        assert isinstance(result, dict)
+        assert "error" in result
+
+
+class TestFindTunnelsOutputShape:
+    """AC-2: find_tunnels() returns tunnel rooms with correct keys."""
+
+    def _make_store(self):
+        return _FakeGraphStore(
+            metadatas=[
+                {"wing": "alpha", "room": "database", "hall": "sql", "date": "2026-01-10"},
+                {"wing": "beta", "room": "database", "hall": "sql", "date": "2026-02-01"},
+                {"wing": "alpha", "room": "logging", "hall": "", "date": ""},
+            ]
+        )
+
+    def test_find_tunnels_returns_multi_wing_rooms(self):
+        """find_tunnels() returns rooms appearing in 2+ wings."""
+        result = find_tunnels(col=self._make_store())
+
+        assert isinstance(result, list)
+        rooms = {t["room"] for t in result}
+        assert "database" in rooms
+        assert "logging" not in rooms
+
+    def test_find_tunnels_payload_keys(self):
+        """Each tunnel entry has room, wings, halls, count, recent keys."""
+        result = find_tunnels(col=self._make_store())
+
+        entry = result[0]
+        assert "room" in entry
+        assert "wings" in entry
+        assert "halls" in entry
+        assert "count" in entry
+        assert "recent" in entry
+
+    def test_find_tunnels_filtered_by_wing(self):
+        """wing_a filter returns only rooms that include that wing."""
+        result = find_tunnels(wing_a="alpha", col=self._make_store())
+
+        for entry in result:
+            assert "alpha" in entry["wings"]
+
+    def test_find_tunnels_no_results_for_unknown_wing(self):
+        """find_tunnels() returns empty list when wing filter matches nothing."""
+        result = find_tunnels(wing_a="nonexistent", col=self._make_store())
+
+        assert result == []
+
+    def test_find_tunnels_empty_store_returns_empty(self):
+        """find_tunnels() on an empty store returns an empty list."""
+        result = find_tunnels(col=_FakeGraphStore([]))
+
+        assert result == []
+
+
+class TestGraphStatsOutputShape:
+    """AC-2: graph_stats() returns correct summary counts."""
+
+    def _make_store(self):
+        return _FakeGraphStore(
+            metadatas=[
+                {"wing": "alpha", "room": "database", "hall": "sql", "date": ""},
+                {"wing": "beta", "room": "database", "hall": "sql", "date": ""},
+                {"wing": "alpha", "room": "backend", "hall": "", "date": ""},
+                {"wing": "beta", "room": "frontend", "hall": "", "date": ""},
+            ]
+        )
+
+    def test_graph_stats_keys_present(self):
+        """graph_stats() result has all expected top-level keys."""
+        result = graph_stats(col=self._make_store())
+
+        assert "total_rooms" in result
+        assert "tunnel_rooms" in result
+        assert "total_edges" in result
+        assert "rooms_per_wing" in result
+        assert "top_tunnels" in result
+
+    def test_graph_stats_counts_are_correct(self):
+        """total_rooms and tunnel_rooms reflect the store contents."""
+        result = graph_stats(col=self._make_store())
+
+        assert result["total_rooms"] == 3
+        assert result["tunnel_rooms"] == 1
+
+    def test_graph_stats_rooms_per_wing(self):
+        """rooms_per_wing maps each wing to its room count."""
+        result = graph_stats(col=self._make_store())
+
+        assert result["rooms_per_wing"]["alpha"] == 2
+        assert result["rooms_per_wing"]["beta"] == 2
+
+    def test_graph_stats_top_tunnels_shape(self):
+        """top_tunnels entries have room, wings, count keys."""
+        result = graph_stats(col=self._make_store())
+
+        assert len(result["top_tunnels"]) == 1
+        entry = result["top_tunnels"][0]
+        assert entry["room"] == "database"
+        assert set(entry["wings"]) == {"alpha", "beta"}
+        assert entry["count"] == 2
+
+    def test_graph_stats_empty_store(self):
+        """graph_stats() on an empty store returns all-zero counts."""
+        result = graph_stats(col=_FakeGraphStore([]))
+
+        assert result["total_rooms"] == 0
+        assert result["tunnel_rooms"] == 0
+        assert result["total_edges"] == 0
+        assert result["rooms_per_wing"] == {}
+        assert result["top_tunnels"] == []
