@@ -1163,7 +1163,9 @@ class TestSafeOptimize:
             "pre_optimize_20260101_120002.tar.gz",
         ]
 
-    def test_default_pre_optimize_retention_prunes_to_bound(self, palace_path, tmp_dir, monkeypatch):
+    def test_default_pre_optimize_retention_prunes_to_bound(
+        self, palace_path, tmp_dir, monkeypatch
+    ):
         """AC-2: six default safe_optimize(backup_first=True) cycles leave only the newest five archives."""
         monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
 
