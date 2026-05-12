@@ -1870,11 +1870,17 @@ class TestVersionCheckCLIHook:
         monkeypatch.delenv("MEMPALACE_VERSION_CHECK", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
 
+        # bare invocation (default is status)
         self._run(["mempalace", "version-check"])
-
         captured = capsys.readouterr()
         combined = captured.out + captured.err
         assert "version" in combined.lower()
+
+        # explicit --status flag must work identically
+        self._run(["mempalace", "version-check", "--status"])
+        captured2 = capsys.readouterr()
+        combined2 = captured2.out + captured2.err
+        assert "version" in combined2.lower(), "--status flag must print version-check status"
 
     def test_version_check_enable_then_disable(self, tmp_path, capsys, monkeypatch):
         """version-check --enable and --disable write state without modifying config.json."""

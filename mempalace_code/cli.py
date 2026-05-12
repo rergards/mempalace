@@ -581,6 +581,11 @@ def main():
         action="store_true",
         help="Check for a newer version right now (contacts PyPI; ignores interval)",
     )
+    vc_group.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current version-check settings without contacting PyPI (default action)",
+    )
 
     args = parser.parse_args()
 
