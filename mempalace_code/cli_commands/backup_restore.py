@@ -76,8 +76,6 @@ def cmd_backup_list(args):
 
 
 def cmd_backup_schedule(args):
-    import sys as _sys
-
     from ..backup import render_schedule
 
     if getattr(args, "install", False):
@@ -91,14 +89,14 @@ def cmd_backup_schedule(args):
         sys.exit(2)
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
-    platform = _sys.platform
+    platform = sys.platform
     if platform.startswith("darwin"):
         platform = "darwin"
     elif platform.startswith("linux"):
         platform = "linux"
     else:
         print(
-            f"  Error: backup scheduling is not supported on {_sys.platform}.\n"
+            f"  Error: backup scheduling is not supported on {sys.platform}.\n"
             "  'mempalace-code backup schedule' works on macOS (launchd) and Linux (cron) only.",
             file=sys.stderr,
         )

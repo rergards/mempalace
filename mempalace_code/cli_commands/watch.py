@@ -34,8 +34,6 @@ def cmd_watch(args):
 
 
 def cmd_watch_schedule(args):
-    import sys as _sys
-
     if getattr(args, "install", False):
         print(
             "  owner action required: --install is not supported.\n"
@@ -46,14 +44,14 @@ def cmd_watch_schedule(args):
         )
         sys.exit(2)
 
-    platform = _sys.platform
+    platform = sys.platform
     if platform.startswith("darwin"):
         platform = "darwin"
     elif platform.startswith("linux"):
         platform = "linux"
     else:
         print(
-            f"  Error: watch scheduling is not supported on {_sys.platform}.\n"
+            f"  Error: watch scheduling is not supported on {sys.platform}.\n"
             "  'mempalace-code watch schedule' works on macOS (launchd) and Linux (cron) only.",
             file=sys.stderr,
         )

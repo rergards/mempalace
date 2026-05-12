@@ -316,8 +316,6 @@ def cmd_mine_all(args):
 
 def cmd_split(args):
     """Split concatenated transcript mega-files into per-session files."""
-    import sys as _sys
-
     from ..split_mega_files import main as split_main
 
     # Rebuild argv for split_mega_files argparse
@@ -329,12 +327,12 @@ def cmd_split(args):
     if args.min_sessions != 2:
         argv += ["--min-sessions", str(args.min_sessions)]
 
-    old_argv = _sys.argv
-    _sys.argv = ["mempalace-code split"] + argv
+    old_argv = sys.argv
+    sys.argv = ["mempalace-code split"] + argv
     try:
         split_main()
     finally:
-        _sys.argv = old_argv
+        sys.argv = old_argv
 
 
 def cmd_status(args):
