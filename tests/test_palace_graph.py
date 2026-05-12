@@ -139,8 +139,7 @@ class TestBuildGraphOutputShape:
     def test_dates_limited_to_five_most_recent(self):
         """dates field keeps only the last 5 sorted date strings."""
         metadatas = [
-            {"wing": "w", "room": "room1", "hall": "", "date": f"2026-0{i}-01"}
-            for i in range(1, 8)
+            {"wing": "w", "room": "room1", "hall": "", "date": f"2026-0{i}-01"} for i in range(1, 8)
         ]
         store = _FakeGraphStore(metadatas=metadatas)
 
