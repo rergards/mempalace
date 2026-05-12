@@ -854,7 +854,9 @@ def _extract_helm_template_symbol(content: str) -> tuple:
     before scanning. If metadata.name contains {{ it is considered templated and the symbol
     falls back to kind-only.
     """
-    visible_lines = [line for line in content.splitlines() if not _GO_TEMPLATE_ONLY_LINE.match(line)]
+    visible_lines = [
+        line for line in content.splitlines() if not _GO_TEMPLATE_ONLY_LINE.match(line)
+    ]
     visible = "\n".join(visible_lines)
 
     kind_m = re.search(r"^kind:\s*(\w+)", visible, re.MULTILINE)

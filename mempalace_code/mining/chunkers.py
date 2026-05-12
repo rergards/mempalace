@@ -449,7 +449,14 @@ def _chunk_helm_values(content: str, source_file: str) -> list:
     if not boundaries:
         stripped = content.strip()
         if len(stripped) >= MIN_CHUNK:
-            return [{"content": stripped, "chunk_index": 0, "symbol_type": "helm_values", "symbol_name": ""}]
+            return [
+                {
+                    "content": stripped,
+                    "chunk_index": 0,
+                    "symbol_type": "helm_values",
+                    "symbol_name": "",
+                }
+            ]
         return []
 
     all_chunks: list[dict] = []
@@ -469,7 +476,14 @@ def _chunk_helm_values(content: str, source_file: str) -> list:
         # Fall back to a single full-file chunk so the file is not silently skipped.
         stripped = content.strip()
         if len(stripped) >= MIN_CHUNK:
-            return [{"content": stripped, "chunk_index": 0, "symbol_type": "helm_values", "symbol_name": ""}]
+            return [
+                {
+                    "content": stripped,
+                    "chunk_index": 0,
+                    "symbol_type": "helm_values",
+                    "symbol_name": "",
+                }
+            ]
         return []
 
     return [
@@ -528,6 +542,7 @@ _ANSIBLE_ROLE_CHUNKER_PATH_RE = re.compile(
 )
 _ANSIBLE_INVENTORY_FNAME_RE = re.compile(r"^inventory\.(ini|ya?ml)$")
 
+
 def _split_ansible_list_items(content: str) -> list[str]:
     """Split a YAML list document into top-level list item strings (- at column 0).
 
@@ -563,17 +578,33 @@ def _chunk_ansible_playbook(content: str, source_file: str) -> list:
         stripped = content.strip()
         if stripped:
             sym_name, sym_type = _extract_ansible_play_symbol(stripped)
-            return [{"content": stripped, "chunk_index": 0, "symbol_name": sym_name, "symbol_type": sym_type}]
+            return [
+                {
+                    "content": stripped,
+                    "chunk_index": 0,
+                    "symbol_name": sym_name,
+                    "symbol_type": sym_type,
+                }
+            ]
         return []
 
     chunks = []
     for i, play_text in enumerate(play_texts):
         sym_name, sym_type = _extract_ansible_play_symbol(play_text)
-        chunks.append({"content": play_text, "chunk_index": i, "symbol_name": sym_name, "symbol_type": sym_type})
+        chunks.append(
+            {
+                "content": play_text,
+                "chunk_index": i,
+                "symbol_name": sym_name,
+                "symbol_type": sym_type,
+            }
+        )
     return chunks
 
 
-def _chunk_ansible_role_tasks(content: str, source_file: str, role_name: str, role_dir: str) -> list:
+def _chunk_ansible_role_tasks(
+    content: str, source_file: str, role_name: str, role_dir: str
+) -> list:
     """Chunk a role tasks or handlers file: one chunk per list item, preserving verbatim text."""
     task_texts = _split_ansible_list_items(content)
 
@@ -581,7 +612,14 @@ def _chunk_ansible_role_tasks(content: str, source_file: str, role_name: str, ro
         stripped = content.strip()
         if stripped:
             sym_type = "ansible_handler" if role_dir == "handlers" else "ansible_task"
-            return [{"content": stripped, "chunk_index": 0, "symbol_name": role_name, "symbol_type": sym_type}]
+            return [
+                {
+                    "content": stripped,
+                    "chunk_index": 0,
+                    "symbol_name": role_name,
+                    "symbol_type": sym_type,
+                }
+            ]
         return []
 
     chunks = []
@@ -592,7 +630,14 @@ def _chunk_ansible_role_tasks(content: str, source_file: str, role_name: str, ro
             sym_name, sym_type = _extract_ansible_task_symbol(task_text)
         if not sym_name:
             sym_name = role_name
-        chunks.append({"content": task_text, "chunk_index": i, "symbol_name": sym_name, "symbol_type": sym_type})
+        chunks.append(
+            {
+                "content": task_text,
+                "chunk_index": i,
+                "symbol_name": sym_name,
+                "symbol_type": sym_type,
+            }
+        )
     return chunks
 
 
@@ -601,7 +646,14 @@ def _chunk_ansible_role_vars(content: str, source_file: str, role_name: str) -> 
     stripped = content.strip()
     if not stripped:
         return []
-    return [{"content": stripped, "chunk_index": 0, "symbol_name": role_name, "symbol_type": "ansible_vars"}]
+    return [
+        {
+            "content": stripped,
+            "chunk_index": 0,
+            "symbol_name": role_name,
+            "symbol_type": "ansible_vars",
+        }
+    ]
 
 
 def _chunk_ansible_inventory(content: str, source_file: str) -> list:
@@ -609,7 +661,14 @@ def _chunk_ansible_inventory(content: str, source_file: str) -> list:
     stripped = content.strip()
     if not stripped:
         return []
-    return [{"content": stripped, "chunk_index": 0, "symbol_name": "", "symbol_type": "ansible_inventory"}]
+    return [
+        {
+            "content": stripped,
+            "chunk_index": 0,
+            "symbol_name": "",
+            "symbol_type": "ansible_inventory",
+        }
+    ]
 
 
 def _chunk_ansible(content: str, source_file: str) -> list:
