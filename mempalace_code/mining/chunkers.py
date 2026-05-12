@@ -414,9 +414,9 @@ def chunk_file(content: str, ext: str, source_file: str, language: str | None = 
         "scala",
         "dart",
         "lua",
+        "terraform",
+        "hcl",
     ):
-        return chunk_code(content, language, source_file)
-    elif language in ("terraform", "hcl"):
         return chunk_code(content, language, source_file)
     elif language in ("markdown", "text"):
         return chunk_prose(content, source_file)

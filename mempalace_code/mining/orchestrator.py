@@ -368,7 +368,7 @@ def mine(
                     rooms=rooms,
                     agent=agent,
                     dry_run=True,
-                    csproj_room_map=csproj_room_map if csproj_room_map else None,
+                    csproj_room_map=csproj_room_map,
                 )
                 total_drawers += drawers
                 room = detect_room(
@@ -414,7 +414,7 @@ def mine(
                 agent,
                 mined_files=None,
                 source_hash=current_hash,
-                csproj_room_map=csproj_room_map if csproj_room_map else None,
+                csproj_room_map=csproj_room_map,
             )
 
             # KG triple emission for project/config/XAML/source files
@@ -493,24 +493,23 @@ def mine(
                         print(f"  >> Architecture: {n_arch} KG triples emitted", flush=True)
 
             config = MempalaceConfig()
-            if skip_optimize:
-                pass  # caller will optimize later
-            elif config.optimize_after_mine:
-                t0 = time.time()
-                backup_first = config.backup_before_optimize
-                if backup_first:
-                    print("  >> Backing up before optimize...", flush=True)
-                print("  >> Optimizing storage...", end="", flush=True)
-                result = optimize_store(collection, palace_path, backup_first=backup_first)
-                if result.ok:
-                    print(f" done ({time.time() - t0:.1f}s)", flush=True)
+            if not skip_optimize:
+                if config.optimize_after_mine:
+                    t0 = time.time()
+                    backup_first = config.backup_before_optimize
+                    if backup_first:
+                        print("  >> Backing up before optimize...", flush=True)
+                    print("  >> Optimizing storage...", end="", flush=True)
+                    result = optimize_store(collection, palace_path, backup_first=backup_first)
+                    if result.ok:
+                        print(f" done ({time.time() - t0:.1f}s)", flush=True)
+                    else:
+                        print(
+                            f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
+                            flush=True,
+                        )
                 else:
-                    print(
-                        f"\n  !! WARNING: optimize failed or verification error ({time.time() - t0:.1f}s)",
-                        flush=True,
-                    )
-            else:
-                print("  >> Skipping optimize (disabled in config)", flush=True)
+                    print("  >> Skipping optimize (disabled in config)", flush=True)
     except KeyboardInterrupt:
         print("\n\n  Interrupted. Flushing pending batch...", flush=True)
         if batch_buffer and not dry_run:
