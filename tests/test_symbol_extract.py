@@ -4,6 +4,7 @@ import pytest
 
 from mempalace_code.miner import (
     SWIFT_BOUNDARY,
+    _extract_ansible_handler_symbol,
     _extract_ansible_play_symbol,
     _extract_ansible_task_symbol,
     _extract_helm_chart_symbol,
@@ -2321,3 +2322,12 @@ def test_extract_ansible_task_via_extract_symbol():
     name, sym_type = extract_symbol(content, "ansible")
     assert sym_type == "ansible_task"
     assert "Install curl" in name
+
+
+def test_extract_ansible_handler_symbol_module_only():
+    """_extract_ansible_handler_symbol returns module when name is absent (mirrors task behavior)."""
+    # Use register: so there's no name: key; apt: is the module at 2-space indent
+    content = "- register: result\n  apt:\n    update_cache: true\n"
+    name, sym_type = _extract_ansible_handler_symbol(content)
+    assert sym_type == "ansible_handler"
+    assert name == "apt"

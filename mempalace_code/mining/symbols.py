@@ -755,6 +755,8 @@ def _extract_ansible_handler_symbol(content: str) -> tuple:
         return (f"{name} [{module}]", "ansible_handler")
     if name:
         return (name, "ansible_handler")
+    if module:
+        return (module, "ansible_handler")
     return ("", "ansible_handler")
 
 

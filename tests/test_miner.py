@@ -4545,7 +4545,7 @@ def test_chunk_ansible_playbook_emits_play_per_chunk():
         msg: world
 """
     chunks = _chunk_ansible_playbook(two_play, "playbook.yml")
-    assert len(chunks) >= 1, "Expected at least one chunk from a multi-play playbook"
+    assert len(chunks) == 2, "Expected exactly 2 chunks for a 2-play playbook"
     # chunk_index must be sequential starting at 0
     indices = [c["chunk_index"] for c in chunks]
     assert indices == list(range(len(chunks))), f"Expected sequential chunk_index, got {indices}"
