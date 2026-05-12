@@ -646,11 +646,11 @@ def main():
     dispatch[args.command](args)
 
     # Automatic check runs after the command succeeds; skipped on SystemExit.
-    if args.command != "version-check" and _vc_config.enabled:  # type: ignore[possibly-undefined]
-        run_automatic_check(  # type: ignore[possibly-undefined]
-            _current_version,  # type: ignore[possibly-undefined]
+    if args.command != "version-check" and _vc_config.enabled:  # type: ignore[possibly-undefined]  # reason: assigned conditionally via opt-in path; always set when enabled
+        run_automatic_check(  # type: ignore[possibly-undefined]  # reason: assigned conditionally via opt-in path; always set when enabled
+            _current_version,  # type: ignore[possibly-undefined]  # reason: assigned conditionally via opt-in path; always set when enabled
             _vc_config,
-            _vc_state,  # type: ignore[possibly-undefined]
+            _vc_state,  # type: ignore[possibly-undefined]  # reason: assigned conditionally via opt-in path; always set when enabled
         )
 
 
