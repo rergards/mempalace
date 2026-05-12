@@ -79,30 +79,6 @@ items:
       4. Both tests would FAIL if the b'\n\n' gap check were removed from the respective chunker
       5. ruff clean
       Identified in CODE-TREESITTER-EXPAND harden round-1 (F-2).
-  - key: MINE-RUBY-SMART
-    summary: Add smart symbol extraction for Ruby
-    type: feature
-    status: open
-    priority: medium
-    section_id: coding_first
-    labels: [feat, miner]
-    description: |-
-      ## Problem
-      Ruby is listed in miner but has no symbol extraction - only basic chunking.
-
-      ## Scope
-      Clarified first-pass scope: regex/catalog-level Ruby symbol extraction for ordinary Ruby source. Rails DSLs and broad metaprogramming inference are out of scope for this item unless they are represented by the basic constructs below.
-
-      - Upgrade existing .rb support
-      - Extract: classes, modules, methods, attr_accessors, constants
-      - Handle: nested class/module scopes and common attr_* declarations
-      - Out of scope: Rails route/ActiveRecord DSL semantics, dynamic define_method inference, block-local semantic extraction
-
-      ## Acceptance Criteria
-      - [ ] Ruby added to _LANG_EXTRACT_MAP
-      - [ ] Basic Ruby files expose class/module/method/constant/attr symbols
-      - [ ] Tests for: classes, modules, methods, attr_accessor
-    size: S
   - key: MINE-HELM
     summary: Add Helm chart support to code miner
     type: feature

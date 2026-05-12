@@ -806,3 +806,8 @@ items:
       resolution: '2026-05-12: Confirmed test-plus-fixture scope with production fixes only if exposed'
       archived_date: "2026-05-12"
       done_summary: Confirmed test-plus-fixture scope with production fixes only if exposed
+    - key: MINE-RUBY-SMART
+      summary: Add smart symbol extraction for Ruby
+      resolution: '2026-05-12: completed in pipeline run'
+      archived_date: "2026-05-12"
+      done_summary: completed in pipeline run
