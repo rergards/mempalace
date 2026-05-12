@@ -1098,7 +1098,9 @@ class TestHelmLanguageSupport:
         """'helm' appears in the supported_languages hint on an invalid language query."""
         result = code_search(helm_palace_path, "something", language="notareallangnnn")
         assert "supported_languages" in result
-        assert "helm" in result["supported_languages"], "'helm' missing from supported_languages hint"
+        assert "helm" in result["supported_languages"], (
+            "'helm' missing from supported_languages hint"
+        )
 
     def test_helm_symbol_types_in_valid_hint(self, helm_palace_path):
         """helm_chart and helm_values appear in valid_symbol_types hint on an invalid type query."""

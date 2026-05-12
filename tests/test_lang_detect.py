@@ -301,7 +301,7 @@ def test_tpl_file_in_templates_with_chart_root_detects_helm():
         templates_dir.mkdir()
         tpl_file = templates_dir / "_helpers.tpl"
         tpl_file.write_text(
-            "{{- define \"mychart.labels\" -}}\napp: {{ .Chart.Name }}\n{{- end }}\n",
+            '{{- define "mychart.labels" -}}\napp: {{ .Chart.Name }}\n{{- end }}\n',
             encoding="utf-8",
         )
         assert detect_language(tpl_file) == "helm"

@@ -3563,7 +3563,9 @@ def test_mine_helm_chart_roundtrip():
         metas = result["metadatas"]
         assert len(metas) >= 1, "Expected at least one drawer for Chart.yaml"
         chart_meta = metas[0]
-        assert chart_meta["language"] == "helm", f"Expected language='helm', got {chart_meta['language']!r}"
+        assert chart_meta["language"] == "helm", (
+            f"Expected language='helm', got {chart_meta['language']!r}"
+        )
         assert chart_meta["symbol_type"] == "helm_chart", f"Got {chart_meta['symbol_type']!r}"
         assert "my-test-chart" in chart_meta["symbol_name"], f"Got {chart_meta['symbol_name']!r}"
 
@@ -3578,7 +3580,9 @@ def test_mine_helm_chart_roundtrip():
         assert all(m["language"] == "helm" for m in val_metas)
         assert any(m["symbol_type"] == "helm_values" for m in val_metas)
         symbol_names = [m["symbol_name"] for m in val_metas]
-        assert any("values." in n for n in symbol_names), f"Expected values.* symbols, got {symbol_names}"
+        assert any("values." in n for n in symbol_names), (
+            f"Expected values.* symbols, got {symbol_names}"
+        )
 
         # deployment.yaml template must produce a helm drawer with deployment kind
         result = store.get(
@@ -3589,7 +3593,9 @@ def test_mine_helm_chart_roundtrip():
         tpl_metas = result["metadatas"]
         assert len(tpl_metas) >= 1, "Expected at least one drawer for templates/deployment.yaml"
         tpl_meta = tpl_metas[0]
-        assert tpl_meta["language"] == "helm", f"Expected language='helm', got {tpl_meta['language']!r}"
+        assert tpl_meta["language"] == "helm", (
+            f"Expected language='helm', got {tpl_meta['language']!r}"
+        )
         assert tpl_meta["symbol_type"] == "deployment", f"Got {tpl_meta['symbol_type']!r}"
     finally:
         shutil.rmtree(tmpdir)
@@ -3601,8 +3607,12 @@ def test_chunk_helm_values_top_level_paths():
     assert len(chunks) >= 1, "Expected at least one chunk from values.yaml"
     assert all(c["symbol_type"] == "helm_values" for c in chunks)
     symbol_names = [c["symbol_name"] for c in chunks]
-    assert any("values.image" in n for n in symbol_names), f"Expected values.image in {symbol_names}"
-    assert any("values.service" in n for n in symbol_names), f"Expected values.service in {symbol_names}"
+    assert any("values.image" in n for n in symbol_names), (
+        f"Expected values.image in {symbol_names}"
+    )
+    assert any("values.service" in n for n in symbol_names), (
+        f"Expected values.service in {symbol_names}"
+    )
     assert all(c["chunk_index"] == i for i, c in enumerate(chunks))
 
 
@@ -3612,9 +3622,13 @@ def test_chunk_helm_template_tolerates_go_template_delimiters():
     assert len(chunks) >= 1, "Expected at least one chunk from the Deployment template"
     chunk = chunks[0]
     # Kind must be extracted (deployment), even though name is templated
-    assert chunk["symbol_type"] == "deployment", f"Expected symbol_type='deployment', got {chunk['symbol_type']!r}"
+    assert chunk["symbol_type"] == "deployment", (
+        f"Expected symbol_type='deployment', got {chunk['symbol_type']!r}"
+    )
     # Symbol name is kind-only because metadata.name is templated
-    assert chunk["symbol_name"] == "Deployment", f"Expected symbol_name='Deployment', got {chunk['symbol_name']!r}"
+    assert chunk["symbol_name"] == "Deployment", (
+        f"Expected symbol_name='Deployment', got {chunk['symbol_name']!r}"
+    )
 
 
 def test_chunk_helm_chart_produces_helm_chart_symbol():
