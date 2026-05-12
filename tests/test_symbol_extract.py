@@ -650,6 +650,18 @@ def test_ruby_attr_writer():
     assert extract_symbol("attr_writer :email\n", "ruby") == ("email", "attr")
 
 
+def test_ruby_predicate_method():
+    assert extract_symbol("def valid?\n  true\nend\n", "ruby") == ("valid?", "method")
+
+
+def test_ruby_bang_method():
+    assert extract_symbol("def save!\n  persist\nend\n", "ruby") == ("save!", "method")
+
+
+def test_ruby_plain_attr():
+    assert extract_symbol("attr :name\n", "ruby") == ("name", "attr")
+
+
 def test_ruby_dsl_call_not_extracted():
     # Out-of-scope DSL calls like has_many must not produce a symbol.
     assert extract_symbol("has_many :posts\n", "ruby") == ("", "")
