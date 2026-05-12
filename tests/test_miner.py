@@ -3650,8 +3650,8 @@ def test_chunk_helm_values_small_sections_fallback_to_full_file():
     small_values = (
         "# Helm chart values for the production deployment environment\n"
         "replicaCount: 3\n"
-        "nameOverride: \"\"\n"
-        "fullnameOverride: \"\"\n"
+        'nameOverride: ""\n'
+        'fullnameOverride: ""\n'
         "namespace: production\n"
         "serviceAccount: default\n"
         "podAnnotations: {}\n"
