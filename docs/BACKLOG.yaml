@@ -153,30 +153,6 @@ items:
     links:
       - type: is-blocked-by
         key: CLARIFY-MINE-ANSIBLE
-  - key: CLI-COMMAND-MODULES
-    summary: Split cli.py into command modules
-    type: task
-    status: open
-    priority: low
-    section_id: cleanup
-    labels: [cli, refactor, maintainability, review]
-    description: |-
-      ## Problem
-      Review noted that `cli.py` is oversized. It is less urgent than miner and MCP
-      cleanup, but continued command growth will make CLI behavior changes harder to
-      isolate and test.
-
-      ## Scope
-      - Move command handlers into focused modules while keeping the argparse entry point
-        stable.
-      - Preserve `mempalace-code` and `mempalace-code-alias` behavior.
-      - Keep command-level tests aligned with the new module boundaries.
-
-      ## Acceptance Criteria
-      - Existing CLI tests pass.
-      - Public command names, flags, and exit behavior remain compatible.
-      - Future command additions can be implemented without editing a single large file.
-    size: M
   - key: CLI-OPT-IN-VERSION-CHECK
     summary: Add opt-in periodic new-version checks
     type: feature
