@@ -1099,6 +1099,43 @@ class TestSafeOptimize:
         rows = store.get(limit=1)
         assert len(rows["ids"]) == 1
 
+    def test_successful_optimize_runs_post_cleanup(self, palace_path):
+        """safe_optimize prunes verified stale Lance versions after a successful optimize."""
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["cleanup_after_optimize"],
+            documents=["post optimize cleanup test content"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+
+        with patch.object(
+            store, "cleanup_stale_fragments", wraps=store.cleanup_stale_fragments
+        ) as mock_cleanup:
+            result = store.safe_optimize(palace_path, backup_first=False)  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
+
+        assert result is True
+        mock_cleanup.assert_called_once_with(older_than_days=0, unsafe_now=False)
+
+    def test_post_cleanup_failure_does_not_fail_successful_optimize(self, palace_path, caplog):
+        """Post-optimize cleanup is best-effort; backup/optimize success remains success."""
+        store = open_store(palace_path, create=True)
+        store.add(
+            ids=["cleanup_after_optimize_failure"],
+            documents=["post optimize cleanup failure test content"],
+            metadatas=[{"wing": "w", "room": "r"}],
+        )
+
+        with patch.object(
+            store,
+            "cleanup_stale_fragments",
+            return_value={"ok": False, "error": "cleanup unavailable"},
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = store.safe_optimize(palace_path, backup_first=False)  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
+
+        assert result is True
+        assert "Post-optimize stale-version cleanup did not complete" in caplog.text
+
     def test_backup_first_creates_backup_file(self, palace_path, tmp_dir):
         """AC-2: safe_optimize(backup_first=True) creates a pre_optimize_*.tar.gz under backups/."""
         import glob

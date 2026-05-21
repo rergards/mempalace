@@ -864,6 +864,15 @@ class LanceStore(DrawerStore):
             post_count = table.count_rows()
             if post_count != pre_count:
                 logger.warning("Row count changed after optimize: %d -> %d", pre_count, post_count)
+            try:
+                cleanup_result = self.cleanup_stale_fragments(older_than_days=0, unsafe_now=False)
+                if not cleanup_result.get("ok"):
+                    logger.warning(
+                        "Post-optimize stale-version cleanup did not complete: %s",
+                        cleanup_result.get("error") or cleanup_result,
+                    )
+            except Exception as cleanup_exc:
+                logger.warning("Post-optimize stale-version cleanup skipped: %s", cleanup_exc)
             return True
         except Exception as e:
             logger.error("Table unreadable after optimize: %s", e)
