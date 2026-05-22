@@ -40,14 +40,14 @@ acceptance:
     when: "`python -m pytest tests/test_backup.py::TestManagedRetention::test_explicit_out_path_does_not_trigger_scheduled_default_retention -q` is run"
     then: "scheduled archives written through explicit out_path are not pruned by the managed scheduled default"
   - id: AC-7
-    when: "`python -m pytest tests/test_backup.py::TestListBackups::test_stale_flags_use_kind_aware_retention_defaults -q` is run"
+    when: "`python -m pytest tests/test_backup.py::TestListBackupsAnnotations::test_stale_flags_use_kind_aware_retention_defaults -q` is run"
     then: "`backup list` marks stale scheduled and pre_optimize archives using their implicit per-kind defaults without marking manual archives stale by default"
   - id: AC-8
     when: "`python -m pytest tests/test_backup.py::TestRenderSchedule::test_render_schedule_kind_scheduled_darwin tests/test_backup.py::TestRenderSchedule::test_render_schedule_kind_scheduled_linux tests/test_cli.py::test_backup_schedule_daily_darwin tests/test_cli.py::test_backup_schedule_daily_linux -q` is run"
     then: "generated launchd and cron snippets use `backup create --kind scheduled --palace ...` and do not include `--out`"
   - id: AC-9
-    when: "`rg 'newest 14|scheduled.*bounded|manual.*unbounded|backup_retain_count|MEMPALACE_BACKUP_RETAIN_COUNT|--out' README.md docs/BACKUP_RESTORE.md docs/AGENT_INSTALL.md` is run"
-    then: "the docs describe scheduled newest-14 retention, pre_optimize newest-5 retention, manual keep-all behavior, explicit override/keep-all semantics, and explicit --out isolation"
+    when: "`rg --quiet 'newest 14' README.md && rg --quiet 'newest 14' docs/BACKUP_RESTORE.md && rg --quiet 'newest 14' docs/AGENT_INSTALL.md && rg --quiet 'scheduled.*(bounded|newest 14)' docs/BACKUP_RESTORE.md && rg --quiet 'manual.*unbounded' docs/BACKUP_RESTORE.md && ! rg --quiet 'manual.*and.*scheduled.*are.*unbounded by default' docs/BACKUP_RESTORE.md README.md docs/AGENT_INSTALL.md` is run"
+    then: "the docs describe the new scheduled newest-14 bound across README, BACKUP_RESTORE, and AGENT_INSTALL, keep manual unbounded language, and no longer contain the stale 'manual and scheduled archives are unbounded by default' claim"
 out_of_scope:
   - "Pruning manual user-created backups by default."
   - "Deleting existing backups during install, init, or schedule generation."
@@ -169,7 +169,7 @@ task_contract:
       proves: "Explicit scheduled out_path archives remain outside managed retention."
       acceptance_ids: [AC-6]
     - id: VER-7
-      command: "python -m pytest tests/test_backup.py::TestListBackups::test_stale_flags_use_kind_aware_retention_defaults -q"
+      command: "python -m pytest tests/test_backup.py::TestListBackupsAnnotations::test_stale_flags_use_kind_aware_retention_defaults -q"
       proves: "backup list stale flags match scheduled/pre_optimize defaults and manual keep-all."
       acceptance_ids: [AC-7]
     - id: VER-8
@@ -177,8 +177,8 @@ task_contract:
       proves: "Both render_schedule and CLI schedule output use managed scheduled backups without --out."
       acceptance_ids: [AC-8]
     - id: VER-9
-      command: "rg 'newest 14|scheduled.*bounded|manual.*unbounded|backup_retain_count|MEMPALACE_BACKUP_RETAIN_COUNT|--out' README.md docs/BACKUP_RESTORE.md docs/AGENT_INSTALL.md"
-      proves: "Backup docs expose scheduled/default/manual/explicit-out retention semantics."
+      command: "rg --quiet 'newest 14' README.md && rg --quiet 'newest 14' docs/BACKUP_RESTORE.md && rg --quiet 'newest 14' docs/AGENT_INSTALL.md && rg --quiet 'scheduled.*(bounded|newest 14)' docs/BACKUP_RESTORE.md && rg --quiet 'manual.*unbounded' docs/BACKUP_RESTORE.md && ! rg --quiet 'manual.*and.*scheduled.*are.*unbounded by default' docs/BACKUP_RESTORE.md README.md docs/AGENT_INSTALL.md"
+      proves: "All three docs declare the new scheduled newest-14 bound and the stale 'manual and scheduled archives are unbounded by default' claim has been removed."
       acceptance_ids: [AC-9]
   regression_plan:
     applies: true
@@ -193,7 +193,7 @@ task_contract:
         proves: "Real managed scheduled backup creation honors default pruning, keep-all, explicit override, and explicit-out boundaries."
         acceptance_ids: [AC-2, AC-3, AC-4, AC-6]
       - id: REG-3
-        command: "python -m pytest tests/test_backup.py::TestDiskPreflight::test_scheduled_budget_refusal_does_not_prune_existing_archives tests/test_backup.py::TestListBackups::test_stale_flags_use_kind_aware_retention_defaults -q"
+        command: "python -m pytest tests/test_backup.py::TestDiskPreflight::test_scheduled_budget_refusal_does_not_prune_existing_archives tests/test_backup.py::TestListBackupsAnnotations::test_stale_flags_use_kind_aware_retention_defaults -q"
         proves: "Failure-path ordering and backup-list stale reporting stay aligned with retention policy."
         acceptance_ids: [AC-5, AC-7]
       - id: REG-4
@@ -201,8 +201,8 @@ task_contract:
         proves: "Schedule snippets remain managed-retention-safe across direct renderer and CLI surfaces."
         acceptance_ids: [AC-8]
       - id: REG-5
-        command: "rg 'newest 14|scheduled.*bounded|manual.*unbounded|backup_retain_count|MEMPALACE_BACKUP_RETAIN_COUNT|--out' README.md docs/BACKUP_RESTORE.md docs/AGENT_INSTALL.md"
-        proves: "Docs continue to describe scheduled bounded defaults and keep-all/explicit-out boundaries."
+        command: "rg --quiet 'newest 14' README.md && rg --quiet 'newest 14' docs/BACKUP_RESTORE.md && rg --quiet 'newest 14' docs/AGENT_INSTALL.md && rg --quiet 'scheduled.*(bounded|newest 14)' docs/BACKUP_RESTORE.md && rg --quiet 'manual.*unbounded' docs/BACKUP_RESTORE.md && ! rg --quiet 'manual.*and.*scheduled.*are.*unbounded by default' docs/BACKUP_RESTORE.md README.md docs/AGENT_INSTALL.md"
+        proves: "Docs continue to describe scheduled bounded defaults and the stale unbounded-scheduled claim never returns."
         acceptance_ids: [AC-9]
 ---
 
@@ -213,7 +213,7 @@ task_contract:
 - Replace the current boolean-only explicit detector with a helper that validates env/file `backup_retain_count` once. Treat valid nonnegative values as explicit; treat empty, nonnumeric, and negative values as absent for implicit scheduled/pre_optimize defaults while preserving `backup_retain_count` fallback to 0.
 - `retain_count_for_kind("scheduled")` should return 14 only when no valid explicit retain count is set. `pre_optimize` keeps returning 5 in the same absent-config case. `manual` remains 0.
 - In `create_backup`, keep retention after the archive is atomically written with `os.replace`; do not move pruning before disk-budget checks or archive creation.
-- In `list_backups`, compute stale status per archive kind with `retain_count_for_kind(e["kind"])`; this keeps the UI/reporting contract aligned with actual pruning for scheduled and pre_optimize defaults.
+- In `list_backups`, compute stale status per archive kind with `retain_count_for_kind(e["kind"])`; this keeps the UI/reporting contract aligned with actual pruning for scheduled and pre_optimize defaults. The new stale-flag test lives in `TestListBackupsAnnotations` (tests/test_backup.py:929) where the existing `test_stale_annotation_for_kind` / `test_stale_false_when_retain_zero` tests already live; do not introduce a duplicate class.
 - Scheduled-retention tests should patch `mempalace_code.backup.datetime` so 15 created archives have stable, unique names. Assert the oldest `scheduled_*.tar.gz` is gone and the newest 14 remain.
 - Disk-budget failure coverage should pre-create more than 14 scheduled archives, force `DiskBudgetError`, and assert neither a new archive nor any prune happened.
-- Update docs in one pass: scheduled newest 14, pre_optimize newest 5, manual unbounded, explicit nonzero override all kinds, explicit 0 keep-all, and explicit `--out` unmanaged.
+- Update docs in one pass: scheduled newest 14, pre_optimize newest 5, manual unbounded, explicit nonzero override all kinds, explicit 0 keep-all, and explicit `--out` unmanaged. Every doc (`README.md`, `docs/BACKUP_RESTORE.md`, `docs/AGENT_INSTALL.md`) must contain the literal phrase `newest 14` so AC-9 / VER-9 can prove the change positively. Delete the stale `docs/BACKUP_RESTORE.md` line that says `manual` and `scheduled` archives are unbounded by default; the new copy should describe scheduled as bounded and manual as unbounded separately.
