@@ -371,13 +371,12 @@ def test_pre_optimize_retain_count_default_bounded(monkeypatch):
 
 
 def test_backup_retain_count_default_remains_zero_for_manual(monkeypatch):
-    """AC-1: Global backup_retain_count default is still 0; manual/scheduled kinds are unbounded."""
+    """AC-1: Global backup_retain_count default is still 0; manual kind is unbounded."""
     monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
     cfg = MempalaceConfig(config_dir=tempfile.mkdtemp())
 
     assert cfg.backup_retain_count == 0
     assert cfg.retain_count_for_kind("manual") == 0
-    assert cfg.retain_count_for_kind("scheduled") == 0
 
 
 def test_explicit_zero_backup_retain_count_keeps_pre_optimize_unbounded(monkeypatch):
@@ -437,3 +436,44 @@ def test_invalid_env_retain_count_is_not_explicit(monkeypatch):
 
     assert cfg._backup_retain_count_explicit is False
     assert cfg.retain_count_for_kind("pre_optimize") == DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT
+
+
+# =============================================================================
+# Scheduled retention defaults tests (AC-1, AC-2, AC-3)
+# =============================================================================
+
+
+def test_default_kind_retention_counts(monkeypatch):
+    """AC-1: Fresh config resolves scheduled to 14, pre_optimize to 5, manual to 0."""
+    from mempalace_code.config import DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT, DEFAULT_SCHEDULED_RETAIN_COUNT
+
+    monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+    cfg = MempalaceConfig(config_dir=tempfile.mkdtemp())
+
+    assert DEFAULT_SCHEDULED_RETAIN_COUNT == 14
+    assert cfg.retain_count_for_kind("scheduled") == 14
+    assert cfg.retain_count_for_kind("pre_optimize") == DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT
+    assert cfg.retain_count_for_kind("manual") == 0
+    assert cfg.backup_retain_count == 0  # INV-1: global property unchanged
+
+
+def test_explicit_zero_backup_retain_count_keeps_all_kinds(monkeypatch):
+    """AC-2: Explicit backup_retain_count=0 disables pruning for every kind."""
+    monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "0")
+    cfg = MempalaceConfig(config_dir=tempfile.mkdtemp())
+
+    assert cfg._backup_retain_count_explicit is True
+    assert cfg.retain_count_for_kind("scheduled") == 0
+    assert cfg.retain_count_for_kind("pre_optimize") == 0
+    assert cfg.retain_count_for_kind("manual") == 0
+
+
+def test_explicit_nonzero_retain_count_overrides_all_implicit_bounds(monkeypatch):
+    """AC-3: Explicit nonzero backup_retain_count overrides scheduled and pre_optimize defaults."""
+    monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "7")
+    cfg = MempalaceConfig(config_dir=tempfile.mkdtemp())
+
+    assert cfg._backup_retain_count_explicit is True
+    assert cfg.retain_count_for_kind("scheduled") == 7
+    assert cfg.retain_count_for_kind("pre_optimize") == 7
+    assert cfg.retain_count_for_kind("manual") == 7

@@ -16,6 +16,7 @@ DEFAULT_OPTIMIZE_AFTER_MINE = True  # Set False to disable auto-compaction
 DEFAULT_BACKUP_BEFORE_OPTIMIZE = True  # Auto-backup before risky operations (on by default)
 DEFAULT_BACKUP_RETAIN_COUNT = 0  # 0 keeps all backups per-kind (backwards compatible)
 DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT = 5  # implicit bound for managed pre-optimize archives
+DEFAULT_SCHEDULED_RETAIN_COUNT = 14  # implicit bound for managed scheduled archives
 DEFAULT_BACKUP_SCHEDULE = "off"  # Scheduled backup frequency: off|daily|weekly|hourly
 DEFAULT_BACKUP_MIN_FREE_BYTES = (
     0  # 0 disables the disk-space guard; set e.g. 1_073_741_824 for 1 GiB
@@ -217,14 +218,19 @@ class MempalaceConfig:
     def retain_count_for_kind(self, kind: str) -> int:
         """Return the applicable retain count for the given backup kind.
 
-        ``pre_optimize`` uses ``DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT`` when
-        ``backup_retain_count`` is absent from both env and config file.  An
-        explicit ``backup_retain_count: 0`` (or env ``MEMPALACE_BACKUP_RETAIN_COUNT=0``)
-        is still honoured as keep-all.  All other kinds use ``backup_retain_count``
-        unchanged.
+        When ``backup_retain_count`` is absent from both env and config file,
+        ``scheduled`` maps to ``DEFAULT_SCHEDULED_RETAIN_COUNT`` (14) and
+        ``pre_optimize`` maps to ``DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT`` (5).
+        An explicit ``backup_retain_count: 0`` (or ``MEMPALACE_BACKUP_RETAIN_COUNT=0``)
+        is honoured as keep-all for every kind.  All other kinds (e.g. ``manual``)
+        use ``backup_retain_count`` unchanged (0 by default).
         """
-        if kind == "pre_optimize" and not self._backup_retain_count_explicit:
+        if self._backup_retain_count_explicit:
+            return self.backup_retain_count
+        if kind == "pre_optimize":
             return DEFAULT_PRE_OPTIMIZE_RETAIN_COUNT
+        if kind == "scheduled":
+            return DEFAULT_SCHEDULED_RETAIN_COUNT
         return self.backup_retain_count
 
     @property

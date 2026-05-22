@@ -192,8 +192,12 @@ To disable: set `auto_backup_before_optimize: false` in `~/.mempalace/config.jso
 bound the `backups/` directory can fill the local volume even when the palace itself
 is small.
 
-**`manual` and `scheduled` archives are unbounded by default** — they are never
-pruned unless you set `backup_retain_count` explicitly.
+**`scheduled` archives are bounded by default** to the newest 14.  Cron and launchd
+jobs create one archive per run, so without a bound the `backups/` directory
+accumulates archives indefinitely.
+
+**`manual` archives are unbounded by default** — they are never pruned unless you
+set `backup_retain_count` explicitly.
 
 ```bash
 # Override the implicit pre_optimize bound and set an explicit limit for all kinds:

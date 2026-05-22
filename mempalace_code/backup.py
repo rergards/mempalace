@@ -439,17 +439,17 @@ def list_backups(
 
     entries.sort(key=lambda e: e["mtime"], reverse=True)
 
-    retain_count = config.backup_retain_count
     warn_size = config.backup_warn_size_bytes
 
     by_kind: Dict[str, List[Dict[str, Any]]] = {}
     for e in entries:
         by_kind.setdefault(e["kind"], []).append(e)
 
-    for kind_entries in by_kind.values():
+    for kind, kind_entries in by_kind.items():
         # kind_entries is already sorted newest-first (inherited from global sort)
+        kind_retain = config.retain_count_for_kind(kind)
         for i, e in enumerate(kind_entries):
-            if retain_count > 0 and i >= retain_count:
+            if kind_retain > 0 and i >= kind_retain:
                 e["stale"] = True
             if warn_size > 0 and e["size_bytes"] > warn_size:
                 e["oversized"] = True

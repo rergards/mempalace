@@ -567,11 +567,12 @@ mempalace-code backup schedule --freq daily
 **Retention (automatic pruning):**
 
 `pre_optimize` archives are **bounded by default** to the newest 5 (implicit safe default for watcher daemons).
-`manual` and `scheduled` archives are **unbounded by default** (retain all, no pruning).
+`scheduled` archives are **bounded by default** to the newest 14 (implicit safe default for cron and launchd jobs).
+`manual` archives are **unbounded by default** (retain all, no pruning).
 
 ```bash
-export MEMPALACE_BACKUP_RETAIN_COUNT=5   # explicit limit for all kinds; overrides implicit pre_optimize bound
-# Deliberate keep-all opt-out (including pre_optimize):
+export MEMPALACE_BACKUP_RETAIN_COUNT=5   # explicit limit for all kinds; overrides implicit pre_optimize and scheduled bounds
+# Deliberate keep-all opt-out (including pre_optimize and scheduled):
 export MEMPALACE_BACKUP_RETAIN_COUNT=0   # 0 disables pruning for every kind
 ```
 

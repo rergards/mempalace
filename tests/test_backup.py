@@ -829,6 +829,96 @@ class TestManagedRetention:
             f"deleted={deleted}"
         )
 
+    def test_default_scheduled_retention_prunes_to_bound(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-4: 15 managed scheduled backups leave only the newest 14 by default."""
+        from datetime import datetime as _dt
+        from unittest.mock import MagicMock, patch
+
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        fake_datetime = MagicMock()
+        # 15 archives × 2 datetime.now() calls each (filename ts + metadata ts)
+        fake_datetime.now.side_effect = [
+            ts for i in range(15) for ts in (_dt(2026, 1, 1, 12, 0, i), _dt(2026, 1, 1, 12, 0, i))
+        ]
+        with patch("mempalace_code.backup.datetime", fake_datetime):
+            for _ in range(15):
+                create_backup(palace_path, kind="scheduled", kg_path=kg_path)
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        remaining = [
+            f for f in os.listdir(backups_dir) if f.startswith("scheduled_") and f.endswith(".tar.gz")
+        ]
+        assert len(remaining) == 14, f"expected 14 archives after default prune, got {len(remaining)}"
+
+    def test_default_scheduled_retain_0_keeps_all(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-2: explicit backup_retain_count=0 keeps all scheduled archives unbounded."""
+        from datetime import datetime as _dt
+        from unittest.mock import MagicMock, patch
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "0")
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        fake_datetime = MagicMock()
+        fake_datetime.now.side_effect = [
+            ts for i in range(15) for ts in (_dt(2026, 1, 1, 13, 0, i), _dt(2026, 1, 1, 13, 0, i))
+        ]
+        with patch("mempalace_code.backup.datetime", fake_datetime):
+            for _ in range(15):
+                create_backup(palace_path, kind="scheduled", kg_path=kg_path)
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        remaining = [
+            f for f in os.listdir(backups_dir) if f.startswith("scheduled_") and f.endswith(".tar.gz")
+        ]
+        assert len(remaining) == 15, f"expected all 15 kept with retain_count=0, got {len(remaining)}"
+
+    def test_explicit_scheduled_retain_3_keeps_three(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-3: explicit backup_retain_count=3 keeps only newest 3 scheduled archives."""
+        from datetime import datetime as _dt
+        from unittest.mock import MagicMock, patch
+
+        monkeypatch.setenv("MEMPALACE_BACKUP_RETAIN_COUNT", "3")
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        fake_datetime = MagicMock()
+        fake_datetime.now.side_effect = [
+            ts for i in range(5) for ts in (_dt(2026, 1, 1, 14, 0, i), _dt(2026, 1, 1, 14, 0, i))
+        ]
+        with patch("mempalace_code.backup.datetime", fake_datetime):
+            for _ in range(5):
+                create_backup(palace_path, kind="scheduled", kg_path=kg_path)
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        remaining = [
+            f for f in os.listdir(backups_dir) if f.startswith("scheduled_") and f.endswith(".tar.gz")
+        ]
+        assert len(remaining) == 3, f"expected 3 archives with retain_count=3, got {len(remaining)}"
+
+    def test_explicit_out_path_does_not_trigger_scheduled_default_retention(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-6: explicit --out archives bypass the implicit scheduled retention of 14."""
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        for i in range(16):
+            path = os.path.join(backups_dir, f"scheduled_explicit_{i:03d}.tar.gz")
+            create_backup(palace_path, out_path=path, kind="scheduled", kg_path=kg_path)
+
+        remaining = [f for f in os.listdir(backups_dir) if f.startswith("scheduled_explicit_")]
+        assert len(remaining) == 16, "explicit-path archives must not be pruned by managed retention"
+
 
 # ── TestDiskPreflight ───────────────────────────────────────────────────────────
 
@@ -922,6 +1012,43 @@ class TestDiskPreflight:
         meta, out = create_backup(palace_path, kg_path=kg_path)
         assert os.path.isfile(out)
 
+    def test_scheduled_budget_refusal_does_not_prune_existing_archives(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-5: DiskBudgetError is raised before writing or pruning scheduled archives."""
+        import shutil as _shutil
+
+        from mempalace_code.disk_budget import DiskBudgetError
+
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        # Pre-create 16 scheduled archives via explicit out_path (bypasses retention)
+        for i in range(16):
+            path = os.path.join(backups_dir, f"scheduled_{i:03d}.tar.gz")
+            create_backup(palace_path, out_path=path, kind="scheduled", kg_path=kg_path)
+
+        assert len([f for f in os.listdir(backups_dir) if f.startswith("scheduled_")]) == 16
+
+        # Force disk budget to fail on the next managed create attempt
+        monkeypatch.setenv("MEMPALACE_BACKUP_DISK_MIN_FREE_BYTES", str(1024 * 1024 * 1024))
+
+        class _FakeDU:
+            total = 10 * 1024**3
+            used = 10 * 1024**3 - 1
+            free = 1  # far below 1 GiB floor
+
+        monkeypatch.setattr(_shutil, "disk_usage", lambda _: _FakeDU())
+
+        with pytest.raises(DiskBudgetError):
+            create_backup(palace_path, kind="scheduled", kg_path=kg_path)
+
+        # Still exactly 16 — no new archive written, no existing archive pruned
+        remaining = [f for f in os.listdir(backups_dir) if f.startswith("scheduled_")]
+        assert len(remaining) == 16, f"expected 16 archives unchanged after budget refusal, got {len(remaining)}"
+
 
 # ── TestListBackupsAnnotations ──────────────────────────────────────────────────
 
@@ -1012,6 +1139,56 @@ class TestListBackupsAnnotations:
 
         result = list_backups(palace_path, config=MempalaceConfig())
         assert all(not e["stale"] for e in result)
+
+    def test_stale_flags_use_kind_aware_retention_defaults(
+        self, seeded_collection, palace_path, tmp_dir, monkeypatch
+    ):
+        """AC-7: backup list uses kind-aware defaults — scheduled stale after 14, pre_optimize after 5, manual never."""
+        monkeypatch.delenv("MEMPALACE_BACKUP_RETAIN_COUNT", raising=False)
+
+        backups_dir = os.path.join(tmp_dir, "backups")
+        os.makedirs(backups_dir, exist_ok=True)
+        kg_path = os.path.join(tmp_dir, "kg.sqlite3")
+
+        # 2 scheduled archives — under the implicit 14 bound, none should be stale
+        for i in range(2):
+            create_backup(
+                palace_path,
+                out_path=os.path.join(backups_dir, f"scheduled_{i:03d}.tar.gz"),
+                kind="scheduled",
+                kg_path=kg_path,
+            )
+            time.sleep(0.02)
+
+        # 6 pre_optimize archives — over the implicit 5 bound, oldest 1 should be stale
+        for i in range(6):
+            create_backup(
+                palace_path,
+                out_path=os.path.join(backups_dir, f"pre_optimize_{i:03d}.tar.gz"),
+                kind="pre_optimize",
+                kg_path=kg_path,
+            )
+            time.sleep(0.02)
+
+        # 1 manual archive — unbounded by default, must not be stale
+        create_backup(
+            palace_path,
+            out_path=os.path.join(backups_dir, "mempalace_backup_manual.tar.gz"),
+            kg_path=kg_path,
+        )
+
+        from mempalace_code.config import MempalaceConfig
+
+        result = list_backups(palace_path, config=MempalaceConfig())
+
+        scheduled = [e for e in result if e["kind"] == "scheduled"]
+        pre_optimize = [e for e in result if e["kind"] == "pre_optimize"]
+        manual = [e for e in result if e["kind"] == "manual"]
+
+        assert all(not e["stale"] for e in scheduled), "scheduled under implicit 14 must not be stale"
+        stale_pre_opt = [e for e in pre_optimize if e["stale"]]
+        assert len(stale_pre_opt) == 1, f"only the oldest pre_optimize should be stale; got {stale_pre_opt}"
+        assert all(not e["stale"] for e in manual), "manual archives must not be stale by default"
 
 
 # ── Disk-budget guard tests ────────────────────────────────────────────────────

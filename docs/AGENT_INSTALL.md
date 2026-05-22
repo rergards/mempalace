@@ -887,7 +887,7 @@ Same as above — likely fragment corruption. Run `mempalace-code health`.
 
 ### "Table unreadable" or LanceDB errors
 
-Storage corruption. Use `mempalace-code repair --rollback`. Data added after corruption point is lost. This is why auto-backup exists (`~/.mempalace/backups/pre_optimize_*.tar.gz`). Pre-optimize archives are bounded by default (newest 5 kept); set `MEMPALACE_BACKUP_RETAIN_COUNT=0` to keep all.
+Storage corruption. Use `mempalace-code repair --rollback`. Data added after corruption point is lost. This is why auto-backup exists (`~/.mempalace/backups/pre_optimize_*.tar.gz`). Pre-optimize archives are bounded by default (newest 5 kept); scheduled archives are bounded by default (newest 14 kept); set `MEMPALACE_BACKUP_RETAIN_COUNT=0` to keep all kinds unbounded.
 
 ### Re-mine doesn't fix the issue
 
