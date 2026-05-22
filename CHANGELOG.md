@@ -1,13 +1,29 @@
 # Changelog
 
-## 2026-05-22 · BACKUP-AUTOMATED-RETENTION-DEFAULTS
-
-Managed scheduled backups now default to keeping the newest 14 archives (pre_optimize: 5, manual: unbounded); explicit `backup_retain_count=0` preserves keep-all semantics.
-
 Current command/package names: the CLI is `mempalace-code`, the import package is
 `mempalace_code`, and the MCP module is `python -m mempalace_code.mcp_server`.
 Older historical entries may mention legacy `mempalace` names that were valid
 when those changes landed.
+
+## v1.10.0 — 2026-05-23
+
+### Changed
+
+- Managed scheduled backups now default to keeping the newest 14 archives.
+  `pre_optimize` backups keep their newest-5 default, `manual` backups remain
+  unbounded, and explicit `backup_retain_count=0` preserves keep-all semantics
+  for every kind.
+- Generated scheduled-backup snippets use managed `backup create --kind scheduled`
+  archives so scheduled backups participate in kind-aware retention by default.
+
+### Fixed
+
+- Successful `safe_optimize()` runs now perform best-effort verified Lance
+  stale-version cleanup after compaction/readability checks, reducing repeat
+  backup bloat from old table versions.
+- Backup, restore, install, and historical plan docs now consistently describe
+  scheduled retention, explicit keep-all behavior, and post-optimize stale-version
+  cleanup.
 
 ## v1.9.0 — 2026-05-12
 

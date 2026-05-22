@@ -882,10 +882,11 @@ wheels = [
 
 [[package]]
 name = "mempalace-code"
-version = "1.9.0"
+version = "1.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "lancedb" },
+    { name = "packaging" },
     { name = "pyyaml" },
     { name = "sentence-transformers" },
 ]
@@ -927,6 +928,7 @@ requires-dist = [
     { name = "autocorrect", marker = "extra == 'spellcheck'", specifier = ">=2.0" },
     { name = "chromadb", marker = "extra == 'chroma'", specifier = ">=0.5.0,<2" },
     { name = "lancedb", specifier = ">=0.20" },
+    { name = "packaging", specifier = ">=21.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.350" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pyyaml", specifier = ">=6.0" },

@@ -1108,9 +1108,8 @@ class TestSafeOptimize:
             metadatas=[{"wing": "w", "room": "r"}],
         )
 
-        with patch.object(
-            store, "cleanup_stale_fragments", wraps=store.cleanup_stale_fragments
-        ) as mock_cleanup:
+        cleanup = store.cleanup_stale_fragments  # type: ignore[reportAttributeAccessIssue]  # reason: test probes LanceStore.cleanup_stale_fragments; method exists on concrete type
+        with patch.object(store, "cleanup_stale_fragments", wraps=cleanup) as mock_cleanup:
             result = store.safe_optimize(palace_path, backup_first=False)  # type: ignore[reportAttributeAccessIssue]  # reason: LanceStore implements SafeOptimizeStore; test verified by fixture setup
 
         assert result is True
