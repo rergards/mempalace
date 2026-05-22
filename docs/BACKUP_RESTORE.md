@@ -214,6 +214,12 @@ Archives written with explicit `--out` paths are never pruned.
 
 `backup list` annotates stale (would-be-pruned) archives with `[stale]` and oversized ones with `[oversized]`.
 
+After a successful optimize and readability check, MemPalace also runs
+best-effort verified Lance cleanup so future backups do not keep archiving stale
+table versions. Manual `cleanup` remains the recovery tool for older
+installations that already accumulated stale versions or for emergency disk
+recovery.
+
 ### Disk-budget quick setup
 
 To change the backup disk floor:
@@ -237,6 +243,9 @@ mempalace-code backup list
 ```
 
 Then delete old archives manually, or set `MEMPALACE_BACKUP_RETAIN_COUNT` to let future backups prune automatically.
+With current defaults, future managed `pre_optimize` backups keep the newest 5
+and managed `scheduled` backups keep the newest 14; `manual` backups stay
+unbounded unless you set an explicit retain count.
 
 If LanceDB stale versions/fragments are the problem rather than backup archives,
 run storage cleanup after confirming no writer process is active:
@@ -314,11 +323,11 @@ If the backup guard refuses because disk is nearly full:
    ```bash
    du -sh ~/.mempalace/palace ~/.mempalace/backups
    ```
-2. List existing backups and remove old ones manually:
+2. List existing backups and remove stale ones manually if immediate space is needed:
    ```bash
    mempalace-code backup list
    ls -lh ~/.mempalace/backups/
-   rm ~/.mempalace/backups/pre_optimize_<old_date>.tar.gz
+   rm ~/.mempalace/backups/<stale_archive>.tar.gz
    ```
 3. Re-run the backup once enough space is freed.
 

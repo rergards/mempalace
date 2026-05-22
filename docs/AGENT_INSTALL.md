@@ -857,7 +857,7 @@ For automated installs, CI pipelines, and non-interactive agents:
 
 | Topic | Source |
 |-------|--------|
-| Palace path config | `mempalace_code/config.py:93–98` — env → config.json → default |
+| Palace path config | `MempalaceConfig.palace_path` in `mempalace_code/config.py` — env → config.json → default |
 | All CLI flags | `mempalace-code --help` / `mempalace-code <cmd> --help` |
 | MCP tool list and profiles | `README.md` → MCP Server section and MCP Tool Profiles table |
 | Auto-save hooks | `hooks/README.md` |
@@ -887,7 +887,7 @@ Same as above — likely fragment corruption. Run `mempalace-code health`.
 
 ### "Table unreadable" or LanceDB errors
 
-Storage corruption. Use `mempalace-code repair --rollback`. Data added after corruption point is lost. This is why auto-backup exists (`~/.mempalace/backups/pre_optimize_*.tar.gz`). Pre-optimize archives are bounded by default (newest 5 kept); scheduled archives are bounded by default (newest 14 kept); set `MEMPALACE_BACKUP_RETAIN_COUNT=0` to keep all kinds unbounded.
+Storage corruption. Use `mempalace-code repair --rollback`. Data added after corruption point is lost. This is why auto-backup exists (`~/.mempalace/backups/pre_optimize_*.tar.gz`). Pre-optimize archives are bounded by default (newest 5 kept); scheduled archives are bounded by default (newest 14 kept); set `MEMPALACE_BACKUP_RETAIN_COUNT=0` to keep all kinds unbounded. Successful optimize runs also perform best-effort verified stale-version cleanup; use `mempalace-code cleanup` manually for older accumulations or emergency disk recovery after stopping writers.
 
 ### Re-mine doesn't fix the issue
 

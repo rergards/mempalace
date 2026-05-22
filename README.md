@@ -580,6 +580,12 @@ Or in `~/.mempalace/config.json`: `{"backup_retain_count": 5}`. Retention only a
 
 `backup list` shows `[stale]` for archives that would be pruned at the current retain count, and `[oversized]` for archives larger than `MEMPALACE_BACKUP_WARN_SIZE_BYTES`.
 
+After a successful optimize and readability check, MemPalace also runs
+best-effort verified Lance cleanup (`cleanup_stale_fragments` with
+`unsafe_now=false`) so future backups do not keep archiving stale table versions.
+Use the manual `cleanup` command for older installations that already
+accumulated stale versions or for emergency recovery.
+
 **Disk-budget guard (1 GiB default):**
 
 ```bash
@@ -692,6 +698,11 @@ mempalace-code repair --rollback   # roll back to last working version
 3. Restores to that version (loses data added after corruption)
 
 Use `--dry-run` first to see how many rows would be lost.
+
+Normal optimize runs already prune verified stale Lance versions after a
+successful compaction. Manual `cleanup` is still useful after older installs,
+large historical accumulations, or emergency disk recovery when no writer is
+active.
 
 ---
 

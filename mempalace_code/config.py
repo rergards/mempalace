@@ -185,7 +185,7 @@ class MempalaceConfig:
 
     @property
     def backup_retain_count(self):
-        """Number of pre-optimize backups to retain. 0 disables pruning."""
+        """Raw explicit/global backup retain count; use retain_count_for_kind() for defaults."""
         raw_value = os.environ.get("MEMPALACE_BACKUP_RETAIN_COUNT")
         if raw_value is None:
             raw_value = self._file_config.get("backup_retain_count", DEFAULT_BACKUP_RETAIN_COUNT)
