@@ -207,7 +207,9 @@ def test_mcp_stdout_write_uses_ensure_ascii_false():
     raw_output = captured.getvalue().strip()
     assert raw_output, "main loop must write a response line"
     # The raw line must contain literal non-ASCII characters (not \\uXXXX escapes).
-    assert cyrillic in raw_output, f"Cyrillic must be literal chars in raw output, got: {raw_output!r}"
+    assert cyrillic in raw_output, (
+        f"Cyrillic must be literal chars in raw output, got: {raw_output!r}"
+    )
     assert cjk in raw_output, f"CJK must be literal chars in raw output, got: {raw_output!r}"
     # The raw line must also be valid JSON with the expected structure.
     parsed = json.loads(raw_output)
