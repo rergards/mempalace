@@ -836,3 +836,8 @@ items:
       resolution: '2026-05-22: completed in pipeline run'
       archived_date: "2026-05-22"
       done_summary: completed in pipeline run
+    - key: UPSTREAM-ROOM-MATCH-BOUNDED
+      summary: Bound room-name matching to avoid substring misroutes
+      resolution: '2026-05-23: completed in pipeline run'
+      archived_date: "2026-05-23"
+      done_summary: completed in pipeline run

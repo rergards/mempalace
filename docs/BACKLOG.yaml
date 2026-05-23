@@ -68,7 +68,6 @@ items:
       - `valid_to < valid_from` is rejected before a row is written.
       - `mempalace_kg_add` can store `valid_to`, `source_closet`, and `source_file`.
       - Tests cover valid dates, valid UTC datetimes, rejected natural-language dates, rejected inverted windows, and unchanged query/timeline behavior for valid rows.
-
   - key: UPSTREAM-ENTITY-REGISTRY-ATOMIC-SAVE
     summary: Make entity registry writes crash-safe
     type: task
@@ -91,31 +90,6 @@ items:
       - A simulated crash or write failure before rename leaves the previous registry intact.
       - Successful saves remain valid JSON and preserve existing load behavior.
       - File permissions are restrictive on platforms where chmod is meaningful.
-
-  - key: UPSTREAM-ROOM-MATCH-BOUNDED
-    summary: Bound room-name matching to avoid substring misroutes
-    type: task
-    status: open
-    priority: medium
-    size: S
-    section_id: coding_first
-    labels: [upstream, parent, mining]
-    description: |
-      ## Scope
-
-      Adapt upstream v3.3.5 room-routing fix for this fork's `detect_room()` logic. Replace unbounded substring matching with exact or separator-bounded token matching for path parts, filenames, room names, and room keywords.
-
-      Current fork check: `mempalace_code/mining/projects.py::detect_room()` still uses `part == c or c in part or part in c`, so a token like `views` can match a room like `interviews`.
-
-      Upstream evidence: MemPalace v3.3.5 #1004.
-
-      ## Acceptance criteria
-
-      - `views/...` does not route to an `interviews` room.
-      - Separator variants still match intentionally, e.g. `billing-page`, `billing_page`, and `billing.page` can route to the same room when configured.
-      - Filename matching receives the same bounded-token treatment.
-      - Existing room keyword scoring remains the fallback after path and filename checks.
-
   - key: UPSTREAM-WINDOWS-UTF8-STDIO
     summary: Normalize Windows CLI and MCP stdio to UTF-8
     type: task
@@ -139,7 +113,6 @@ items:
       - Non-Windows platforms are unchanged.
       - Unit tests monkeypatch platform and fake streams to verify behavior without requiring a Windows runner.
       - A non-ASCII search or MCP response cannot fail solely because the console encoding is legacy.
-
   - key: UPSTREAM-SEARCH-READ-SLICES
     summary: Add line-range metadata and a surgical read path for search hits
     type: task
