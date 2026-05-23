@@ -102,7 +102,7 @@ def test_save_sets_restrictive_permissions_where_supported(tmp_path):
     registry_file = tmp_path / "entity_registry.json"
     assert registry_file.exists()
 
-    if platform.system() == "Windows" or not hasattr(os, "stat"):
+    if platform.system() == "Windows":
         pytest.skip("chmod/stat mode bits not enforced on this platform")
 
     mode = registry_file.stat().st_mode & 0o777
