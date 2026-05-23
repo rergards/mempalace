@@ -172,54 +172,50 @@ def test_mcp_non_ascii_preserved_in_json_rpc(monkeypatch):
 
 
 def test_mcp_stdout_write_uses_ensure_ascii_false():
-    """AC-2: the stdio loop writes ensure_ascii=False JSON so non-ASCII survives the
-    stdout write call on a UTF-8 reconfigured Windows stream."""
+    """AC-2: the stdio loop writes ensure_ascii=False JSON so non-ASCII chars appear
+    as literal UTF-8 in the raw stdout line (not as \\uXXXX escapes)."""
     import mempalace_code.mcp.dispatch as dispatch
 
     cyrillic = "Привет"
     cjk = "世界"
 
-    response = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "result": {"content": [{"type": "text", "text": f"{cyrillic} {cjk}"}]},
+    fake_tools = {
+        "test_unicode_tool": {
+            "description": "returns non-ASCII text",
+            "input_schema": {"type": "object", "properties": {}},
+            "handler": lambda: f"{cyrillic} {cjk}",
+        }
     }
 
-    # Capture what dispatch would write by running the serialization path directly.
-    # We verify that json.dumps(..., ensure_ascii=False) is what the loop uses.
-    captured = io.StringIO()
-
-    with patch("sys.stdin") as mock_stdin, patch("sys.stdout", captured):
-        # Feed one request line then EOF.
-        mock_stdin.readline.side_effect = [
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {"name": "noop_tool", "arguments": {}},
-                }
-            )
-            + "\n",
-            "",  # EOF
-        ]
-        dispatch._active_registry = {
-            "noop_tool": {
-                "description": "noop",
-                "input_schema": {"type": "object", "properties": {}},
-                "handler": lambda: f"{cyrillic} {cjk}",
+    request_line = (
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 42,
+                "method": "tools/call",
+                "params": {"name": "test_unicode_tool", "arguments": {}},
             }
-        }
-        dispatch.main.__wrapped__() if hasattr(dispatch.main, "__wrapped__") else None
+        )
+        + "\n"
+    )
 
-    # Since we can't easily run main() without argparse, verify the serialization
-    # directly: json.dumps(response, ensure_ascii=False) must contain literal chars.
-    serialized = json.dumps(response, ensure_ascii=False)
-    assert cyrillic in serialized, "Cyrillic must appear as literal characters, not \\uXXXX"
-    assert cjk in serialized, "CJK must appear as literal characters, not \\uXXXX"
-    # Confirm the ASCII-escaping version would differ (sanity check for the test).
-    ascii_serialized = json.dumps(response, ensure_ascii=True)
-    assert cyrillic not in ascii_serialized, "ensure_ascii=True should escape Cyrillic"
+    captured = io.StringIO()
+    with patch("sys.stdin") as mock_stdin, patch("sys.stdout", captured):
+        mock_stdin.readline.side_effect = [request_line, ""]  # one request + EOF
+        with patch.object(dispatch, "TOOLS", fake_tools):
+            dispatch.main(argv=[])
+
+    raw_output = captured.getvalue().strip()
+    assert raw_output, "main loop must write a response line"
+    # The raw line must contain literal non-ASCII characters (not \\uXXXX escapes).
+    assert cyrillic in raw_output, f"Cyrillic must be literal chars in raw output, got: {raw_output!r}"
+    assert cjk in raw_output, f"CJK must be literal chars in raw output, got: {raw_output!r}"
+    # The raw line must also be valid JSON with the expected structure.
+    parsed = json.loads(raw_output)
+    tool_text = parsed["result"]["content"][0]["text"]
+    tool_value = json.loads(tool_text)
+    assert cyrillic in tool_value, f"Cyrillic must survive JSON round-trip, got: {tool_value!r}"
+    assert cjk in tool_value, f"CJK must survive JSON round-trip, got: {tool_value!r}"
 
 
 # ── CLI entry-point wiring (import smoke) ────────────────────────────────────

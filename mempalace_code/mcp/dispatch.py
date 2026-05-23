@@ -171,11 +171,11 @@ def main(argv=None):
         ),
     )
 
-    args = parser.parse_args(argv)
-
     from .._stdio import configure_windows_stdio
 
     configure_windows_stdio()
+
+    args = parser.parse_args(argv)
 
     tools_list = _parse_comma_list(args.tools) if args.tools else None
     include_list = _parse_comma_list(args.include) if args.include else None
