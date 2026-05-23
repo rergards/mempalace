@@ -38,9 +38,88 @@ Usage:
 import hashlib
 import json
 import os
+import re
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+# ── Temporal validation helpers ───────────────────────────────────────────
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATETIME_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|\+00:00)$")
+
+
+def _parse_temporal(value: str | None) -> date | datetime | None:
+    """Parse a temporal string to a date or datetime, or return None for blank.
+
+    Accepts: None/empty, YYYY-MM-DD, or explicit UTC ISO datetime (Z or +00:00).
+    Raises ValueError for any other format (natural language, naive datetime, etc.).
+    """
+    if not value:
+        return None
+    if _DATE_RE.match(value):
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(f"Invalid temporal value {value!r}: {exc}") from exc
+    if _DATETIME_UTC_RE.match(value):
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError(f"Invalid temporal value {value!r}: {exc}") from exc
+    raise ValueError(
+        f"Invalid temporal value {value!r}: expected YYYY-MM-DD or UTC ISO datetime"
+        " (e.g. 2026-01-01T12:00:00Z)"
+    )
+
+
+def _as_comparable(t: date | datetime | None) -> datetime | None:
+    """Normalize a date or datetime to a UTC-aware datetime for comparison."""
+    if t is None:
+        return None
+    if isinstance(t, datetime):
+        return t
+    return datetime(t.year, t.month, t.day, tzinfo=timezone.utc)
+
+
+def _validate_window(vf: date | datetime | None, vt: date | datetime | None) -> None:
+    """Raise ValueError if valid_to precedes valid_from (equal is allowed)."""
+    if vf is None or vt is None:
+        return
+    cmp_vf = _as_comparable(vf)
+    cmp_vt = _as_comparable(vt)
+    assert cmp_vf is not None and cmp_vt is not None
+    if cmp_vt < cmp_vf:
+        raise ValueError("Inverted validity window: valid_to precedes valid_from")
+
+
+def _in_window(valid_from_str: str | None, valid_to_str: str | None, as_of: date | datetime) -> bool:
+    """Return True if as_of falls within [valid_from, valid_to] (inclusive).
+
+    NULL bounds are treated as unbounded. Invalid stored temporal strings are
+    treated as unbounded (backward-compatible with pre-validation data).
+    """
+    cmp = _as_comparable(as_of)
+    assert cmp is not None
+
+    if valid_from_str is not None:
+        try:
+            vf = _as_comparable(_parse_temporal(valid_from_str))
+        except ValueError:
+            vf = None
+        if vf is not None and cmp < vf:
+            return False
+
+    if valid_to_str is not None:
+        try:
+            vt = _as_comparable(_parse_temporal(valid_to_str))
+        except ValueError:
+            vt = None
+        if vt is not None and cmp > vt:
+            return False
+
+    return True
 
 DEFAULT_KG_PATH = os.path.expanduser("~/.mempalace/knowledge_graph.sqlite3")
 
@@ -125,8 +204,10 @@ class KnowledgeGraph:
         Examples:
             add_triple("Max", "child_of", "Alice", valid_from="2015-04-01")
             add_triple("Max", "does", "swimming", valid_from="2025-01-01")
-            add_triple("Alice", "worried_about", "Max injury", valid_from="2026-01", valid_to="2026-02")
+            add_triple("Alice", "attended", "Conference", valid_from="2026-05-10", valid_to="2026-05-10")
         """
+        _validate_window(_parse_temporal(valid_from), _parse_temporal(valid_to))
+
         sub_id = self._entity_id(subject)
         obj_id = self._entity_id(obj)
         pred = predicate.lower().replace(" ", "_")
@@ -309,12 +390,34 @@ class KnowledgeGraph:
         sub_id = self._entity_id(subject)
         obj_id = self._entity_id(obj)
         pred = predicate.lower().replace(" ", "_")
-        ended = ended or date.today().isoformat()
+        ended_str = ended or date.today().isoformat()
+
+        ended_parsed = _parse_temporal(ended_str)  # raises ValueError if invalid
+        cmp_ended = _as_comparable(ended_parsed)
 
         conn = self._conn()
+
+        # Validate ended against each active row's valid_from before mutating
+        active = conn.execute(
+            "SELECT valid_from FROM triples WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
+            (sub_id, pred, obj_id),
+        ).fetchall()
+        for (vf_str,) in active:
+            if vf_str is not None:
+                try:
+                    cmp_vf = _as_comparable(_parse_temporal(vf_str))
+                except ValueError:
+                    continue  # skip rows with legacy invalid temporal strings
+                if cmp_vf is not None and cmp_ended is not None and cmp_ended < cmp_vf:
+                    conn.close()
+                    raise ValueError(
+                        f"Inverted invalidation: ended ({ended_str!r}) precedes"
+                        f" active valid_from ({vf_str!r})"
+                    )
+
         conn.execute(
             "UPDATE triples SET valid_to=? WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
-            (ended, sub_id, pred, obj_id),
+            (ended_str, sub_id, pred, obj_id),
         )
         conn.commit()
         conn.close()
@@ -326,20 +429,21 @@ class KnowledgeGraph:
         Get all relationships for an entity.
 
         direction: "outgoing" (entity → ?), "incoming" (? → entity), "both"
-        as_of: date string — only return facts valid at that time
+        as_of: ISO date or UTC datetime — only return facts valid at that time
         """
         eid = self._entity_id(name)
+        as_of_parsed = _parse_temporal(as_of)  # raises ValueError for invalid inputs
         conn = self._conn()
 
         results = []
 
         if direction in ("outgoing", "both"):
-            query = "SELECT t.*, e.name as obj_name FROM triples t JOIN entities e ON t.object = e.id WHERE t.subject = ?"
-            params = [eid]
-            if as_of:
-                query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
-                params.extend([as_of, as_of])
-            for row in conn.execute(query, params).fetchall():
+            for row in conn.execute(
+                "SELECT t.*, e.name as obj_name FROM triples t JOIN entities e ON t.object = e.id WHERE t.subject = ?",
+                (eid,),
+            ).fetchall():
+                if as_of_parsed is not None and not _in_window(row[4], row[5], as_of_parsed):
+                    continue
                 results.append(
                     {
                         "direction": "outgoing",
@@ -355,12 +459,12 @@ class KnowledgeGraph:
                 )
 
         if direction in ("incoming", "both"):
-            query = "SELECT t.*, e.name as sub_name FROM triples t JOIN entities e ON t.subject = e.id WHERE t.object = ?"
-            params = [eid]
-            if as_of:
-                query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
-                params.extend([as_of, as_of])
-            for row in conn.execute(query, params).fetchall():
+            for row in conn.execute(
+                "SELECT t.*, e.name as sub_name FROM triples t JOIN entities e ON t.subject = e.id WHERE t.object = ?",
+                (eid,),
+            ).fetchall():
+                if as_of_parsed is not None and not _in_window(row[4], row[5], as_of_parsed):
+                    continue
                 results.append(
                     {
                         "direction": "incoming",
@@ -381,21 +485,22 @@ class KnowledgeGraph:
     def query_relationship(self, predicate: str, as_of: str | None = None):
         """Get all triples with a given relationship type."""
         pred = predicate.lower().replace(" ", "_")
+        as_of_parsed = _parse_temporal(as_of)  # raises ValueError for invalid inputs
         conn = self._conn()
-        query = """
+
+        results = []
+        for row in conn.execute(
+            """
             SELECT t.*, s.name as sub_name, o.name as obj_name
             FROM triples t
             JOIN entities s ON t.subject = s.id
             JOIN entities o ON t.object = o.id
             WHERE t.predicate = ?
-        """
-        params = [pred]
-        if as_of:
-            query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
-            params.extend([as_of, as_of])
-
-        results = []
-        for row in conn.execute(query, params).fetchall():
+            """,
+            (pred,),
+        ).fetchall():
+            if as_of_parsed is not None and not _in_window(row[4], row[5], as_of_parsed):
+                continue
             results.append(
                 {
                     "subject": row[10],

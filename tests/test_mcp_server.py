@@ -611,6 +611,59 @@ class TestKGTools:
         subjects = {r["subject"] for r in data_result["facts"]}
         assert "UserRepository" in subjects
 
+    def test_kg_add_stores_full_window_and_source_metadata(self, monkeypatch, config, palace_path, kg):
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace_code.mcp_server import tool_kg_add
+
+        result = tool_kg_add(
+            subject="Alice",
+            predicate="works_at",
+            object="Corp",
+            valid_from="2026-01-01",
+            valid_to="2027-12-31",
+            source_closet="drawer_abc",
+            source_file="notes.md",
+        )
+        assert result["success"] is True
+
+        # Inspect stored metadata via iter_all_triples
+        all_rows = [r for batch in kg.iter_all_triples() for r in batch]
+        corp_row = next(r for r in all_rows if r["predicate"] == "works_at")
+        assert corp_row["valid_from"] == "2026-01-01"
+        assert corp_row["valid_to"] == "2027-12-31"
+        assert corp_row["source_closet"] == "drawer_abc"
+        assert corp_row["source_file"] == "notes.md"
+
+    def test_kg_tools_reject_invalid_temporal_arguments_before_write(
+        self, monkeypatch, config, palace_path, kg
+    ):
+        _patch_mcp_server(monkeypatch, config, palace_path, kg)
+        from mempalace_code.mcp_server import tool_kg_add, tool_kg_invalidate, tool_kg_query
+
+        before = kg.stats()["triples"]
+
+        # Invalid valid_from on add
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            tool_kg_add(subject="A", predicate="b", object="C", valid_from="next year")
+
+        # Inverted window on add
+        with pytest.raises(ValueError):
+            tool_kg_add(
+                subject="A", predicate="b", object="C",
+                valid_from="2026-06-01", valid_to="2026-01-01",
+            )
+
+        assert kg.stats()["triples"] == before
+
+        # Invalid as_of on query
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            tool_kg_query(entity="Alice", as_of="two weeks ago")
+
+        # Invalid ended on invalidate
+        kg.add_triple("X", "knows", "Y", valid_from="2026-01-01")
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            tool_kg_invalidate(subject="X", predicate="knows", object="Y", ended="last month")
+
 
 # ── Diary Tools ─────────────────────────────────────────────────────────
 

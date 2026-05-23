@@ -14,11 +14,19 @@ def tool_kg_add(
     predicate: str,
     object: str,
     valid_from: str | None = None,
+    valid_to: str | None = None,
     source_closet: str | None = None,
+    source_file: str | None = None,
 ):
     """Add a relationship to the knowledge graph."""
     triple_id = runtime._get_kg().add_triple(
-        subject, predicate, object, valid_from=valid_from, source_closet=source_closet
+        subject,
+        predicate,
+        object,
+        valid_from=valid_from,
+        valid_to=valid_to,
+        source_closet=source_closet,
+        source_file=source_file,
     )
     return {"success": True, "triple_id": triple_id, "fact": f"{subject} → {predicate} → {object}"}
 
@@ -80,11 +88,19 @@ TOOL_SPECS = {
                 "object": {"type": "string", "description": "The entity being connected to"},
                 "valid_from": {
                     "type": "string",
-                    "description": "When this became true (YYYY-MM-DD, optional)",
+                    "description": "When this became true (YYYY-MM-DD or UTC datetime, optional)",
+                },
+                "valid_to": {
+                    "type": "string",
+                    "description": "When this stopped being true (YYYY-MM-DD or UTC datetime, optional)",
                 },
                 "source_closet": {
                     "type": "string",
                     "description": "Closet ID where this fact appears (optional)",
+                },
+                "source_file": {
+                    "type": "string",
+                    "description": "Source file path where this fact was extracted (optional)",
                 },
             },
             "required": ["subject", "predicate", "object"],

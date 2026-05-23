@@ -2,8 +2,12 @@
 test_knowledge_graph.py — Tests for the temporal knowledge graph.
 
 Covers: entity CRUD, triple CRUD, temporal queries, invalidation,
-timeline, stats, and edge cases (duplicate triples, ID collisions).
+timeline, stats, edge cases (duplicate triples, ID collisions), and
+temporal validation (ISO date/datetime acceptance, natural-language
+rejection, inverted-window rejection, inclusive boundaries).
 """
+
+import pytest
 
 
 class TestEntityOperations:
@@ -137,3 +141,88 @@ class TestStats:
         assert stats["triples"] == 5
         assert stats["current_facts"] == 4  # 1 expired (Acme Corp)
         assert stats["expired_facts"] == 1
+
+
+class TestTemporalValidation:
+    def test_add_triple_accepts_iso_dates_and_utc_datetimes(self, kg):
+        # Plain ISO date
+        tid = kg.add_triple("Alice", "knows", "Bob", valid_from="2026-01-01")
+        assert tid.startswith("t_")
+
+        # UTC datetime with Z suffix
+        tid2 = kg.add_triple("Carol", "works_at", "Corp", valid_from="2026-01-01T09:00:00Z")
+        assert tid2.startswith("t_")
+
+        # UTC datetime with +00:00 suffix
+        tid3 = kg.add_triple("Dave", "uses", "Python", valid_from="2026-03-15T14:30:00+00:00")
+        assert tid3.startswith("t_")
+
+        # Query with ISO date as_of — date-based fact is visible
+        results = kg.query_entity("Alice", as_of="2026-01-15")
+        assert any(r["predicate"] == "knows" for r in results)
+
+        # Query with UTC datetime as_of — datetime-based fact is visible
+        results = kg.query_entity("Carol", as_of="2026-01-01T12:00:00Z")
+        assert any(r["predicate"] == "works_at" for r in results)
+
+    def test_add_triple_rejects_natural_language_temporal_inputs_before_write(self, kg):
+        before = kg.stats()["triples"]
+
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            kg.add_triple("Alice", "knows", "Bob", valid_from="next Monday")
+
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            kg.add_triple("Alice", "knows", "Carol", valid_from="yesterday")
+
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            kg.add_triple("Alice", "knows", "Dave", valid_to="in 3 weeks")
+
+        # as_of validation on query
+        with pytest.raises(ValueError, match="Invalid temporal"):
+            kg.query_entity("Alice", as_of="last week")
+
+        # Triple count unchanged — no partial writes
+        assert kg.stats()["triples"] == before
+
+    def test_inverted_windows_are_rejected_before_mutation(self, kg):
+        # Add a valid triple to test invalidate against
+        kg.add_triple("Alice", "works_at", "Corp", valid_from="2026-01-01")
+        before = kg.stats()["triples"]
+
+        # Inverted valid_from/valid_to on add_triple
+        with pytest.raises(ValueError):
+            kg.add_triple("Bob", "knows", "Carol", valid_from="2026-06-01", valid_to="2026-01-01")
+        assert kg.stats()["triples"] == before
+
+        # Inverted ended on invalidate (ended precedes valid_from)
+        with pytest.raises(ValueError):
+            kg.invalidate("Alice", "works_at", "Corp", ended="2025-06-01")
+
+        # Original triple remains unmodified
+        results = kg.query_entity("Alice", direction="outgoing")
+        corp_facts = [r for r in results if r["object"] == "Corp"]
+        assert len(corp_facts) == 1
+        assert corp_facts[0]["valid_to"] is None
+
+    def test_equal_window_endpoints_remain_valid_and_inclusive(self, kg):
+        # valid_from == valid_to is a single-point window — must be stored
+        tid = kg.add_triple(
+            "Alice", "attended", "Conference",
+            valid_from="2026-05-10", valid_to="2026-05-10",
+        )
+        assert tid.startswith("t_")
+
+        # Visible exactly on the boundary date
+        results = kg.query_entity("Alice", as_of="2026-05-10", direction="outgoing")
+        conf = [r for r in results if r["object"] == "Conference"]
+        assert len(conf) == 1
+
+        # Not visible the day before
+        results = kg.query_entity("Alice", as_of="2026-05-09", direction="outgoing")
+        conf = [r for r in results if r["object"] == "Conference"]
+        assert len(conf) == 0
+
+        # Not visible the day after
+        results = kg.query_entity("Alice", as_of="2026-05-11", direction="outgoing")
+        conf = [r for r in results if r["object"] == "Conference"]
+        assert len(conf) == 0
