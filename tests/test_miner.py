@@ -3123,7 +3123,6 @@ class TestDetectRoomBoundedMatching:
         f.write_text("x = 1")
         result = detect_room(f, "x = 1", self._rooms(), tmp_path)
         assert result == "research"
-        assert result != "frontend"
 
     def test_content_keyword_scoring_uses_bounded_tokens(self, tmp_path):
         """AC-4: content with 'customer interviews' scores research via bounded token matching,
@@ -3134,7 +3133,6 @@ class TestDetectRoomBoundedMatching:
         content = "customer interviews customer interviews customer interviews"
         result = detect_room(f, content, self._rooms(), tmp_path)
         assert result == "research"
-        assert result != "frontend"
 
     def test_exact_room_name_in_path_routes_correctly(self, tmp_path):
         """Exact room name as a path folder routes to that room."""
@@ -3159,7 +3157,6 @@ class TestDetectRoomBoundedMatching:
         f.write_text("x = 1")
         result = detect_room(f, "x = 1", self._rooms(), tmp_path)
         assert result == "research"
-        assert result != "frontend"
 
 
 class TestMineWithDotnetStructure:
