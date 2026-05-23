@@ -68,28 +68,6 @@ items:
       - `valid_to < valid_from` is rejected before a row is written.
       - `mempalace_kg_add` can store `valid_to`, `source_closet`, and `source_file`.
       - Tests cover valid dates, valid UTC datetimes, rejected natural-language dates, rejected inverted windows, and unchanged query/timeline behavior for valid rows.
-  - key: UPSTREAM-ENTITY-REGISTRY-ATOMIC-SAVE
-    summary: Make entity registry writes crash-safe
-    type: task
-    status: open
-    priority: high
-    size: XS
-    section_id: storage_reliability
-    labels: [upstream, parent, reliability]
-    description: |
-      ## Scope
-
-      Adapt upstream v3.3.5 entity-registry durability hardening: replace direct `Path.write_text()` saves with same-directory temp write, flush/fsync, restrictive permissions where supported, and atomic `os.replace()`.
-
-      Current fork check: `mempalace_code/entity_registry.py::EntityRegistry.save()` writes JSON directly and `load()` silently falls back to an empty registry on JSON decode errors.
-
-      Upstream evidence: MemPalace v3.3.5 #1215.
-
-      ## Acceptance criteria
-
-      - A simulated crash or write failure before rename leaves the previous registry intact.
-      - Successful saves remain valid JSON and preserve existing load behavior.
-      - File permissions are restrictive on platforms where chmod is meaningful.
   - key: UPSTREAM-WINDOWS-UTF8-STDIO
     summary: Normalize Windows CLI and MCP stdio to UTF-8
     type: task
