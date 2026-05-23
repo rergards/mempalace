@@ -43,29 +43,6 @@ sections:
 # OPEN ITEMS
 # ============================================================
 items:
-  - key: UPSTREAM-WINDOWS-UTF8-STDIO
-    summary: Normalize Windows CLI and MCP stdio to UTF-8
-    type: task
-    status: open
-    priority: medium
-    size: S
-    section_id: quality
-    labels: [upstream, parent, windows, i18n]
-    description: |
-      ## Scope
-
-      Adapt upstream v3.3.5 Windows stdio hardening so CLI and MCP entry points do not crash or mojibake on Cyrillic, CJK, or other non-ASCII drawer text when stdout/stderr use a legacy Windows code page.
-
-      Current fork check: no `_stdio` helper or entrypoint-level stream reconfiguration exists under `mempalace_code`; current tests only cover non-ASCII data paths indirectly.
-
-      Upstream evidence: MemPalace v3.3.5 #1282, #1060, and #1293.
-
-      ## Acceptance criteria
-
-      - CLI and MCP entry points reconfigure Windows stdin/stdout/stderr to UTF-8 with explicit error policies.
-      - Non-Windows platforms are unchanged.
-      - Unit tests monkeypatch platform and fake streams to verify behavior without requiring a Windows runner.
-      - A non-ASCII search or MCP response cannot fail solely because the console encoding is legacy.
   - key: UPSTREAM-SEARCH-READ-SLICES
     summary: Add line-range metadata and a surgical read path for search hits
     type: task

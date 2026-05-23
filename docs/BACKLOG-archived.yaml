@@ -851,3 +851,8 @@ items:
       resolution: '2026-05-23: completed in pipeline run'
       archived_date: "2026-05-23"
       done_summary: completed in pipeline run
+    - key: UPSTREAM-WINDOWS-UTF8-STDIO
+      summary: Normalize Windows CLI and MCP stdio to UTF-8
+      resolution: '2026-05-23: completed in pipeline run'
+      archived_date: "2026-05-23"
+      done_summary: completed in pipeline run
