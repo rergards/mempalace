@@ -16,7 +16,9 @@ Usage:
 """
 
 import json
+import os
 import re
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -309,7 +311,26 @@ class EntityRegistry:
 
     def save(self):
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._data, indent=2))
+        tmp_fd, tmp_path_str = tempfile.mkstemp(
+            dir=self._path.parent, prefix=".entity_registry_", suffix=".tmp"
+        )
+        tmp_path = Path(tmp_path_str)
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(self._data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            try:
+                os.chmod(tmp_path, 0o600)
+            except (OSError, AttributeError):
+                pass
+            os.replace(tmp_path, self._path)
+        except Exception:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     @staticmethod
     def _empty() -> dict:
