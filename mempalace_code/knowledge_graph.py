@@ -103,9 +103,7 @@ def _validate_window(vf: date | datetime | None, vt: date | datetime | None) -> 
         return
     cmp_vf = _as_comparable(vf)
     cmp_vt = _as_comparable(vt)
-    assert cmp_vf is not None
-    assert cmp_vt is not None
-    if cmp_vt < cmp_vf:
+    if cmp_vf is not None and cmp_vt is not None and cmp_vt < cmp_vf:
         raise ValueError("Inverted validity window: valid_to precedes valid_from")
 
 
@@ -118,7 +116,8 @@ def _in_window(
     treated as unbounded (backward-compatible with pre-validation data).
     """
     cmp = _as_comparable(as_of)
-    assert cmp is not None
+    if cmp is None:
+        return True
 
     if valid_from_str is not None:
         try:
@@ -281,7 +280,7 @@ class KnowledgeGraph:
         expiring type-dependency facts (implements, inherits, depends_on, etc.).
         """
         ended = ended or date.today().isoformat()
-        _parse_temporal(ended)  # raises ValueError for invalid temporal strings
+        _parse_temporal(ended)
         conn = self._conn()
         if predicates:
             placeholders = ",".join("?" * len(predicates))
@@ -309,7 +308,7 @@ class KnowledgeGraph:
         if not predicates:
             return
         ended = ended or date.today().isoformat()
-        _parse_temporal(ended)  # raises ValueError for invalid temporal strings
+        _parse_temporal(ended)
         conn = self._conn()
         placeholders = ",".join("?" * len(predicates))
         conn.execute(
@@ -348,7 +347,7 @@ class KnowledgeGraph:
         if not predicates:
             return
         ended = ended or date.today().isoformat()
-        _parse_temporal(ended)  # raises ValueError for invalid temporal strings
+        _parse_temporal(ended)
         resolved = str(Path(project_root).resolve())
         # Escape SQL LIKE wildcards in the resolved root so that '_' and '%' in
         # project paths match literally rather than as wildcards. Escape the
@@ -396,7 +395,7 @@ class KnowledgeGraph:
         release, all legacy sentinel rows have been retired.
         """
         ended = ended or date.today().isoformat()
-        _parse_temporal(ended)  # raises ValueError for invalid temporal strings
+        _parse_temporal(ended)
         obj_id = self._entity_id(wing_name)
         conn = self._conn()
         conn.execute(
@@ -414,7 +413,7 @@ class KnowledgeGraph:
         pred = predicate.lower().replace(" ", "_")
         ended_str = ended or date.today().isoformat()
 
-        ended_parsed = _parse_temporal(ended_str)  # raises ValueError if invalid
+        ended_parsed = _parse_temporal(ended_str)
         cmp_ended = _as_comparable(ended_parsed)
 
         conn = self._conn()
@@ -454,7 +453,7 @@ class KnowledgeGraph:
         as_of: ISO date or UTC datetime — only return facts valid at that time
         """
         eid = self._entity_id(name)
-        as_of_parsed = _parse_temporal(as_of)  # raises ValueError for invalid inputs
+        as_of_parsed = _parse_temporal(as_of)
         conn = self._conn()
 
         results = []
@@ -507,7 +506,7 @@ class KnowledgeGraph:
     def query_relationship(self, predicate: str, as_of: str | None = None):
         """Get all triples with a given relationship type."""
         pred = predicate.lower().replace(" ", "_")
-        as_of_parsed = _parse_temporal(as_of)  # raises ValueError for invalid inputs
+        as_of_parsed = _parse_temporal(as_of)
         conn = self._conn()
 
         results = []
