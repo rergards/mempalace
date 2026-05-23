@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-23 · UPSTREAM-KG-TEMPORAL-VALIDATION
+
+Validate KG temporal inputs (reject inverted validity windows, enforce ISO-8601 dates) and expose `valid_to` and `source_file` on `mempalace_kg_add`.
+
 Current command/package names: the CLI is `mempalace-code`, the import package is
 `mempalace_code`, and the MCP module is `python -m mempalace_code.mcp_server`.
 Older historical entries may mention legacy `mempalace` names that were valid
