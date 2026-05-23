@@ -98,7 +98,11 @@ def handle_request(request, active_registry=None):
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]},
+                "result": {
+                    "content": [
+                        {"type": "text", "text": json.dumps(result, indent=2, ensure_ascii=False)}
+                    ]
+                },
             }
         except Exception:
             logger.exception(f"Tool error in {tool_name}")
@@ -169,6 +173,10 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
 
+    from .._stdio import configure_windows_stdio
+
+    configure_windows_stdio()
+
     tools_list = _parse_comma_list(args.tools) if args.tools else None
     include_list = _parse_comma_list(args.include) if args.include else None
     exclude_list = _parse_comma_list(args.exclude) if args.exclude else None
@@ -201,7 +209,7 @@ def main(argv=None):
             request = json.loads(line)
             response = handle_request(request)
             if response is not None:
-                sys.stdout.write(json.dumps(response) + "\n")
+                sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
                 sys.stdout.flush()
         except KeyboardInterrupt:
             break

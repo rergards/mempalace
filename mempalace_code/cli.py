@@ -67,6 +67,10 @@ __all__ = [
 
 
 def main():
+    from ._stdio import configure_windows_stdio
+
+    configure_windows_stdio()
+
     parser = argparse.ArgumentParser(
         description="MemPalace — Give your AI a memory. No API key required.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
