@@ -611,7 +611,9 @@ class TestKGTools:
         subjects = {r["subject"] for r in data_result["facts"]}
         assert "UserRepository" in subjects
 
-    def test_kg_add_stores_full_window_and_source_metadata(self, monkeypatch, config, palace_path, kg):
+    def test_kg_add_stores_full_window_and_source_metadata(
+        self, monkeypatch, config, palace_path, kg
+    ):
         _patch_mcp_server(monkeypatch, config, palace_path, kg)
         from mempalace_code.mcp_server import tool_kg_add
 
@@ -647,10 +649,13 @@ class TestKGTools:
             tool_kg_add(subject="A", predicate="b", object="C", valid_from="next year")
 
         # Inverted window on add
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Inverted validity window"):
             tool_kg_add(
-                subject="A", predicate="b", object="C",
-                valid_from="2026-06-01", valid_to="2026-01-01",
+                subject="A",
+                predicate="b",
+                object="C",
+                valid_from="2026-06-01",
+                valid_to="2026-01-01",
             )
 
         assert kg.stats()["triples"] == before

@@ -190,12 +190,12 @@ class TestTemporalValidation:
         before = kg.stats()["triples"]
 
         # Inverted valid_from/valid_to on add_triple
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Inverted validity window"):
             kg.add_triple("Bob", "knows", "Carol", valid_from="2026-06-01", valid_to="2026-01-01")
         assert kg.stats()["triples"] == before
 
         # Inverted ended on invalidate (ended precedes valid_from)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Inverted invalidation"):
             kg.invalidate("Alice", "works_at", "Corp", ended="2025-06-01")
 
         # Original triple remains unmodified
@@ -207,8 +207,11 @@ class TestTemporalValidation:
     def test_equal_window_endpoints_remain_valid_and_inclusive(self, kg):
         # valid_from == valid_to is a single-point window — must be stored
         tid = kg.add_triple(
-            "Alice", "attended", "Conference",
-            valid_from="2026-05-10", valid_to="2026-05-10",
+            "Alice",
+            "attended",
+            "Conference",
+            valid_from="2026-05-10",
+            valid_to="2026-05-10",
         )
         assert tid.startswith("t_")
 
