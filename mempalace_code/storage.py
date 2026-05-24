@@ -262,8 +262,7 @@ _META_FIELD_SPEC: tuple = (
     ("source_hash", "string", ""),
     ("extractor_version", "string", ""),
     ("chunker_strategy", "string", ""),
-    # Line range metadata (UPSTREAM-SEARCH-READ-SLICES)
-    # 0 means unknown (legacy rows or chunks without exact-match).
+    # Line range metadata; 0 means unknown (legacy rows or chunks without exact-match).
     ("line_start", "int32", 0),
     ("line_end", "int32", 0),
 )

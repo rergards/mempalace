@@ -169,7 +169,7 @@ def cmd_read(args):
         print("  Run: mempalace-code init <dir> then mempalace-code mine <dir>")
         sys.exit(1)
 
-    result = read_slice(store, args.source_file, args.start, args.end, wing=getattr(args, "wing", None))
+    result = read_slice(store, args.source_file, args.start, args.end, wing=args.wing)
 
     error = result.get("error")
     if error == "not_found":
